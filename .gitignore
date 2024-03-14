@@ -1,0 +1,7 @@
+*.o
+*.depends
+coff2flat
+coff2noff
+disassemble
+readnoff
+nachos
