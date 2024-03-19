@@ -4,6 +4,7 @@
 /// All rights reserved.  See `copyright.h` for copyright notice and
 /// limitation of liability and disclaimer of warranty provisions.
 
+#include "thread_test_garden_semaphores.hh"
 #include "thread_test_garden.hh"
 #include "system.hh"
 
@@ -14,7 +15,7 @@ static const unsigned NUM_TURNSTILES = 2;
 static const unsigned ITERATIONS_PER_TURNSTILE = 50;
 static bool done[NUM_TURNSTILES];
 static int count;
-Semaphore s1 = Semaphore(NULL, 1);
+Semaphore s1 = Semaphore(NULL, 1); //Se elimina automaticamente al terminar el programa ya que no use new (malloc).
 
 static void
 Turnstile(void *n_)
@@ -36,7 +37,7 @@ Turnstile(void *n_)
 }
 
 void
-ThreadTestGarden()
+ThreadTestGardenSemaphores()
 {
     //Launch a new thread for each turnstile 
     //(except one that will be run by the main thread)

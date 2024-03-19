@@ -1,0 +1,68 @@
+idle:threads/semaphore.cc:    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+idle:threads/semaphore.cc:    interrupt->SetLevel(oldLevel);  // Re-enable interrupts.
+idle:threads/semaphore.cc:    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+idle:threads/semaphore.cc:    interrupt->SetLevel(oldLevel);
+idle:threads/main.cc:            interrupt->Halt();
+idle:threads/main.cc:                interrupt->Halt();
+idle:threads/main.cc:            interrupt->Halt();  // Once we start the console, then Nachos
+idle:threads/thread.cc:    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+idle:threads/thread.cc:    interrupt->SetLevel(oldLevel);
+idle:threads/thread.cc:    interrupt->SetLevel(INT_OFF);
+idle:threads/thread.cc:    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+idle:threads/thread.cc:    interrupt->SetLevel(oldLevel);
+idle:threads/thread.cc:    ASSERT(interrupt->GetLevel() == INT_OFF);
+idle:threads/thread.cc:        interrupt->Idle();  // No one to run, wait for an interrupt.
+idle:threads/thread.cc:    interrupt->Enable();
+idle:threads/system.cc:    if (interrupt->GetStatus() != IDLE_MODE) {
+idle:threads/system.cc:        interrupt->YieldOnReturn();
+idle:threads/system.cc:    interrupt->Enable();
+idle:userprog/debugger.cc:    interrupt->Halt();
+idle:userprog/debugger.cc:    interrupt->DumpState();
+idle:userprog/exception.cc:            interrupt->Halt();
+idle:machine/console.cc:    interrupt->Schedule(ConsoleReadPoll, this,
+idle:machine/console.cc:    interrupt->Schedule(ConsoleReadPoll, this,
+idle:machine/console.cc:    interrupt->Schedule(ConsoleWriteDone, this,
+idle:machine/mips_sim.cc:    interrupt->SetStatus(USER_MODE);
+idle:machine/mips_sim.cc:        interrupt->OneTick();
+idle:machine/machine.cc:    //ASSERT(interrupt->GetStatus() == USER_MODE);
+idle:machine/machine.cc:    interrupt->SetStatus(SYSTEM_MODE);
+idle:machine/machine.cc:    interrupt->SetStatus(USER_MODE);
+idle:machine/timer.cc:    interrupt->Schedule(TimerHandler, this, TimeOfNextInterrupt(),
+idle:machine/timer.cc:    interrupt->Schedule(TimerHandler, this, TimeOfNextInterrupt(),
+idle:machine/disk.cc:    interrupt->Schedule(DiskDone, this, ticks, DISK_INT);
+idle:machine/disk.cc:    interrupt->Schedule(DiskDone, this, ticks, DISK_INT);
+idle:machine/system_dep.cc:    if (interrupt->GetStatus() == IDLE_MODE) {
+threads/semaphore.cc:    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+threads/semaphore.cc:    interrupt->SetLevel(oldLevel);  // Re-enable interrupts.
+threads/semaphore.cc:    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+threads/semaphore.cc:    interrupt->SetLevel(oldLevel);
+threads/main.cc:            interrupt->Halt();
+threads/main.cc:                interrupt->Halt();
+threads/main.cc:            interrupt->Halt();  // Once we start the console, then Nachos
+threads/thread.cc:    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+threads/thread.cc:    interrupt->SetLevel(oldLevel);
+threads/thread.cc:    interrupt->SetLevel(INT_OFF);
+threads/thread.cc:    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+threads/thread.cc:    interrupt->SetLevel(oldLevel);
+threads/thread.cc:    ASSERT(interrupt->GetLevel() == INT_OFF);
+threads/thread.cc:        interrupt->Idle();  // No one to run, wait for an interrupt.
+threads/thread.cc:    interrupt->Enable();
+threads/system.cc:    if (interrupt->GetStatus() != IDLE_MODE) {
+threads/system.cc:        interrupt->YieldOnReturn();
+threads/system.cc:    interrupt->Enable();
+userprog/debugger.cc:    interrupt->Halt();
+userprog/debugger.cc:    interrupt->DumpState();
+userprog/exception.cc:            interrupt->Halt();
+machine/console.cc:    interrupt->Schedule(ConsoleReadPoll, this,
+machine/console.cc:    interrupt->Schedule(ConsoleReadPoll, this,
+machine/console.cc:    interrupt->Schedule(ConsoleWriteDone, this,
+machine/mips_sim.cc:    interrupt->SetStatus(USER_MODE);
+machine/mips_sim.cc:        interrupt->OneTick();
+machine/machine.cc:    //ASSERT(interrupt->GetStatus() == USER_MODE);
+machine/machine.cc:    interrupt->SetStatus(SYSTEM_MODE);
+machine/machine.cc:    interrupt->SetStatus(USER_MODE);
+machine/timer.cc:    interrupt->Schedule(TimerHandler, this, TimeOfNextInterrupt(),
+machine/timer.cc:    interrupt->Schedule(TimerHandler, this, TimeOfNextInterrupt(),
+machine/disk.cc:    interrupt->Schedule(DiskDone, this, ticks, DISK_INT);
+machine/disk.cc:    interrupt->Schedule(DiskDone, this, ticks, DISK_INT);
+machine/system_dep.cc:    if (interrupt->GetStatus() == IDLE_MODE) {

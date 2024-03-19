@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "semaphore.hh"
+//#include "semaphore.hh"
 
 
 /// Loop 10 times, yielding the CPU to another ready thread each iteration.
@@ -38,7 +38,7 @@ SimpleThread(void *name_)
         #endif
 
         printf("*** Thread `%s` is running: iteration %u\n", currentThread->GetName(), num);
-        
+                
         #ifdef SEMAPHORE_TEST
         s.V();
         #endif

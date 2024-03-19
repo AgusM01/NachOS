@@ -120,7 +120,7 @@ Interrupt::SetLevel(IntStatus now)
     ASSERT(now == INT_OFF || !inHandler);
 
     ChangeLevel(old, now);  /// Change to new state.
-    if (now == INT_ON && old == INT_OFF) {
+    if (now == INT_ON && old == INT_OFF) { //Avanza el tiempo simulado ya que estaba ejecutando codigo kernel y no puede ejecutar pedidos mientras tanto. De esta manera avanza el tiempo y checkea en la lista de "interrupciones programadas" si hay algo para ajecutar (random cambio de contexto por ejemplo"
         OneTick();  /// Advance simulated time.
     }
     return old;
