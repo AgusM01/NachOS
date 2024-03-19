@@ -60,6 +60,8 @@ Semaphore::GetName() const
 void
 Semaphore::P()
 {
+    DEBUG('t', "Hago P, soy %s\n", currentThread->GetName());
+
     IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
       // Disable interrupts.
 
@@ -70,6 +72,7 @@ Semaphore::P()
     value--;  // Semaphore available, consume its value.
 
     interrupt->SetLevel(oldLevel);  // Re-enable interrupts.
+    
 }
 
 /// Increment semaphore value, waking up a waiter if necessary.
@@ -80,6 +83,8 @@ Semaphore::P()
 void
 Semaphore::V()
 {
+    DEBUG('t', "Hago V, soy %s\n", currentThread->GetName());
+    
     IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
 
     Thread *thread = queue->Pop();
