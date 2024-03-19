@@ -10,7 +10,7 @@
 
 #include <stdio.h>
 #include <string.h>
-
+#include "semaphore.hh"
 
 /// Loop 10 times, yielding the CPU to another ready thread each iteration.
 ///
@@ -18,10 +18,12 @@
 ///   purposes.
 
 bool threadsDone[4] = {false};
+Semaphore s = Semaphore(NULL,3);
 void
 SimpleThread(void *name_)
 {
-
+    s.P();
+    DEBUG('t', "---hice un P %s\n", currentThread->GetName());
     // If the lines dealing with interrupts are commented, the code will
     // behave incorrectly, because printf execution may cause race
     // conditions.
@@ -29,6 +31,8 @@ SimpleThread(void *name_)
         printf("*** Thread `%s` is running: iteration %u\n", currentThread->GetName(), num);
         currentThread->Yield();
     }
+    s.V();
+    DEBUG('t', "---hice un V %s\n", currentThread->GetName());
 
     threadsDone[currentThread->GetName()[0] - '2'] = true;
 

@@ -7,26 +7,28 @@
 
 #include "thread_test_garden.hh"
 #include "system.hh"
-
+#include "semaphore.hh"
 #include <stdio.h>
-
+#include "lock.hh"
 
 static const unsigned NUM_TURNSTILES = 2;
 static const unsigned ITERATIONS_PER_TURNSTILE = 50;
 static bool done[NUM_TURNSTILES];
 static int count;
-
+Semaphore sem = Semaphore(NULL,1);
 static void
 Turnstile(void *n_)
 {
     unsigned *n = (unsigned *) n_;
 
     for (unsigned i = 0; i < ITERATIONS_PER_TURNSTILE; i++) {
+        sem.P();
         int temp = count;
         printf("Turnstile %u yielding with temp=%u.\n", *n, temp);
         currentThread->Yield();
         printf("Turnstile %u back with temp=%u.\n", *n, temp);
         count = temp + 1;
+        sem.V();
         currentThread->Yield();
     }
     printf("Turnstile %u finished. Count is now %u.\n", *n, count);
