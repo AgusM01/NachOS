@@ -353,6 +353,7 @@ ThreadTestSimple()
 ```
 ### Modifique el caso de prueba para que estos cinco hilos utilicen un semáforo inicializado en 3. Esto debe ocurrir solo si se define la macro de compilación SEMAPHORE_TEST.
 ```C++
+// La constante SEMAPHORE_TEST está definida en semaphore.hh
 #ifdef SEMAPHORE_TEST
 Semaphore s = new Semaphore(NULL,3);
 #endif
