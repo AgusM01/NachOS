@@ -409,3 +409,107 @@ ThreadTestSimple()
     printf("Test finished\n");
 }
 ```
+
++++ Agregue al caso anterior una línea de depuración que diga cuándo cada hilo hace un P() y cuándo un V(). La salida debe verse por pantalla solamente si se activa la bandera de depuración correspondiente.
+
+```C++
+void
+Semaphore::P()
+{
+    DEBUG('t', "Hago P, soy %s\n", currentThread->GetName());
+
+    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+      // Disable interrupts.
+
+    while (value == 0) {  // Semaphore not available.
+        queue->Append(currentThread);  // So go to sleep.
+        currentThread->Sleep();
+    }
+    value--;  // Semaphore available, consume its value.
+
+    interrupt->SetLevel(oldLevel);  // Re-enable interrupts.
+    
+}
+void
+Semaphore::V()
+{
+    DEBUG('t', "Hago V, soy %s\n", currentThread->GetName());
+    
+    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+
+    Thread *thread = queue->Pop();
+    if (thread != nullptr) {
+        // Make thread ready, consuming the `V` immediately.
+        scheduler->ReadyToRun(thread);
+    }
+    value++;
+
+    interrupt->SetLevel(oldLevel);
+}
+```
+
++++ En threads se provee un caso de prueba que implementa el jardín ornamental. Sin embargo, el resultado es erróneo. Corríjalo de forma que se mantengan los cambios de contexto, sin agregar nuevas variables.
+```C++
+static void
+Turnstile(void *n_)
+{
+    unsigned *n = (unsigned *) n_;
+
+    for (unsigned i = 0; i < ITERATIONS_PER_TURNSTILE; i++) {
+        currentThread->Yield();
+        int temp = count;
+        printf("Turnstile %u yielding with temp=%u.\n", *n, temp);
+        //currentThread->Yield();
+        printf("Turnstile %u back with temp=%u.\n", *n, temp);
+        count = temp + 1;
+        sem.V();
+        currentThread->Yield();
+    }
+    printf("Turnstile %u finished. Count is now %u.\n", *n, count);
+    done[*n] = true;
+}
+```
++++ Replique el jardín ornamental en un nuevo caso de prueba. Revierta la solución anterior
+y solucione el problema usando semáforos esta vez.
+
+```C++
+Semaphore s1 = Semaphore(NULL, 1);
+
+static void
+Turnstile(void *n_)
+{
+    unsigned *n = (unsigned *) n_;
+
+    for (unsigned i = 0; i < ITERATIONS_PER_TURNSTILE; i++) {
+        s1.P();
+        int temp = count;Semaphore s1 = Semaphore(NULL, 1);
+
+static void
+Turnstile(void *n_)
+{
+    unsigned *n = (unsigned *) n_;
+
+    for (unsigned i = 0; i < ITERATIONS_PER_TURNSTILE; i++) {
+        s1.P();
+        int temp = count;
+        printf("Turnstile %u yielding with temp=%u.\n", *n, temp);
+        currentThread->Yield();
+        printf("Turnstile %u back with temp=%u.\n", *n, temp);
+        count = temp + 1;
+        s1.V();
+        currentThread->Yield();
+    }
+    printf("Turnstile %u finished. Count is now %u.\n", *n, count);
+    done[*n] = true;
+}
+        printf("Turnstile %u yielding with temp=%u.\n", *n, temp);
+        currentThread->Yield();
+        printf("Turnstile %u back with temp=%u.\n", *n, temp);
+        count = temp + 1;
+        s1.V();
+        currentThread->Yield();
+    }
+    printf("Turnstile %u finished. Count is now %u.\n", *n, count);
+    done[*n] = true;
+}
+```

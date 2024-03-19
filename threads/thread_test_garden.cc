@@ -22,11 +22,7 @@ Turnstile(void *n_)
     unsigned *n = (unsigned *) n_;
 
     for (unsigned i = 0; i < ITERATIONS_PER_TURNSTILE; i++) {
-<<<<<<< HEAD
-        sem.P();
-=======
         currentThread->Yield();
->>>>>>> a552d5a34ba5d0242d47027359c342eac4319f8c
         int temp = count;
         printf("Turnstile %u yielding with temp=%u.\n", *n, temp);
         //currentThread->Yield();

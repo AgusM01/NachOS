@@ -10,13 +10,9 @@
 
 #include <stdio.h>
 #include <string.h>
-<<<<<<< HEAD
-#include "semaphore.hh"
-=======
 
 #include "semaphore.hh"
 
->>>>>>> a552d5a34ba5d0242d47027359c342eac4319f8c
 
 /// Loop 10 times, yielding the CPU to another ready thread each iteration.
 ///
@@ -24,14 +20,6 @@
 ///   purposes.
 
 bool threadsDone[4] = {false};
-<<<<<<< HEAD
-Semaphore s = Semaphore(NULL,3);
-void
-SimpleThread(void *name_)
-{
-    s.P();
-    DEBUG('t', "---hice un P %s\n", currentThread->GetName());
-=======
 
 #ifdef SEMAPHORE_TEST
 Semaphore s = Semaphore(NULL,3);
@@ -40,7 +28,6 @@ Semaphore s = Semaphore(NULL,3);
 void
 SimpleThread(void *name_)
 {
->>>>>>> a552d5a34ba5d0242d47027359c342eac4319f8c
     // If the lines dealing with interrupts are commented, the code will
     // behave incorrectly, because printf execution may cause race
     // conditions.
@@ -57,12 +44,6 @@ SimpleThread(void *name_)
         #endif
         currentThread->Yield();
     }
-<<<<<<< HEAD
-    s.V();
-    DEBUG('t', "---hice un V %s\n", currentThread->GetName());
-
-=======
->>>>>>> a552d5a34ba5d0242d47027359c342eac4319f8c
     threadsDone[currentThread->GetName()[0] - '2'] = true;
 
     printf("!!! Thread `%s` has finished SimpleThread\n", currentThread->GetName());
