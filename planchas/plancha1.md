@@ -174,4 +174,52 @@ Estas contantes se encuentran definidas en los archivos MakeFile
 
 ### ¿Qué argumentos de línea de comandos admite Nachos? ¿Qué efecto tiene la opción **-rs**?
 
+### Modifique el caso de prueba simple del directorio threads para que se generen 5 hilos en lugar de 2.
 
+```C++
+bool threadsDone[4] = {false};
+
+void
+SimpleThread(void *name_)
+{
+
+    for (unsigned num = 0; num < 10; num++) {
+        printf("*** Thread `%s` is running: iteration %u\n", currentThread->GetName(), num);
+        currentThread->Yield();
+    }
+
+    int i = currentThread->GetName()[0] - '2';
+
+    if (i != ('m' - '2')) {
+        threadsDone[i] = true; // Si
+    }
+
+    printf("!!! Thread `%s` has finished SimpleThread\n", currentThread->GetName());
+}
+
+/// Set up a ping-pong between several threads.
+///
+/// Do it by launching one thread which calls `SimpleThread`, and finally
+/// calling `SimpleThread` on the current thread.
+void
+ThreadTestSimple()
+{
+    const char* t[4] = {"2nd", "3rd", "4th", "5th"};
+    for (int i = 0; i < 4; i++){
+        Thread *newThread = new Thread(t[i]);
+        newThread->Fork(SimpleThread, NULL);
+    }
+    
+    //the "main" thread also executes the same function
+    SimpleThread(NULL);
+
+   //Wait for the 2nd thread to finish if needed
+    while (!(threadsDone[0] && 
+             threadsDone[1] &&
+             threadsDone[2] &&
+             threadsDone[3])){
+        currentThread->Yield(); 
+    }
+    printf("Test finished\n");
+}
+```
