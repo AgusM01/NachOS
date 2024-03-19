@@ -351,3 +351,60 @@ ThreadTestSimple()
     printf("Test finished\n");
 }
 ```
+### Modifique el caso de prueba para que estos cinco hilos utilicen un semáforo inicializado en 3. Esto debe ocurrir solo si se define la macro de compilación SEMAPHORE_TEST.
+```C++
+#ifdef SEMAPHORE_TEST
+Semaphore s = new Semaphore(NULL,3);
+#endif
+bool threadsDone[4] = {false};
+
+void
+SimpleThread(void *name_)
+{
+
+    for (unsigned num = 0; num < 10; num++) {
+        #ifdef SEMAPHORE_TEST
+        s.P();
+        #endif
+        printf("*** Thread `%s` is running: iteration %u\n", currentThread->GetName(), num);
+        #ifdef SEMAPHORE_TEST
+        s.V();
+        #endif
+        currentThread->Yield();
+    }
+
+    int i = currentThread->GetName()[0] - '2';
+
+    if (i != ('m' - '2')) {
+        threadsDone[i] = true; // Si
+    }
+
+    printf("!!! Thread `%s` has finished SimpleThread\n", currentThread->GetName());
+}
+
+/// Set up a ping-pong between several threads.
+///
+/// Do it by launching one thread which calls `SimpleThread`, and finally
+/// calling `SimpleThread` on the current thread.
+void
+ThreadTestSimple()
+{
+    const char* t[4] = {"2nd", "3rd", "4th", "5th"};
+    for (int i = 0; i < 4; i++){
+        Thread *newThread = new Thread(t[i]);
+        newThread->Fork(SimpleThread, NULL);
+    }
+    
+    //the "main" thread also executes the same function
+    SimpleThread(NULL);
+
+   //Wait for the 2nd thread to finish if needed
+    while (!(threadsDone[0] && 
+             threadsDone[1] &&
+             threadsDone[2] &&
+             threadsDone[3])){
+        currentThread->Yield(); 
+    }
+    printf("Test finished\n");
+}
+```
