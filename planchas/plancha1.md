@@ -300,6 +300,8 @@ Filesystem:\n\
       FREE_MAP_FILE_SIZE, NUM_DIR_ENTRIES, DIRECTORY_FILE_SIZE);
 }
 ```
+### List vs SynchList
+List es una lista simplemente enlazada mientras que SynchList es tambien una lista simplemente enlazada pero soporta concurrencia de threads, esto lo logra gracias a un lock privado que lo utilizan los threads cada vez que se quiere agregar o eliminar un elemento.
 ### Modifique el caso de prueba simple del directorio threads para que se generen 5 hilos en lugar de 2.
 
 ```C++
