@@ -351,3 +351,165 @@ ThreadTestSimple()
     printf("Test finished\n");
 }
 ```
+### Modifique el caso de prueba para que estos cinco hilos utilicen un semáforo inicializado en 3. Esto debe ocurrir solo si se define la macro de compilación SEMAPHORE_TEST.
+```C++
+// La constante SEMAPHORE_TEST está definida en semaphore.hh
+#ifdef SEMAPHORE_TEST
+Semaphore s = new Semaphore(NULL,3);
+#endif
+bool threadsDone[4] = {false};
+
+void
+SimpleThread(void *name_)
+{
+
+    for (unsigned num = 0; num < 10; num++) {
+        #ifdef SEMAPHORE_TEST
+        s.P();
+        #endif
+        printf("*** Thread `%s` is running: iteration %u\n", currentThread->GetName(), num);
+        #ifdef SEMAPHORE_TEST
+        s.V();
+        #endif
+        currentThread->Yield();
+    }
+
+    int i = currentThread->GetName()[0] - '2';
+
+    if (i != ('m' - '2')) {
+        threadsDone[i] = true; // Si
+    }
+
+    printf("!!! Thread `%s` has finished SimpleThread\n", currentThread->GetName());
+}
+
+/// Set up a ping-pong between several threads.
+///
+/// Do it by launching one thread which calls `SimpleThread`, and finally
+/// calling `SimpleThread` on the current thread.
+void
+ThreadTestSimple()
+{
+    const char* t[4] = {"2nd", "3rd", "4th", "5th"};
+    for (int i = 0; i < 4; i++){
+        Thread *newThread = new Thread(t[i]);
+        newThread->Fork(SimpleThread, NULL);
+    }
+    
+    //the "main" thread also executes the same function
+    SimpleThread(NULL);
+
+   //Wait for the 2nd thread to finish if needed
+    while (!(threadsDone[0] && 
+             threadsDone[1] &&
+             threadsDone[2] &&
+             threadsDone[3])){
+        currentThread->Yield(); 
+    }
+    printf("Test finished\n");
+}
+```
+
++++ Agregue al caso anterior una línea de depuración que diga cuándo cada hilo hace un P() y cuándo un V(). La salida debe verse por pantalla solamente si se activa la bandera de depuración correspondiente.
+
+```C++
+void
+Semaphore::P()
+{
+    DEBUG('t', "Hago P, soy %s\n", currentThread->GetName());
+
+    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+      // Disable interrupts.
+
+    while (value == 0) {  // Semaphore not available.
+        queue->Append(currentThread);  // So go to sleep.
+        currentThread->Sleep();
+    }
+    value--;  // Semaphore available, consume its value.
+
+    interrupt->SetLevel(oldLevel);  // Re-enable interrupts.
+    
+}
+void
+Semaphore::V()
+{
+    DEBUG('t', "Hago V, soy %s\n", currentThread->GetName());
+    
+    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+
+    Thread *thread = queue->Pop();
+    if (thread != nullptr) {
+        // Make thread ready, consuming the `V` immediately.
+        scheduler->ReadyToRun(thread);
+    }
+    value++;
+
+    interrupt->SetLevel(oldLevel);
+}
+```
+
++++ En threads se provee un caso de prueba que implementa el jardín ornamental. Sin embargo, el resultado es erróneo. Corríjalo de forma que se mantengan los cambios de contexto, sin agregar nuevas variables.
+```C++
+static void
+Turnstile(void *n_)
+{
+    unsigned *n = (unsigned *) n_;
+
+    for (unsigned i = 0; i < ITERATIONS_PER_TURNSTILE; i++) {
+        currentThread->Yield();
+        int temp = count;
+        printf("Turnstile %u yielding with temp=%u.\n", *n, temp);
+        //currentThread->Yield();
+        printf("Turnstile %u back with temp=%u.\n", *n, temp);
+        count = temp + 1;
+        sem.V();
+        currentThread->Yield();
+    }
+    printf("Turnstile %u finished. Count is now %u.\n", *n, count);
+    done[*n] = true;
+}
+```
++++ Replique el jardín ornamental en un nuevo caso de prueba. Revierta la solución anterior
+y solucione el problema usando semáforos esta vez.
+
+```C++
+Semaphore s1 = Semaphore(NULL, 1);
+
+static void
+Turnstile(void *n_)
+{
+    unsigned *n = (unsigned *) n_;
+
+    for (unsigned i = 0; i < ITERATIONS_PER_TURNSTILE; i++) {
+        s1.P();
+        int temp = count;Semaphore s1 = Semaphore(NULL, 1);
+
+static void
+Turnstile(void *n_)
+{
+    unsigned *n = (unsigned *) n_;
+
+    for (unsigned i = 0; i < ITERATIONS_PER_TURNSTILE; i++) {
+        s1.P();
+        int temp = count;
+        printf("Turnstile %u yielding with temp=%u.\n", *n, temp);
+        currentThread->Yield();
+        printf("Turnstile %u back with temp=%u.\n", *n, temp);
+        count = temp + 1;
+        s1.V();
+        currentThread->Yield();
+    }
+    printf("Turnstile %u finished. Count is now %u.\n", *n, count);
+    done[*n] = true;
+}
+        printf("Turnstile %u yielding with temp=%u.\n", *n, temp);
+        currentThread->Yield();
+        printf("Turnstile %u back with temp=%u.\n", *n, temp);
+        count = temp + 1;
+        s1.V();
+        currentThread->Yield();
+    }
+    printf("Turnstile %u finished. Count is now %u.\n", *n, count);
+    done[*n] = true;
+}
+```
