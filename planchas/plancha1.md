@@ -173,6 +173,39 @@ trolan mediante las siguientes banderas.
 Estas contantes se encuentran definidas en los archivos MakeFile
 
 ### ¿Qué argumentos de línea de comandos admite Nachos? ¿Qué efecto tiene la opción **-rs**?
+## Opciones generales
+--------------------
+
+* **-d**   -- causa que ciertos mensajes de depuración se impriman (cf. utility.hh).
+* **-do**  -- habilita opciones que modifican el comportamiento al imprimir mensajes de depuración.
+* **-rs**  -- provoca que Yield ocurra en lugares aleatorios (pero repetibles).
+* **-z**   -- imprime información de versión y derechos de autor, y sale.
+* **-m**   -- tamaño de la memoria física emulada (en páginas)
+
+## Opciones de HILOS
+--------------------
+
+* **-tt**  -- prueba el subsistema de hilos; se le pide al usuario que elija una prueba para ejecutar de una colección de pruebas disponibles.
+* **-tN**  -- ejecuta la N-ésima prueba.
+
+## Opciones de PROGRAMA DE USUARIO
+--------------------------------
+
+* **-s**   -- hace que los programas de usuario se ejecuten en modo de un solo paso.
+* **-x**   -- ejecuta un programa de usuario.
+* **-tc**  -- prueba la consola.
+
+## Opciones de FILESYS
+---------------------
+
+* **-f**   -- provoca que el disco físico se formatee.
+* **-cp**  -- copia un archivo de UNIX a Nachos.
+* **-pr**  -- imprime un archivo Nachos en la salida estándar.
+* **-rm**  -- elimina un archivo Nachos del sistema de archivos.
+* **-ls**  -- lista el contenido del directorio Nachos.
+* **-D**   -- imprime el contenido de todo el sistema de archivos.
+* **-c**   -- verifica la integridad del sistema de archivos.
+* **-tf**  -- prueba el rendimiento del sistema de archivos Nachos.
 
 ### Modifique el caso de prueba simple del directorio threads para que se generen 5 hilos en lugar de 2.
 
