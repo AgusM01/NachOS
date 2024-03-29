@@ -270,7 +270,7 @@ Thread::StackAllocate(VoidFunctionPtr func, void *arg)
     // x86 passes the return address on the stack.  In order for `SWITCH` to
     // go to `ThreadRoot` when we switch to this thread, the return address
     // used in `SWITCH` must be the starting address of `ThreadRoot`.
-    *--stackTop = (uintptr_t) ThreadRoot;
+    *--stackTop = (uintptr_t) ThreadRoot; // ThreadRoot hace que el hilo ejecute la funcion con la que fué llamada. Implementada en assembler. 
 
     *stack = STACK_FENCEPOST;
 

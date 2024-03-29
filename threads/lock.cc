@@ -16,15 +16,24 @@
 
 
 #include "lock.hh"
-
+#include "semaphore.hh"
+#include "system.hh"
+#include <limits>
+#include <stdio.h>
 
 /// Dummy functions -- so we can compile our later assignments.
 
 Lock::Lock(const char *debugName)
-{}
+{
+    mutex = new Semaphore(NULL, 1);
+    name = NULL;    
+}
 
 Lock::~Lock()
-{}
+{
+    /*el mutex creado por new en constructor.*/
+    delete mutex;
+}
 
 const char *
 Lock::GetName() const
@@ -35,18 +44,28 @@ Lock::GetName() const
 void
 Lock::Acquire()
 {
-    // TODO
+    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+    ASSERT(!(IsHeldByCurrentThread()));
+    mutex->P();
+    name = currentThread->GetName();
+    interrupt->SetLevel(oldLevel);  // Re-enable interrupts.
 }
 
 void
 Lock::Release()
 {
-    // TODO
+    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+
+    ASSERT(IsHeldByCurrentThread());
+    mutex->V();
+    name = NULL;
+    interrupt->SetLevel(oldLevel);  // Re-enable interrupts.
+
 }
 
 bool
 Lock::IsHeldByCurrentThread() const
 {
-    // TODO
-    return false;
+    return  (GetName() == currentThread->GetName());
+    //return false;
 }
