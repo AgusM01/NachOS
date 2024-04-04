@@ -57,8 +57,8 @@ Lock::Release()
 {
     //IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
     ASSERT(IsHeldByCurrentThread());
-    mutex->V();
     Current = NULL;
+    mutex->V();
     //interrupt->SetLevel(oldLevel);  // Re-enable interrupts.
 
 }

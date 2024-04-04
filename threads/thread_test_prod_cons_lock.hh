@@ -4,11 +4,11 @@
 /// All rights reserved.  See `copyright.h` for copyright notice and
 /// limitation of liability and disclaimer of warranty provisions.
 
-#ifndef NACHOS_THREADS_THREADTESTPRODCONS__HH
-#define NACHOS_THREADS_THREADTESTPRODCONS__HH
+#ifndef NACHOS_THREADS_THREADTESTPRODCONS_LOCK__HH
+#define NACHOS_THREADS_THREADTESTPRODCONS_LOCK__HH
 
 
-void ThreadTestProdCons();
+void ThreadTestProdConsLock();
 
 
 #endif

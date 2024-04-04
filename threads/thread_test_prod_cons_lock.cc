@@ -5,56 +5,57 @@
 /// limitation of liability and disclaimer of warranty provisions.
 
 
-#include "thread_test_prod_cons.hh"
+#include "thread_test_prod_cons_lock.hh"
 #include "system.hh"
 #include "lock.hh"
+#include "condition.hh"
 #include <stdio.h>
 
 #define BUFSIZE 10
 
-int itemCount = 0;
-Lock mutex = Lock("mutex 1"); 
+int itemCountLock = 0;
+Lock mutexLock = Lock("mutex 1");
 
-void producer(void *name_){
+void producer_lock(void *name_){
     while(1){
-        mutex.Acquire();
-        if (itemCount < BUFSIZE){
+        mutexLock.Acquire();
+        if (itemCountLock < BUFSIZE){
             currentThread->Yield();
-            itemCount++;
+            itemCountLock++;
             currentThread->Yield();
         }
-        mutex.Release();
-        if (itemCount > 10)
-            printf("Soy productor, itemCount: %d\n", itemCount);
+        mutexLock.Release();
+        if (itemCountLock > 10)
+            printf("Soy productor, itemCount: %d\n", itemCountLock);
         currentThread->Yield();
     }
 }
 
-void consumer(void *name_){
+void consumer_lock(void *name_){
     while(1){
-        mutex.Acquire();
-        if (itemCount > 0){
+        mutexLock.Acquire();
+        if (itemCountLock > 0){
             currentThread->Yield();
-            itemCount--;
+            itemCountLock--;
             currentThread->Yield();
         }
-        mutex.Release();
-        if (itemCount < 0)
-            printf("Soy consumidor, itemCount: %d\n", itemCount);
+        mutexLock.Release();
+        if (itemCountLock < 0)
+            printf("Soy consumidor, itemCount: %d\n", itemCountLock);
         currentThread->Yield();
     }
 }
 void
-ThreadTestProdCons()
+ThreadTestProdConsLock()
 {
    const char* n[10] = {"t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8", "t9", "t10"};
     for (int i = 0; i < 10; i++){
         Thread *newThread = new Thread(n[i]); 
         if (i % 2){
-            newThread->Fork(producer, NULL);
+            newThread->Fork(producer_lock, NULL);
         }
         else{
-            newThread->Fork(consumer, NULL);
+            newThread->Fork(consumer_lock, NULL);
         }
     }
 
@@ -63,4 +64,3 @@ ThreadTestProdCons()
     }
     return;
 }
-
