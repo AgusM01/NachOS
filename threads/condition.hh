@@ -19,6 +19,7 @@
 
 
 #include "lock.hh"
+//#include "synch_list.hh"
 
 
 /// This class defines a “condition variable”.
@@ -75,8 +76,11 @@ public:
 private:
 
     const char *name;
-
+    
     // Other needed fields are to be added here.
+    int cont;
+    Semaphore* queue;
+    Lock* condLock;
 };
 
 

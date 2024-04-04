@@ -17,13 +17,13 @@ Lock mutex = Lock("mutex 1");
 
 void producer(void *name_){
     while(1){
+        mutex.Acquire();
         if (itemCount < BUFSIZE){
-            mutex.Acquire();
             currentThread->Yield();
             itemCount++;
             currentThread->Yield();
-            mutex.Release();
         }
+        mutex.Release();
         if (itemCount > 10)
             printf("Soy productor, itemCount: %d\n", itemCount);
         currentThread->Yield();
@@ -32,13 +32,13 @@ void producer(void *name_){
 
 void consumer(void *name_){
     while(1){
+        mutex.Acquire();
         if (itemCount > 0){
             currentThread->Yield();
-            mutex.Acquire();
             itemCount--;
             currentThread->Yield();
-            mutex.Release();
         }
+        mutex.Release();
         if (itemCount < 0)
             printf("Soy consumidor, itemCount: %d\n", itemCount);
         currentThread->Yield();

@@ -23,12 +23,15 @@
 
 Condition::Condition(const char *debugName, Lock *conditionLock)
 {
-    // TODO
+    queue = new Semaphore(NULL, 0);
+    condLock = conditionLock;
+    cont = 0;
+    name = debugName;
 }
 
 Condition::~Condition()
 {
-    // TODO
+    delete queue;
 }
 
 const char *
@@ -38,19 +41,27 @@ Condition::GetName() const
 }
 
 void
-Condition::Wait()
+Condition::Wait() /*Preguntar atomicidad*/
 {
-    // TODO
+    cont++;
+    condLock->Release();
+    queue->P();
+    condLock->Acquire();
 }
 
 void
 Condition::Signal()
-{
-    // TODO
+{   
+    queue->V();
+    cont--;
 }
 
 void
 Condition::Broadcast()
 {
-    // TODO
+    while (cont > 0){
+        queue->V();
+        cont--;
+    }
+        
 }

@@ -26,7 +26,8 @@
 Lock::Lock(const char *debugName)
 {
     mutex = new Semaphore(NULL, 1);
-    name = NULL;    
+    name = debugName;
+    Current = NULL;
 }
 
 Lock::~Lock()
@@ -44,28 +45,26 @@ Lock::GetName() const
 void
 Lock::Acquire()
 {
-    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+    //IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
     ASSERT(!(IsHeldByCurrentThread()));
     mutex->P();
-    name = currentThread->GetName();
-    interrupt->SetLevel(oldLevel);  // Re-enable interrupts.
+    Current = currentThread;
+    //interrupt->SetLevel(oldLevel);  // Re-enable interrupts.
 }
 
 void
 Lock::Release()
 {
-    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
-
+    //IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
     ASSERT(IsHeldByCurrentThread());
     mutex->V();
-    name = NULL;
-    interrupt->SetLevel(oldLevel);  // Re-enable interrupts.
+    Current = NULL;
+    //interrupt->SetLevel(oldLevel);  // Re-enable interrupts.
 
 }
 
 bool
 Lock::IsHeldByCurrentThread() const
 {
-    return  (GetName() == currentThread->GetName());
-    //return false;
+    return  (Current == currentThread);
 }

@@ -60,7 +60,7 @@ private:
 
     // Add other needed fields here.
     Semaphore* mutex; //Todo con new, inicializarlo en el constructor.
-//    const char* Current;  
+    Thread* Current;  
 };
 
 
