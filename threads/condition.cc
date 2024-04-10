@@ -52,8 +52,10 @@ Condition::Wait() /*Preguntar atomicidad*/
 void
 Condition::Signal()
 {   
-    queue->V();
-    cont--;
+    if (cont > 0) {
+        queue->V();
+        cont--;
+    }
 }
 
 void

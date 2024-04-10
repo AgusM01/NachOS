@@ -16,9 +16,11 @@
 
 int buf[BUFSIZE];
 int posBuf = 0;
+int endFlag = 0;
 
 Lock mutexVc = Lock("mutex 1");
-Condition cv = Condition(NULL, &mutexVc);
+Condition cvProducers = Condition(NULL, &mutexVc);
+Condition cvConsumers = Condition(NULL, &mutexVc);
 
 void producer(void *name_){
     for (int i = 0; i < MAX; i++){
@@ -26,41 +28,46 @@ void producer(void *name_){
         mutexVc.Acquire();
         while (posBuf == 3){
             printf("Productor esperando (buffer lleno)\n");
-            cv.Wait();
+            cvProducers.Wait();
         }
         printf("Productor produce: %d en %d\n", i, posBuf);
         buf[posBuf] = i;
         posBuf++;
         if (posBuf == 1)
-            cv.Signal();
+            cvConsumers.Signal();
         mutexVc.Release();
     }
+    mutexVc.Acquire();
+    endFlag++;
+    mutexVc.Release();
 }
 
 void consumer(void *name_){
     for (int i = 0; i < MAX; i++){
         mutexVc.Acquire();
-        if (posBuf == 0){
-            puts("entro");
-            cv.Signal();
-        }
         while (posBuf == 0){
             printf("Consumidor esperando (buffer vacio)\n");
-            cv.Wait();
+            cvConsumers.Wait();
         }
-        printf("Consumidor consume: %d en %d\n", buf[posBuf], posBuf);
         posBuf--;
+        printf("Consumidor consume: %d en %d\n", buf[posBuf], posBuf);
+        if (posBuf == 2)
+            cvProducers.Signal();
         
         mutexVc.Release();
     }
+    mutexVc.Acquire();
+    endFlag++;
+    mutexVc.Release();
 }
+
 void
 ThreadTestProdCons()
 {
    const char* n[2] = {"P", "C"};
     for (int i = 0; i < 2; i++){
         Thread *newThread = new Thread(n[i]); 
-        if (!i){
+        if (i == 0){
             newThread->Fork(producer, NULL);
         }
         else{
@@ -68,7 +75,7 @@ ThreadTestProdCons()
         }
     }
 
-    while(1){
+    while(endFlag != 2){
         currentThread->Yield();
     }
     return;
