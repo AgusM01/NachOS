@@ -58,7 +58,7 @@ donde cada unos de los ejecutables tiene una versión propia del nachos, ya que
 userprog hereda las funcionalidades de threads, vmem las de userprog y filesys
 las de vmem.
 
-###Nombre los archivos fuente en los que figuran las funciones y métodos llamados por el main de Nachos al ejecutarlo en el directorio threads, hasta dos niveles de profundidad.
+### Nombre los archivos fuente en los que figuran las funciones y métodos llamados por el main de Nachos al ejecutarlo en el directorio threads, hasta dos niveles de profundidad.
 
 En la función **main** se ejecutan las siguientes funciones:
   - Initialize -> system.cc
@@ -410,7 +410,7 @@ ThreadTestSimple()
 }
 ```
 
-+++ Agregue al caso anterior una línea de depuración que diga cuándo cada hilo hace un P() y cuándo un V(). La salida debe verse por pantalla solamente si se activa la bandera de depuración correspondiente.
+### Agregue al caso anterior una línea de depuración que diga cuándo cada hilo hace un P() y cuándo un V(). La salida debe verse por pantalla solamente si se activa la bandera de depuración correspondiente.
 
 ```C++
 void
@@ -448,7 +448,7 @@ Semaphore::V()
 }
 ```
 
-+++ En threads se provee un caso de prueba que implementa el jardín ornamental. Sin embargo, el resultado es erróneo. Corríjalo de forma que se mantengan los cambios de contexto, sin agregar nuevas variables.
+### En threads se provee un caso de prueba que implementa el jardín ornamental. Sin embargo, el resultado es erróneo. Corríjalo de forma que se mantengan los cambios de contexto, sin agregar nuevas variables.
 ```C++
 static void
 Turnstile(void *n_)
@@ -469,7 +469,7 @@ Turnstile(void *n_)
     done[*n] = true;
 }
 ```
-+++ Replique el jardín ornamental en un nuevo caso de prueba. Revierta la solución anterior
+### Replique el jardín ornamental en un nuevo caso de prueba. Revierta la solución anterior
 y solucione el problema usando semáforos esta vez.
 
 ```C++
