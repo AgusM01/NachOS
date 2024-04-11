@@ -43,7 +43,7 @@ Condition::GetName() const
 void
 Condition::Wait() /*Preguntar atomicidad*/
 {
-    cont++;
+    cont++; // NO necesita mutex, Wait se llama con el mutex ganado.
     condLock->Release();
     queue->P();
     condLock->Acquire();
@@ -54,7 +54,7 @@ Condition::Signal()
 {   
     if (cont > 0) {
         queue->V();
-        cont--;
+        cont--; // NO necesita mutex, Signal se llama con el mutex ganado.
     }
 }
 
@@ -63,7 +63,7 @@ Condition::Broadcast()
 {
     while (cont > 0){
         queue->V();
-        cont--;
+        cont--; // NO necesita mutex, Broadcast se llama con el mutex ganado.
     }
         
 }

@@ -24,9 +24,8 @@ Condition cvConsumers = Condition(NULL, &mutexVc);
 
 void producer(void *name_){
     for (int i = 0; i < MAX; i++){
-        puts("por tomar mutex");
         mutexVc.Acquire();
-        while (posBuf == 3){
+        while (posBuf == BUFSIZE){
             printf("Productor esperando (buffer lleno)\n");
             cvProducers.Wait();
         }
@@ -51,9 +50,8 @@ void consumer(void *name_){
         }
         posBuf--;
         printf("Consumidor consume: %d en %d\n", buf[posBuf], posBuf);
-        if (posBuf == 2)
+        if (posBuf == BUFSIZE - 1)
             cvProducers.Signal();
-        
         mutexVc.Release();
     }
     mutexVc.Acquire();
