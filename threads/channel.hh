@@ -3,11 +3,8 @@
 
 #define CHANNEL_TEST
 
-#include "thread.hh"
 #include "lock.hh"
 #include "condition.hh"
-#include "lib/list.hh"
-
 
 /// This class defines a “channel”, which has a machanism to pass 
 class Channel {

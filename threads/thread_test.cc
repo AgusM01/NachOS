@@ -15,6 +15,7 @@
 #include "thread_test_prod_cons.hh"
 #include "thread_test_simple.hh"
 #include "thread_test_garden_semaphores.hh"
+#include "thread_test_channel.hh"
 #include "lib/utility.hh"
 
 #include <stdio.h>
@@ -28,11 +29,13 @@ typedef struct {
     const char *description;
 } Test;
 
+
 static const Test TESTS[] = {
     { &ThreadTestSimple,   "simple",   "Simple thread interleaving" },
     { &ThreadTestGarden,   "garden",   "Ornamental garden" },
     { &ThreadTestProdCons, "prodcons", "Producer/Consumer" },
-    { &ThreadTestGardenSemaphores, "garden_sem", "Ornamental garden with semaphores" }
+    { &ThreadTestGardenSemaphores, "garden_sem", "Ornamental garden with semaphores" },
+    { &ThreadTestChannel, "channel", "Channels Test" }
 };
 static const unsigned NUM_TESTS = sizeof TESTS / sizeof TESTS[0];
 

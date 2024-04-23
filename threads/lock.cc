@@ -45,22 +45,32 @@ Lock::GetName() const
 void
 Lock::Acquire()
 {
-    //IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+    DEBUG('t', "Hago Acquire en el Lock %s, soy %s\n",
+        this->GetName(),
+        currentThread->GetName()
+    );
+
+    //Nos aseguramos que no se llame de nuevo Acquire() cuando el
+    //thread ya lo llamó (deadlock) 
     ASSERT(!(IsHeldByCurrentThread()));
+
     mutex->P();
     Current = currentThread;
-    //interrupt->SetLevel(oldLevel);  // Re-enable interrupts.
 }
 
 void
 Lock::Release()
 {
-    //IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+    DEBUG('t', "Hago Release en el Lock %s, soy %s\n",
+        this->GetName(),
+        currentThread->GetName()
+    );
+
+    //Solo el mismo thread que llamó Acquire puede hacer Release()
     ASSERT(IsHeldByCurrentThread());
+
     Current = NULL;
     mutex->V();
-    //interrupt->SetLevel(oldLevel);  // Re-enable interrupts.
-
 }
 
 bool

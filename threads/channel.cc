@@ -1,11 +1,9 @@
 #include "channel.hh"
-#include "condition.hh"
-#include "semaphore.hh"
-#include <type_traits>
+#include "system.hh"
 
 Channel::Channel(const char* channelName) {
     name = channelName;
-    toWrite = NULL;
+    toWrite = nullptr;
     mutex = new Lock(0);
     readyToWrite = new Semaphore(0, 0);
     readyToReturn = new Semaphore(0, 0);
@@ -18,13 +16,28 @@ Channel::~Channel() {
     delete readyToReturn;
 }
 
+const char *
+Channel::GetName() const
+{
+    return name;
+}
+
 void
 Channel::Send(int message) {
+    DEBUG('t', "Hago Send en Channel %s, soy %s\n",
+        this->GetName(),
+        currentThread->GetName()
+    );
+
     //Esperamos a Receive que nos habilite toWrite
     readyToWrite->P();
 
+    ASSERT(toWrite != nullptr);
     //Buffer listo, escribimos
     *toWrite = message;
+
+    //Restablecemos toWrite a nullptr para checkeos;
+    toWrite = nullptr;
 
     //Escritura hecha, retornamos en conjunto
     readyToReturn->V();
@@ -33,10 +46,22 @@ Channel::Send(int message) {
 
 void
 Channel::Receive(int* message) {
+
+    DEBUG('t', "Hago Receive en Channel %s, soy %s\n",
+        this->GetName(),
+        currentThread->GetName()
+    );
+
+    //Tiene que haber un buffer disponible
+    ASSERT(message != nullptr);
+
     //Esperamos a que no haya otro Receive
     mutex->Acquire();
 
-    //Disponemos en buffer en Write
+    //Checkeamos que toWrite esté vacío
+    ASSERT(toWrite == nullptr);
+
+    //Disponemos el buffer en Write
     toWrite = message;
 
     //Send ya nos puede mandar el mensaje
@@ -44,6 +69,9 @@ Channel::Receive(int* message) {
 
     //Esperamos a que Send nos mande para retornar.
     readyToReturn->P();
+
+    //Checkeamos que toWrite esté vacío
+    ASSERT(toWrite == nullptr);
 
     //Ya tenemos el dato en *message, habilitamos nuevos Receive
     mutex->Release();

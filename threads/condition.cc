@@ -16,6 +16,7 @@
 
 
 #include "condition.hh"
+#include "system.hh"
 
 
 /// Dummy functions -- so we can compile our later assignments.
@@ -23,7 +24,7 @@
 
 Condition::Condition(const char *debugName, Lock *conditionLock)
 {
-    queue = new Semaphore(NULL, 0);
+    queue = new Semaphore(nullptr, 0);
     condLock = conditionLock;
     cont = 0;
     name = debugName;
@@ -43,6 +44,13 @@ Condition::GetName() const
 void
 Condition::Wait() /*Preguntar atomicidad*/
 {
+    DEBUG('t', "Hago Wait en Condition %s, soy %s\n",
+        this->GetName(),
+        currentThread->GetName()
+    );
+
+    ASSERT(condLock->IsHeldByCurrentThread());
+
     cont++; // NO necesita mutex, Wait se llama con el mutex ganado.
     condLock->Release();
     queue->P();
@@ -52,6 +60,13 @@ Condition::Wait() /*Preguntar atomicidad*/
 void
 Condition::Signal()
 {   
+    DEBUG('t', "Hago Signal en Condition %s, soy %s\n",
+        this->GetName(),
+        currentThread->GetName()
+    );
+
+    ASSERT(condLock->IsHeldByCurrentThread());
+
     if (cont > 0) {
         queue->V();
         cont--; // NO necesita mutex, Signal se llama con el mutex ganado.
@@ -61,6 +76,13 @@ Condition::Signal()
 void
 Condition::Broadcast()
 {
+    DEBUG('t', "Hago Broadcast en Condition %s, soy %s\n",
+        this->GetName(),
+        currentThread->GetName()
+    );
+
+    ASSERT(condLock->IsHeldByCurrentThread());
+
     while (cont > 0){
         queue->V();
         cont--; // NO necesita mutex, Broadcast se llama con el mutex ganado.
