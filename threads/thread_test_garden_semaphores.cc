@@ -50,7 +50,7 @@ ThreadTestGardenSemaphores()
         sprintf(names[i], "Turnstile %u", i);
         printf("Name: %s\n", names[i]);
         values[i] = i;
-        Thread *t = new Thread(names[i]);
+        Thread *t = new Thread(names[i],false);
         t->Fork(Turnstile, (void *) &(values[i]));
     }
    

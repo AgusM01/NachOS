@@ -4,11 +4,11 @@
 /// All rights reserved.  See `copyright.h` for copyright notice and
 /// limitation of liability and disclaimer of warranty provisions.
 
-#ifndef NACHOS_THREADS_THREADTESTGARDEN_SEMAPHORES__HH
-#define NACHOS_THREADS_THREADTESTGARDEN_SEMAPHORES__HH
+#ifndef NACHOS_THREADS_THREADJOIN__HH
+#define NACHOS_THREADS_THREADJOIN__HH
 
 
-void ThreadTestGardenSemaphores();
+void ThreadTestJoin();
 
 
 #endif

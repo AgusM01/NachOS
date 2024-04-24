@@ -53,10 +53,10 @@ ThreadTestChannel()
     int args[5] = {1,2,3,4,5};
 
     for (int i = 0; i < 5; i++)
-     newThread[i] = new Thread(s[i]); 
+     newThread[i] = new Thread(s[i],false); 
 
     for (int i = 0; i < 5; i++)
-     newThread[5 + i] = new Thread(r[i]); 
+     newThread[5 + i] = new Thread(r[i],false); 
 
     for (int i = 0; i < 5; i++)
         newThread[i]->Fork(sender, (void*)(args + i));

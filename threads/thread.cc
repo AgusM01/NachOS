@@ -18,6 +18,7 @@
 
 
 #include "thread.hh"
+#include "semaphore.hh"
 #include "switch.h"
 #include "system.hh"
 
@@ -40,7 +41,7 @@ IsThreadStatus(ThreadStatus s)
 /// `Thread::Fork`.
 ///
 /// * `threadName` is an arbitrary string, useful for debugging.
-Thread::Thread(const char *threadName)
+Thread::Thread(const char *threadName, bool isJoin)
 {
     name     = threadName;
     stackTop = nullptr;
@@ -49,6 +50,12 @@ Thread::Thread(const char *threadName)
 #ifdef USER_PROGRAM
     space    = nullptr;
 #endif
+
+    // JOIN IMPLEMENTATION
+    this->join = isJoin;
+    father = isJoin ? currentThread : nullptr;
+    waitToChild =  new Semaphore(threadName, 0);
+
 }
 
 /// De-allocate a thread.
@@ -62,6 +69,8 @@ Thread::Thread(const char *threadName)
 Thread::~Thread()
 {
     DEBUG('t', "Deleting thread \"%s\"\n", name);
+
+    delete waitToChild;
 
     ASSERT(this != currentThread);
     if (stack != nullptr) {
@@ -160,7 +169,15 @@ Thread::Finish()
 
     DEBUG('t', "Finishing thread \"%s\"\n", GetName());
 
+
     threadToBeDestroyed = currentThread;
+
+    //JOIN IMPLEMENTATION
+    if (join) {
+        DEBUG('t', "Signal to thread %s to continue with Join\n", father->GetName());
+        father->SignalFather();
+    }
+
     Sleep();  // Invokes `SWITCH`.
     // Not reached.
 }
@@ -311,3 +328,24 @@ Thread::RestoreUserState()
 }
 
 #endif
+
+// --------------- JOIN IMPLEMENTATION --------------------
+void
+Thread::WaitToChild(){
+    waitToChild->P();
+}
+
+void
+Thread::SignalFather(){
+    waitToChild->V();
+}
+
+void
+Thread::Join() {
+
+    ASSERT(join);
+
+    //Espero la respuesta del Child de que terminó
+    father->WaitToChild();
+
+}

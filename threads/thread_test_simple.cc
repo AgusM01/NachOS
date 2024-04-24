@@ -59,7 +59,7 @@ ThreadTestSimple()
 {
     const char* t[4] = {"2nd", "3rd", "4th", "5th"};
     for (int i = 0; i < 4; i++){
-        Thread *newThread = new Thread(t[i]);
+        Thread *newThread = new Thread(t[i],false);
         newThread->Fork(SimpleThread, NULL);
     }
     

@@ -16,7 +16,7 @@
 
 int buf[BUFSIZE];
 int posBuf = 0;
-int endFlag = 0;
+//int endFlag = 0;
 
 Lock mutexVc = Lock("mutex 1");
 Condition cvProducers = Condition(NULL, &mutexVc);
@@ -36,9 +36,6 @@ void producer(void *name_){
             cvConsumers.Signal();
         mutexVc.Release();
     }
-    mutexVc.Acquire();
-    endFlag++;
-    mutexVc.Release();
 }
 
 void consumer(void *name_){
@@ -54,28 +51,27 @@ void consumer(void *name_){
             cvProducers.Signal();
         mutexVc.Release();
     }
-    mutexVc.Acquire();
-    endFlag++;
-    mutexVc.Release();
 }
 
 void
 ThreadTestProdCons()
 {
-   const char* n[2] = {"P", "C"};
+    const char* n[2] = {"P", "C"};
+    Thread *newThread[2];
+    for(int i = 0; i < 2; i++)
+        newThread[i] = new Thread(n[i],true); 
     for (int i = 0; i < 2; i++){
-        Thread *newThread = new Thread(n[i]); 
         if (i == 0){
-            newThread->Fork(producer, NULL);
+            newThread[i]->Fork(producer, NULL);
         }
         else{
-            newThread->Fork(consumer, NULL);
+            newThread[i]->Fork(consumer, NULL);
         }
     }
 
-    while(endFlag != 2){
-        currentThread->Yield();
-    }
+    newThread[0]->Join(); 
+    newThread[1]->Join(); 
+
     return;
 }
 

@@ -41,6 +41,8 @@
 
 #include "lib/utility.hh"
 
+class Semaphore;
+
 #ifdef USER_PROGRAM
 #include "machine/machine.hh"
 #include "userprog/address_space.hh"
@@ -97,7 +99,7 @@ private:
 public:
 
     /// Initialize a `Thread`.
-    Thread(const char *debugName);
+    Thread(const char *debugName, bool join);
 
     /// Deallocate a Thread.
     ///
@@ -128,6 +130,13 @@ public:
 
     void Print() const;
 
+    //JOIN IMPLEMENTATION
+    void WaitToChild();
+
+    void SignalFather();
+
+    void Join();
+
 private:
     // Some of the private data for this class is listed above.
 
@@ -143,6 +152,15 @@ private:
 
     /// Allocate a stack for thread.  Used internally by `Fork`.
     void StackAllocate(VoidFunctionPtr func, void *arg);
+
+    // JOIN IMPLEMENTATION
+    Thread* father;
+
+    //Booleano para identificar si hace o no Join
+    bool join;
+
+    //Semaforos para sincronización de Join
+    Semaphore* waitToChild;
 
 #ifdef USER_PROGRAM
     /// User-level CPU register state.
