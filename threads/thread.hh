@@ -99,7 +99,7 @@ private:
 public:
 
     /// Initialize a `Thread`.
-    Thread(const char *debugName, bool join);
+    Thread(const char *debugName, bool isJoin, int threadPriority = 4);
 
     /// Deallocate a Thread.
     ///
@@ -131,11 +131,12 @@ public:
     void Print() const;
 
     //JOIN IMPLEMENTATION
-    void WaitToChild();
-
-    void SignalFather();
-
     void Join();
+
+    // Scheduler Implementation
+    int GetPriority() const;
+
+    void SetPriority(int priority);
 
 private:
     // Some of the private data for this class is listed above.
@@ -154,13 +155,14 @@ private:
     void StackAllocate(VoidFunctionPtr func, void *arg);
 
     // JOIN IMPLEMENTATION
-    Thread* father;
-
     //Booleano para identificar si hace o no Join
     bool join;
 
     //Semaforos para sincronización de Join
     Semaphore* waitToChild;
+
+    //Scheduler implementation
+    int priority;
 
 #ifdef USER_PROGRAM
     /// User-level CPU register state.

@@ -55,12 +55,15 @@ public:
 
 private:
 
+    void CheckPriority();
+
     /// For debugging.
     const char *name;
 
     // Add other needed fields here.
     Semaphore* mutex; //Todo con new, inicializarlo en el constructor.
-    Thread* Current;  
+    Thread* Holder;  
+    int oldPriority;
 };
 
 

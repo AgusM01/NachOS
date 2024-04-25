@@ -43,7 +43,6 @@ void receiver(void *arg){
     channel.Send(message);
 }
 
-
 void
 ThreadTestChannel()
 {
@@ -53,10 +52,10 @@ ThreadTestChannel()
     int args[5] = {1,2,3,4,5};
 
     for (int i = 0; i < 5; i++)
-     newThread[i] = new Thread(s[i],false); 
+     newThread[i] = new Thread(s[i],false, i); 
 
     for (int i = 0; i < 5; i++)
-     newThread[5 + i] = new Thread(r[i],false); 
+     newThread[5 + i] = new Thread(r[i],false, i); 
 
     for (int i = 0; i < 5; i++)
         newThread[i]->Fork(sender, (void*)(args + i));

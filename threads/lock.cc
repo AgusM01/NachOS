@@ -27,7 +27,8 @@ Lock::Lock(const char *debugName)
 {
     mutex = new Semaphore(NULL, 1);
     name = debugName;
-    Current = NULL;
+    Holder = NULL;
+    oldPriority = -1;
 }
 
 Lock::~Lock()
@@ -54,8 +55,23 @@ Lock::Acquire()
     //thread ya lo llamó (deadlock) 
     ASSERT(!(IsHeldByCurrentThread()));
 
+    //Inversión de prioridades
+    //Si Current tiene menos priorida que el currentThread,
+    //Le damos a Current la misma prioridad que currentThread
+    //para que pueda soltar el lock más rápido, dando, valga
+    //la redundancia, mas prioridad al thread con más prioridad
+    // -------------------- Explicación 5 ------------------------
+    //Esto no se puede implemetar en semáforos, ya que no tienen la
+    //misma condición de los locks, donde solo el thread que hace un Acquire
+    //puede hacer un Release.
+    //Es decir, no necesariamente el Thread va a quedar bloqueado en
+    //un P gracias a un solo Thread, por lo que no hay criterio para
+    //cambiar las prioridades. 
+    CheckPriority();
+
     mutex->P();
-    Current = currentThread;
+    Holder = currentThread;
+    oldPriority = currentThread->GetPriority();
 }
 
 void
@@ -69,12 +85,31 @@ Lock::Release()
     //Solo el mismo thread que llamó Acquire puede hacer Release()
     ASSERT(IsHeldByCurrentThread());
 
-    Current = NULL;
+
+    Holder = NULL;
+    currentThread->SetPriority(oldPriority);
     mutex->V();
 }
 
 bool
 Lock::IsHeldByCurrentThread() const
 {
-    return  (Current == currentThread);
+    return  (Holder == currentThread);
+}
+
+void
+Lock::CheckPriority()
+{
+    int ctp; //current thread priority
+    int flag = 0;
+
+    if (Holder != nullptr){
+        flag = 1;
+    }
+
+
+    if (flag && (Holder->GetPriority() < (ctp = currentThread->GetPriority()))){
+        DEBUG('t', "Cambio de prioridad, thread %s de prioridad %d a %d\n", Holder->GetName(), Holder->GetPriority(),ctp);
+        Holder->SetPriority(ctp);
+    }
 }

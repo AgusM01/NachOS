@@ -28,7 +28,7 @@ ThreadTestJoin()
     Thread *newThread[5];
 
     for(int i = 0; i < 5; i++)
-        newThread[i] = new Thread(s[i], true);
+        newThread[i] = new Thread(s[i], true, 5);
 
     for(int i = 0; i < 5; i++)
         newThread[i]->Fork(child, NULL);

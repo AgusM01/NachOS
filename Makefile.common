@@ -47,6 +47,7 @@ THREAD_HDR = threads/channel.hh                             \
              threads/thread_test.hh           				\
              threads/thread_test_channel.hh                 \
              threads/thread_test_join.hh                    \
+             threads/thread_test_scheduler.hh               \
              threads/thread_test_garden.hh    				\
 			 threads/thread_test_garden_semaphores.hh	    \
              threads/thread_test_prod_cons.hh               \
@@ -73,6 +74,7 @@ THREAD_SRC = threads/main.cc                  				\
              threads/thread.cc                				\
              threads/thread_test.cc           				\
              threads/thread_test_join.cc                    \
+             threads/thread_test_scheduler.cc               \
              threads/thread_test_channel.cc                 \
              threads/thread_test_garden.cc    				\
 			 threads/thread_test_garden_semaphores.cc	    \

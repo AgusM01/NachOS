@@ -41,7 +41,7 @@ IsThreadStatus(ThreadStatus s)
 /// `Thread::Fork`.
 ///
 /// * `threadName` is an arbitrary string, useful for debugging.
-Thread::Thread(const char *threadName, bool isJoin)
+Thread::Thread(const char *threadName, bool isJoin, int threadPriority)
 {
     name     = threadName;
     stackTop = nullptr;
@@ -53,8 +53,11 @@ Thread::Thread(const char *threadName, bool isJoin)
 
     // JOIN IMPLEMENTATION
     this->join = isJoin;
-    father = isJoin ? currentThread : nullptr;
-    waitToChild =  new Semaphore(threadName, 0);
+    waitToChild = isJoin ? new Semaphore(threadName, 0) : nullptr;
+
+    // Scheduler Implementation
+    ASSERT( -1 < threadPriority && threadPriority < 10);
+    priority = threadPriority;
 
 }
 
@@ -170,13 +173,14 @@ Thread::Finish()
     DEBUG('t', "Finishing thread \"%s\"\n", GetName());
 
 
-    threadToBeDestroyed = currentThread;
 
     //JOIN IMPLEMENTATION
     if (join) {
-        DEBUG('t', "Signal to thread %s to continue with Join\n", father->GetName());
-        father->SignalFather();
+        DEBUG('t', "Signal to father thread to continue with Join\n");
+        waitToChild->V(); 
     }
+
+    threadToBeDestroyed = join ? nullptr : currentThread;
 
     Sleep();  // Invokes `SWITCH`.
     // Not reached.
@@ -331,21 +335,25 @@ Thread::RestoreUserState()
 
 // --------------- JOIN IMPLEMENTATION --------------------
 void
-Thread::WaitToChild(){
-    waitToChild->P();
-}
-
-void
-Thread::SignalFather(){
-    waitToChild->V();
-}
-
-void
 Thread::Join() {
 
     ASSERT(join);
 
     //Espero la respuesta del Child de que terminó
-    father->WaitToChild();
+    waitToChild->P();
 
+    delete this;
+}
+
+// --------------- SCHEDULER IMPLEMENTATION --------------------
+int
+Thread::GetPriority() const
+{
+    return priority;
+}
+
+void
+Thread::SetPriority(int priorityToBeSet)
+{
+    this->priority = priorityToBeSet;
 }
