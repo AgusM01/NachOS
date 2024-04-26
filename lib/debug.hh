@@ -14,6 +14,7 @@
 /// * `f` -- file system (requires *FILESYS*).
 /// * `a` -- address spaces (requires *USER_PROGRAM*).
 /// * `e` -- exception handling (requires *USER_PROGRAM*).
+/// * `c` -- channels.
 ///
 /// See also `debug_opts.hh`.
 ///

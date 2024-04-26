@@ -19,6 +19,7 @@
 
 
 #include "lock.hh"
+#include "lib/list.hh"
 //#include "synch_list.hh"
 
 
@@ -78,8 +79,8 @@ private:
     const char *name;
     
     // Other needed fields are to be added here.
-    int cont;
-    Semaphore* queue;
+    int waiters;
+    List<Semaphore*> *queue;
     Lock* condLock;
 };
 

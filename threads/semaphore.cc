@@ -23,6 +23,7 @@
 
 #include "semaphore.hh"
 #include "system.hh"
+#include <stdio.h>
 
 
 /// Initialize a semaphore, so that it can be used for synchronization.
@@ -60,7 +61,7 @@ Semaphore::GetName() const
 void
 Semaphore::P()
 {
-    DEBUG('t', "sem: %s.Hago P, soy %s\n", GetName(), currentThread->GetName());
+    DEBUG('s', "sem: %s.Hago P, soy %s\n", GetName(), currentThread->GetName());
 
     IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
       // Disable interrupts.
@@ -83,7 +84,7 @@ Semaphore::P()
 void
 Semaphore::V()
 {
-    DEBUG('t', "sem: %s. Hago V, soy %s\n", GetName(), currentThread->GetName());
+    DEBUG('s', "sem: %s. Hago V, soy %s\n", GetName(), currentThread->GetName());
     
     IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
 
@@ -96,3 +97,5 @@ Semaphore::V()
 
     interrupt->SetLevel(oldLevel);
 }
+
+

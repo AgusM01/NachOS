@@ -25,7 +25,7 @@
 
 Lock::Lock(const char *debugName)
 {
-    mutex = new Semaphore(NULL, 1);
+    mutex = new Semaphore("LockSem", 1);
     name = debugName;
     Holder = NULL;
     oldPriority = -1;
@@ -46,7 +46,7 @@ Lock::GetName() const
 void
 Lock::Acquire()
 {
-    DEBUG('t', "Hago Acquire en el Lock %s, soy %s\n",
+    DEBUG('s', "Hago Acquire en el %s, soy %s\n",
         this->GetName(),
         currentThread->GetName()
     );
@@ -77,7 +77,7 @@ Lock::Acquire()
 void
 Lock::Release()
 {
-    DEBUG('t', "Hago Release en el Lock %s, soy %s\n",
+    DEBUG('s', "Hago Release en el %s, soy %s\n",
         this->GetName(),
         currentThread->GetName()
     );
@@ -109,7 +109,7 @@ Lock::CheckPriority()
 
 
     if (flag && (Holder->GetPriority() < (ctp = currentThread->GetPriority()))){
-        DEBUG('t', "Cambio de prioridad, thread %s de prioridad %d a %d\n", Holder->GetName(), Holder->GetPriority(),ctp);
+        DEBUG('s', "Cambio de prioridad, thread %s de prioridad %d a %d\n", Holder->GetName(), Holder->GetPriority(),ctp);
         Holder->SetPriority(ctp);
     }
 }

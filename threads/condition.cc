@@ -16,6 +16,7 @@
 
 
 #include "condition.hh"
+#include "semaphore.hh"
 #include "system.hh"
 
 
@@ -24,14 +25,17 @@
 
 Condition::Condition(const char *debugName, Lock *conditionLock)
 {
-    queue = new Semaphore(nullptr, 0);
+    queue = new List<Semaphore*>;
     condLock = conditionLock;
-    cont = 0;
     name = debugName;
 }
 
 Condition::~Condition()
 {
+    Semaphore* tbd = nullptr;
+    while ((tbd = queue->Pop()) != nullptr) {
+        delete tbd;
+    }
     delete queue;
 }
 
@@ -44,48 +48,49 @@ Condition::GetName() const
 void
 Condition::Wait() /*Preguntar atomicidad*/
 {
-    DEBUG('t', "Hago Wait en Condition %s, soy %s\n",
+    DEBUG('s', "Hago Wait en %s, soy %s\n",
         this->GetName(),
         currentThread->GetName()
     );
 
     ASSERT(condLock->IsHeldByCurrentThread());
 
-    cont++; // NO necesita mutex, Wait se llama con el mutex ganado.
+    Semaphore* stop = new Semaphore(nullptr,0);
+
+    queue->Append(stop);
     condLock->Release();
-    queue->P();
+
+    stop->P();
     condLock->Acquire();
 }
 
 void
 Condition::Signal()
 {   
-    DEBUG('t', "Hago Signal en Condition %s, soy %s\n",
+    DEBUG('s', "Hago Signal en %s, soy %s\n",
         this->GetName(),
         currentThread->GetName()
     );
 
     ASSERT(condLock->IsHeldByCurrentThread());
 
-    if (cont > 0) {
-        queue->V();
-        cont--; // NO necesita mutex, Signal se llama con el mutex ganado.
-    }
+    Semaphore* sem;
+    if ((sem = queue->Pop()) != nullptr) 
+        sem->V();
 }
 
 void
 Condition::Broadcast()
 {
-    DEBUG('t', "Hago Broadcast en Condition %s, soy %s\n",
+    DEBUG('s', "Hago Broadcast en %s., soy %s\n",
         this->GetName(),
         currentThread->GetName()
     );
 
     ASSERT(condLock->IsHeldByCurrentThread());
+    Semaphore* sem;
 
-    while (cont > 0){
-        queue->V();
-        cont--; // NO necesita mutex, Broadcast se llama con el mutex ganado.
-    }
-        
+    while ((sem = queue->Pop()) != nullptr)
+        sem->V();
+
 }

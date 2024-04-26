@@ -167,12 +167,11 @@ Thread::Print() const
 void
 Thread::Finish()
 {
+
     interrupt->SetLevel(INT_OFF);
     ASSERT(this == currentThread);
 
     DEBUG('t', "Finishing thread \"%s\"\n", GetName());
-
-
 
     //JOIN IMPLEMENTATION
     if (join) {

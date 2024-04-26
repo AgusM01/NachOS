@@ -24,7 +24,7 @@ Channel::GetName() const
 
 void
 Channel::Send(int message) {
-    DEBUG('t', "Hago Send en Channel %s, soy %s\n",
+    DEBUG('c', "Hago Send en %s, soy %s\n",
         this->GetName(),
         currentThread->GetName()
     );
@@ -47,7 +47,7 @@ Channel::Send(int message) {
 void
 Channel::Receive(int* message) {
 
-    DEBUG('t', "Hago Receive en Channel %s, soy %s\n",
+    DEBUG('c', "Hago Receive en %s, soy %s\n",
         this->GetName(),
         currentThread->GetName()
     );
