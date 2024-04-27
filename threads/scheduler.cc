@@ -151,3 +151,11 @@ Scheduler::Print()
         printf("\n");
     }
 }
+
+void 
+Scheduler::ChangePriority(Thread* thread, int newPriority)
+{
+    DEBUG('z', "Cambio en la Lista de Listos\n");
+    readyList[thread->GetPriority()]->Remove(thread);
+    readyList[newPriority]->Append(thread);
+}

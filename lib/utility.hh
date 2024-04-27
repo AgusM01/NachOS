@@ -69,5 +69,6 @@ extern Debug debug;
 #define DEBUG(...)  (debug.Print)(__FILE__, __LINE__, __func__, __VA_ARGS__)
 #define DEBUG_CONT  (debug.PrintCont)
 
+char* concat(const char* str1, const char* str2);
 
 #endif

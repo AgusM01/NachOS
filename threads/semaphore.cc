@@ -61,7 +61,7 @@ Semaphore::GetName() const
 void
 Semaphore::P()
 {
-    DEBUG('s', "sem: %s.Hago P, soy %s\n", GetName(), currentThread->GetName());
+    DEBUG('s', "%s.Hago P, soy %s\n", GetName(), currentThread->GetName());
 
     IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
       // Disable interrupts.
@@ -84,7 +84,7 @@ Semaphore::P()
 void
 Semaphore::V()
 {
-    DEBUG('s', "sem: %s. Hago V, soy %s\n", GetName(), currentThread->GetName());
+    DEBUG('s', "%s. Hago V, soy %s\n", GetName(), currentThread->GetName());
     
     IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
 

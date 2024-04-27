@@ -22,6 +22,7 @@ void
 funcMasPriority(void* arg)
 {
     mx.Acquire();
+    currentThread->Yield();
     while( *((int*)arg) != c)
         cd.Wait();
     c++;
@@ -39,8 +40,7 @@ ThreadTestScheduler()
 
 
     for(int i = 0; i < 10; i++) {
-        printf("%d\n", i);
-        newThread[i] = new Thread(s[i], true, i % 2);
+        newThread[i] = new Thread(s[i], true, 9 - (i % 5));
     }
 
 

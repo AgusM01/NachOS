@@ -1,12 +1,16 @@
 #include "channel.hh"
 #include "system.hh"
+#include <stdlib.h>
 
 Channel::Channel(const char* channelName) {
     name = channelName;
+    lockName = channelName ? concat("Lock ", channelName) : nullptr;
+    semWName = channelName ? concat("SemW ", channelName) : nullptr;
+    semRName = channelName ? concat("SemR ", channelName) : nullptr;
     toWrite = nullptr;
-    mutex = new Lock(0);
-    readyToWrite = new Semaphore(0, 0);
-    readyToReturn = new Semaphore(0, 0);
+    mutex = new Lock(lockName);
+    readyToWrite = new Semaphore(semWName, 0);
+    readyToReturn = new Semaphore(semRName, 0);
 
 }
 
@@ -14,6 +18,9 @@ Channel::~Channel() {
     delete mutex;
     delete readyToWrite;
     delete readyToReturn;
+    free(lockName);
+    free(semRName);
+    free(semWName);
 }
 
 const char *

@@ -18,23 +18,28 @@
 #include "lock.hh"
 #include "semaphore.hh"
 #include "system.hh"
+#include "thread.hh"
 #include <limits>
 #include <stdio.h>
+#include <stdlib.h>
 
 /// Dummy functions -- so we can compile our later assignments.
 
 Lock::Lock(const char *debugName)
 {
-    mutex = new Semaphore("LockSem", 1);
+    
+    semName = debugName ? concat("JoinSem ", debugName) : nullptr;
+    mutex = new Semaphore(semName, 1);
     name = debugName;
-    Holder = NULL;
-    oldPriority = -1;
+    holder = NULL;
+    holderOriginalPriority = -1;
 }
 
 Lock::~Lock()
 {
     /*el mutex creado por new en constructor.*/
     delete mutex;
+    free(semName);
 }
 
 const char *
@@ -70,8 +75,8 @@ Lock::Acquire()
     CheckPriority();
 
     mutex->P();
-    Holder = currentThread;
-    oldPriority = currentThread->GetPriority();
+    holder = currentThread;
+    holderOriginalPriority = currentThread->GetPriority();
 }
 
 void
@@ -86,30 +91,37 @@ Lock::Release()
     ASSERT(IsHeldByCurrentThread());
 
 
-    Holder = NULL;
-    currentThread->SetPriority(oldPriority);
+    if (holder->GetPriority() != holderOriginalPriority)
+        holder->SetPriority(holderOriginalPriority);
+    holder = NULL;
     mutex->V();
 }
 
 bool
 Lock::IsHeldByCurrentThread() const
 {
-    return  (Holder == currentThread);
+    return  (holder == currentThread);
 }
 
 void
 Lock::CheckPriority()
 {
     int ctp; //current thread priority
-    int flag = 0;
-
-    if (Holder != nullptr){
-        flag = 1;
-    }
 
 
-    if (flag && (Holder->GetPriority() < (ctp = currentThread->GetPriority()))){
-        DEBUG('s', "Cambio de prioridad, thread %s de prioridad %d a %d\n", Holder->GetName(), Holder->GetPriority(),ctp);
-        Holder->SetPriority(ctp);
+    if (holder != nullptr && holder->GetPriority() < (ctp = currentThread->GetPriority())){
+
+        DEBUG('z', "Cambio de prioridad, thread %s de prioridad %d a %d\n",
+            holder->GetName(),
+            holder->GetPriority(),
+            ctp
+        );
+
+        DEBUG('z',"Status de %s es %s\n", holder->GetName(), holder->PrintStatus());
+
+        if (holder->GetStatus() == READY)
+            scheduler->ChangePriority(holder, ctp);
+
+        holder->SetPriority(ctp);
     }
 }

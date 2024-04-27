@@ -24,6 +24,7 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 
 /// This is put at the top of the execution stack, for detecting stack
@@ -52,8 +53,9 @@ Thread::Thread(const char *threadName, bool isJoin, int threadPriority)
 #endif
 
     // JOIN IMPLEMENTATION
-    this->join = isJoin;
-    waitToChild = isJoin ? new Semaphore(threadName, 0) : nullptr;
+    join = isJoin;
+    semName = threadName ? concat("JoinSem ", threadName) : nullptr;
+    waitToChild = isJoin ? new Semaphore(semName, 0) : nullptr;
 
     // Scheduler Implementation
     ASSERT( -1 < threadPriority && threadPriority < 10);
@@ -74,6 +76,7 @@ Thread::~Thread()
     DEBUG('t', "Deleting thread \"%s\"\n", name);
 
     delete waitToChild;
+    free(semName);
 
     ASSERT(this != currentThread);
     if (stack != nullptr) {
@@ -146,6 +149,7 @@ Thread::GetName() const
 {
     return name;
 }
+
 
 void
 Thread::Print() const
@@ -354,5 +358,28 @@ Thread::GetPriority() const
 void
 Thread::SetPriority(int priorityToBeSet)
 {
-    this->priority = priorityToBeSet;
+    priority = priorityToBeSet;
+}
+
+ThreadStatus 
+Thread::GetStatus() {
+    return status;
+}
+
+const char *
+Thread::PrintStatus()
+{
+    switch (GetStatus()) {
+        case BLOCKED:
+            return "Blocked";
+        case READY:
+            return "Ready";
+        case RUNNING:
+            return "Running";
+        case JUST_CREATED:
+            return "Just Created";
+        case NUM_THREAD_STATUS:
+            return "4";
+    }
+    return "";
 }

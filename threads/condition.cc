@@ -18,6 +18,8 @@
 #include "condition.hh"
 #include "semaphore.hh"
 #include "system.hh"
+#include <new>
+#include <stdlib.h>
 
 
 /// Dummy functions -- so we can compile our later assignments.
@@ -55,12 +57,16 @@ Condition::Wait() /*Preguntar atomicidad*/
 
     ASSERT(condLock->IsHeldByCurrentThread());
 
-    Semaphore* stop = new Semaphore(nullptr,0);
+    char* semName = this->name ? concat("SemCond ", this->name) : nullptr;
+
+    Semaphore* stop = new Semaphore(semName,0);
 
     queue->Append(stop);
     condLock->Release();
 
     stop->P();
+    delete stop;
+    free(semName);
     condLock->Acquire();
 }
 
@@ -75,7 +81,7 @@ Condition::Signal()
     ASSERT(condLock->IsHeldByCurrentThread());
 
     Semaphore* sem;
-    if ((sem = queue->Pop()) != nullptr) 
+    if ((sem = queue->Pop()) != nullptr)
         sem->V();
 }
 

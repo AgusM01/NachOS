@@ -63,6 +63,8 @@ ThreadTestChannel()
     for (int i = 0; i < 5; i++)
         newThread[5 + i]->Fork(receiver, nullptr);
 
+    
+    currentThread->Yield();
     barrierThreads.V();
 
     cvMutex.Acquire();

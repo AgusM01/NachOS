@@ -138,6 +138,10 @@ public:
 
     void SetPriority(int priority);
 
+    ThreadStatus GetStatus();
+
+    const char *PrintStatus();
+
 private:
     // Some of the private data for this class is listed above.
 
@@ -159,6 +163,8 @@ private:
     bool join;
 
     //Semaforos para sincronización de Join
+    char* semName;
+
     Semaphore* waitToChild;
 
     //Scheduler implementation

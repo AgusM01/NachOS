@@ -24,6 +24,9 @@ private:
 
     /// For debugging
     const char* name;
+    char* lockName;
+    char* semWName;
+    char* semRName;
 
     int* toWrite;
 

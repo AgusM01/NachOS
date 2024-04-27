@@ -15,6 +15,7 @@
 /// * `a` -- address spaces (requires *USER_PROGRAM*).
 /// * `e` -- exception handling (requires *USER_PROGRAM*).
 /// * `c` -- channels.
+/// * `z` -- scheduler things.
 ///
 /// See also `debug_opts.hh`.
 ///

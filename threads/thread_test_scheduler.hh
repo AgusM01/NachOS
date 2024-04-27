@@ -4,6 +4,8 @@
 /// All rights reserved.  See `copyright.h` for copyright notice and
 /// limitation of liability and disclaimer of warranty provisions.
 
+// Seed 234 -> Cambio de prioridad anidado.
+
 #ifndef NACHOS_THREADS_THREADSCHEDULER__HH
 #define NACHOS_THREADS_THREADSCHEDULER__HH
 
