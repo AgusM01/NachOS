@@ -52,10 +52,12 @@ private:
     /// Assume linear page table translation for now!
     TranslationEntry *pageTable;
 
-    /// Number of pages in the virtual address space.
+    /// Number of pages in the virtual address space. -> Para no guerdar una tabla de paginacion enorme.
+    /// Si un proceso quiere acceder a un valor superior al numPages dará una excepción.
     unsigned numPages;
 
 };
 
+// Cada vez que se crea un proceso nuevo se crean 3/4 paginas para text/data y resto para stack.
 
 #endif
