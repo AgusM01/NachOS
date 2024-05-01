@@ -5,22 +5,28 @@
 Channel::Channel(const char* channelName) {
     name = channelName;
     lockName = channelName ? concat("Lock ", channelName) : nullptr;
-    semWName = channelName ? concat("SemW ", channelName) : nullptr;
-    semRName = channelName ? concat("SemR ", channelName) : nullptr;
+    condSendName = channelName ? concat("varSend ", channelName) : nullptr;
+    condRecvName = channelName ? concat("varRecv ", channelName) : nullptr;
+    semName = channelName ? concat("SemfinishWrt ", channelName) : nullptr;
+
     toWrite = nullptr;
     mutex = new Lock(lockName);
-    readyToWrite = new Semaphore(semWName, 0);
-    readyToReturn = new Semaphore(semRName, 0);
-
+    condSend = new Condition(condSendName, mutex);
+    condRecv = new Condition(condRecvName, mutex);
+    finishWrt = new Semaphore(semName, 0);
+    
 }
 
 Channel::~Channel() {
     delete mutex;
-    delete readyToWrite;
-    delete readyToReturn;
+    delete condSend;
+    delete condRecv;
+    delete finishWrt;
     free(lockName);
-    free(semRName);
-    free(semWName);
+    free(semName);
+    free(condSendName);
+    free(condRecvName);
+    
 }
 
 const char *
@@ -36,19 +42,28 @@ Channel::Send(int message) {
         currentThread->GetName()
     );
 
+    mutex->Acquire();
+    
     //Esperamos a Receive que nos habilite toWrite
-    readyToWrite->P();
-
+    while (toWrite == nullptr){
+        condSend->Wait();
+    }
+    
     ASSERT(toWrite != nullptr);
+    
     //Buffer listo, escribimos
     *toWrite = message;
 
     //Restablecemos toWrite a nullptr para checkeos;
     toWrite = nullptr;
+    
+    // Si hay un recv esperando a que escriba le aviso.
+    condRecv->Signal();
+
+    mutex->Release();
 
     //Escritura hecha, retornamos en conjunto
-    readyToReturn->V();
-
+    finishWrt->V();
 }
 
 void
@@ -66,20 +81,18 @@ Channel::Receive(int* message) {
     mutex->Acquire();
 
     //Checkeamos que toWrite esté vacío
-    ASSERT(toWrite == nullptr);
+    while (toWrite != nullptr){
+        condRecv->Wait();
+    }
 
     //Disponemos el buffer en Write
     toWrite = message;
 
     //Send ya nos puede mandar el mensaje
-    readyToWrite->V();
+    condSend->Signal();
+    
+    mutex->Release();
 
     //Esperamos a que Send nos mande para retornar.
-    readyToReturn->P();
-
-    //Checkeamos que toWrite esté vacío
-    ASSERT(toWrite == nullptr);
-
-    //Ya tenemos el dato en *message, habilitamos nuevos Receive
-    mutex->Release();
+    finishWrt->P();
 }

@@ -5,3 +5,5 @@ coff2noff
 disassemble
 readnoff
 nachos
+.cache
+compile_commands.json

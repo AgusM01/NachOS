@@ -25,14 +25,16 @@ private:
     /// For debugging
     const char* name;
     char* lockName;
-    char* semWName;
-    char* semRName;
+    char* condSendName;
+    char* condRecvName;
+    char* semName;
 
     int* toWrite;
 
     Lock* mutex;
-    Semaphore* readyToWrite;
-    Semaphore* readyToReturn;
+    Condition* condSend;
+    Condition* condRecv;
+    Semaphore* finishWrt;
 };
 
 
