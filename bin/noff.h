@@ -14,6 +14,8 @@
 
 #include <stdint.h>
 
+// Como se encuentra guardado un archivo en el disco.
+
 
 #define NOFF_MAGIC  0xBADFAD  // Magic number denoting Nachos object code
                               // file.
@@ -32,5 +34,6 @@ typedef struct noffHeader {
                              // zeroed before use.
 } noffHeader;
 
+// Ademas de todos estos segmentos debo agregar el stack.
 
 #endif

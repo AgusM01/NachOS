@@ -103,6 +103,7 @@ SyscallHandler(ExceptionType _et)
             }
 
             DEBUG('e', "`Create` requested for file `%s`.\n", filename);
+            // interrupt->Create();
             break;
         }
 

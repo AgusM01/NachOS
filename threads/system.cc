@@ -21,6 +21,8 @@
 ///
 /// These are all initialized and de-allocated by this file.
 
+//Agregar mapa de bits e inicializarlo con toda la memoria vacía.
+
 Thread *currentThread;        ///< The thread we are running now.
 Thread *threadToBeDestroyed;  ///< The thread that just finished.
 Scheduler *scheduler;         ///< The ready list.

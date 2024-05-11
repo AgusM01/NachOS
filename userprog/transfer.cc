@@ -3,6 +3,14 @@
 /// limitation of liability and disclaimer of warranty provisions.
 
 
+// Los programas en NACHOS se ejecutan en la máquina simulada.
+// NACHOS se ejecuta sobre la máquina x86 actual (mi compu).
+// Todas las direcciones utilizadas en el programa de usuario serán
+// direcciones de la máquina simulada. Por lo tanto, no son válidas 
+// en la memoria de la máquina donde se ejecuta NACHOS.
+
+// En este archivo están las funciones para copiar datos desde el núcleo al espacio de memoria virtual del usuario y vicecersa.
+
 #include "transfer.hh"
 #include "lib/utility.hh"
 #include "threads/system.hh"

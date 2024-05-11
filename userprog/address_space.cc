@@ -38,7 +38,8 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
           numPages, size);
 
     // First, set up the translation.
-
+    
+    // Al momento de usar páginas, marcarlas como usada. Cuando se terminan de usar, marcarlas como libre.
     pageTable = new TranslationEntry[numPages];
     for (unsigned i = 0; i < numPages; i++) {
         pageTable[i].virtualPage  = i;
@@ -65,7 +66,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         uint32_t virtualAddr = exe.GetCodeAddr();
         DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
               virtualAddr, codeSize);
-        exe.ReadCodeBlock(&mainMemory[virtualAddr], codeSize, 0); //Cambiar acá cuando se complique todo.
+        exe.ReadCodeBlock(&mainMemory[virtualAddr], codeSize, 0); //Cambiar acá cuando no tengamos un mapeo 1:1.
     }
     if (initDataSize > 0) {
         uint32_t virtualAddr = exe.GetInitDataAddr();

@@ -10,6 +10,8 @@
 #ifndef NACHOS_USERPROG_ARGS__HH
 #define NACHOS_USERPROG_ARGS__HH
 
+// El SO se debe encargar de copiar los argumentos dentro del stack del proceso hijo.
+// Si lo implementamos con syscall los datos deben quedarse momentáneamente en el kernel.
 
 /// Save command-line arguments from the memory of a user process.
 ///
