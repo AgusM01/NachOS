@@ -22,6 +22,7 @@
 /// limitation of liability and disclaimer of warranty provisions.
 
 
+#include "filesys/file_system.hh"
 #include "transfer.hh"
 #include "syscall.h"
 #include "filesys/directory_entry.hh"
@@ -103,10 +104,30 @@ SyscallHandler(ExceptionType _et)
             }
 
             DEBUG('e', "`Create` requested for file `%s`.\n", filename);
-            // interrupt->Create();
+
+            unsigned initialSize = machine->ReadRegister(5);
+            fileSystem->Create(filename, initialSize);
+
             break;
         }
-
+        case SC_OPEN: {
+            
+            int filenameAddr = machine->ReadRegister(4);
+            if (filenameAddr == 0){
+                DEBUG('e', "Error: address to filename string is null. \n");
+            }
+            char filename[FILE_NAME_MAX_LEN + 1];
+            if (!ReadStringFromUser(filenameAddr, 
+                                    filename, sizeof filename){
+                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
+                      FILE_NAME_MAX_LEN);
+            }
+        
+            DEBUG('e', "`Open` requested for file `%s`.\n", filename);
+            
+            //machine->WriteRegister(2, fileSystem->Open(filename));
+            break;
+        }
         case SC_CLOSE: {
             int fid = machine->ReadRegister(4);
             DEBUG('e', "`Close` requested for id %u.\n", fid);
