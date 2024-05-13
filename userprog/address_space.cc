@@ -19,6 +19,12 @@
 AddressSpace::AddressSpace(OpenFile *executable_file)
 {
     ASSERT(executable_file != nullptr);
+    
+    fileTableIds = new Table <OpenFile*>;
+    OpenFile* in = fileSystem->Open("/dev/stdin");
+    OpenFile* out = fileSystem->Open("/dev/stdout");
+    fileTableIds->Add(in);
+    fileTableIds->Add(out);
 
     Executable exe (executable_file);
     ASSERT(exe.CheckMagic());
@@ -83,6 +89,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 AddressSpace::~AddressSpace()
 {
     delete [] pageTable;
+    delete fileTableIds;
 }
 
 /// Set the initial values for the user-level register set.

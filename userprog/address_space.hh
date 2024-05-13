@@ -16,6 +16,7 @@
 
 #include "filesys/file_system.hh"
 #include "machine/translation_entry.hh"
+#include "lib/table.hh"
 
 
 const unsigned USER_STACK_SIZE = 1024;  ///< Increase this as necessary!
@@ -47,6 +48,8 @@ public:
     void SaveState();
     void RestoreState();
 
+    Table <OpenFile*> *fileTableIds;
+
 private:
 
     /// Assume linear page table translation for now!
@@ -55,7 +58,6 @@ private:
     /// Number of pages in the virtual address space. -> Para no guerdar una tabla de paginacion enorme.
     /// Si un proceso quiere acceder a un valor superior al numPages dará una excepción.
     unsigned numPages;
-
 };
 
 // Cada vez que se crea un proceso nuevo se crean 3/4 paginas para text/data y resto para stack.

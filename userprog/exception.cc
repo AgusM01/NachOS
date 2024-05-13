@@ -104,36 +104,98 @@ SyscallHandler(ExceptionType _et)
             }
 
             DEBUG('e', "`Create` requested for file `%s`.\n", filename);
-
+            
             unsigned initialSize = machine->ReadRegister(5);
             fileSystem->Create(filename, initialSize);
 
-            break;
         }
-        case SC_OPEN: {
             
+            
+            break;
+        
+        case SC_OPEN: {
             int filenameAddr = machine->ReadRegister(4);
             if (filenameAddr == 0){
                 DEBUG('e', "Error: address to filename string is null. \n");
             }
             char filename[FILE_NAME_MAX_LEN + 1];
             if (!ReadStringFromUser(filenameAddr, 
-                                    filename, sizeof filename){
+                                    filename, sizeof filename)){
                  DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
             }
         
             DEBUG('e', "`Open` requested for file `%s`.\n", filename);
-            
-            //machine->WriteRegister(2, fileSystem->Open(filename));
+            OpenFile *newFile = fileSystem->Open(filename);
+            OpenFileId id = currentThread->space->fileTableIds->Add(newFile);
+            machine->WriteRegister(2, id);
+        } 
             break;
-        }
+        
         case SC_CLOSE: {
-            int fid = machine->ReadRegister(4);
+            OpenFileId fid = machine->ReadRegister(4);
             DEBUG('e', "`Close` requested for id %u.\n", fid);
+            //bucar en tabla
+            OpenFile *file = currentThread->space->fileTableIds->Get(fid);
+            // sacarlo de la tabla
+            delete file;
+
+            break;
+        } 
+        
+        case SC_REMOVE: {
+            int filenameAddr = machine->ReadRegister(4);
+            if (filenameAddr == 0){
+                DEBUG('e', "Error: address to filename string is null. \n");
+            }
+            char filename[FILE_NAME_MAX_LEN + 1];
+            if (!ReadStringFromUser(filenameAddr, 
+                                    filename, sizeof filename)){
+                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
+                      FILE_NAME_MAX_LEN);
+            }
+
+            fileSystem->Remove(filename);
+            break;
+        } 
+
+        case SC_READ: {
+            int bufferToWrite = machine->ReadRegister(4);
+            int bytesToRead = machine->ReadRegister(5);
+            OpenFileId id = machine->ReadRegister(6);
+            if (bufferToWrite == 0){
+                DEBUG('e', "Error: Buffer to write is null. \n");
+            }
+            if (bytesToRead >= 0) {
+                DEBUG('e', "Error: Bytes to read is negative. \n");
+            }
+            //buscar id
+            OpenFile *file = currentThread->space->fileTableIds->Get(id);
+            char bufferTransfer[bytesToRead];
+            int bytesRead = file->Read(bufferTransfer, bytesToRead);
+            WriteBufferToUser(bufferTransfer, bufferToWrite, bytesRead);
+            machine->WriteRegister(2, bytesRead);
             break;
         }
 
+        case SC_WRITE: {
+            int bufferToRead = machine->ReadRegister(4);
+            int bytesToWrite = machine->ReadRegister(5);
+            OpenFileId id = machine->ReadRegister(6);
+            if (bufferToRead == 0){
+                DEBUG('e', "Error: Buffer to read is null. \n");
+            }
+            if (bytesToWrite >= 0) {
+                DEBUG('e', "Error: Bytes to write is negative. \n");
+            }
+            //buscar id
+            OpenFile *file = currentThread->space->fileTableIds->Get(id);
+            char bufferTransfer[bytesToWrite];
+            ReadBufferFromUser(bufferToRead, bufferTransfer, bytesToWrite);
+            int bytesWrite = file->Write(bufferTransfer, bytesToWrite);
+            machine->WriteRegister(2, bytesWrite);
+        }
+            
         default:
             fprintf(stderr, "Unexpected system call: id %d.\n", scid);
             ASSERT(false);
