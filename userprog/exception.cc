@@ -133,11 +133,14 @@ SyscallHandler(ExceptionType _et)
             break;
         
         case SC_CLOSE: {
+            
             OpenFileId fid = machine->ReadRegister(4);
             DEBUG('e', "`Close` requested for id %u.\n", fid);
-            //bucar en tabla
-            OpenFile *file = currentThread->space->fileTableIds->Get(fid);
-            // sacarlo de la tabla
+            
+            // Buscar en tabla
+            OpenFile *file = currentThread->space->fileTableIds->Remove(fid);
+            
+            // Sacarlo de la tabla
             delete file;
 
             break;
@@ -160,40 +163,52 @@ SyscallHandler(ExceptionType _et)
         } 
 
         case SC_READ: {
+            
             int bufferToWrite = machine->ReadRegister(4);
             int bytesToRead = machine->ReadRegister(5);
             OpenFileId id = machine->ReadRegister(6);
+            
             if (bufferToWrite == 0){
                 DEBUG('e', "Error: Buffer to write is null. \n");
             }
-            if (bytesToRead >= 0) {
+            if (bytesToRead < 0) {
                 DEBUG('e', "Error: Bytes to read is negative. \n");
             }
-            //buscar id
+            
+            // Buscar id
             OpenFile *file = currentThread->space->fileTableIds->Get(id);
+            
             char bufferTransfer[bytesToRead];
             int bytesRead = file->Read(bufferTransfer, bytesToRead);
             WriteBufferToUser(bufferTransfer, bufferToWrite, bytesRead);
+            
             machine->WriteRegister(2, bytesRead);
-            break;
+            
+            break;       
         }
 
         case SC_WRITE: {
+            
             int bufferToRead = machine->ReadRegister(4);
             int bytesToWrite = machine->ReadRegister(5);
             OpenFileId id = machine->ReadRegister(6);
+            
             if (bufferToRead == 0){
                 DEBUG('e', "Error: Buffer to read is null. \n");
             }
-            if (bytesToWrite >= 0) {
+            if (bytesToWrite < 0) {
                 DEBUG('e', "Error: Bytes to write is negative. \n");
             }
-            //buscar id
+            
+            //Buscar id
             OpenFile *file = currentThread->space->fileTableIds->Get(id);
+            
             char bufferTransfer[bytesToWrite];
             ReadBufferFromUser(bufferToRead, bufferTransfer, bytesToWrite);
             int bytesWrite = file->Write(bufferTransfer, bytesToWrite);
             machine->WriteRegister(2, bytesWrite);
+            break;
+        
         }
             
         default:

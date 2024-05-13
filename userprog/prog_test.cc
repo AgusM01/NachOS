@@ -10,7 +10,7 @@
 
 
 #include "address_space.hh"
-#include "machine/console.hh"
+#include "machine/synch_console.hh"
 #include "threads/semaphore.hh"
 #include "threads/system.hh"
 
@@ -49,7 +49,7 @@ StartProcess(const char *filename)
 /// Threads making I/O requests wait on a `Semaphore` to delay until the I/O
 /// completes.
 
-static Console   *console;
+static SynchConsole *console;
 static Semaphore *readAvail;
 static Semaphore *writeDone;
 
@@ -57,17 +57,10 @@ static Semaphore *writeDone;
 ///
 /// Wake up the thread that requested the I/O.
 
-static void
-ReadAvail(void *arg)
-{
-    readAvail->V();
-}
-
-static void
-WriteDone(void *arg)
-{
-    writeDone->V();
-}
+//static void
+//testSyncWrite(){
+//    console->WriteSync('a');
+//}
 
 /// Test the console by echoing characters typed at the input onto the
 /// output.
@@ -76,15 +69,13 @@ WriteDone(void *arg)
 void
 ConsoleTest(const char *in, const char *out)
 {
-    console   = new Console(in, out, ReadAvail, WriteDone, 0);
+    console   = new SynchConsole(in, out, 0);
     readAvail = new Semaphore("read avail", 0);
     writeDone = new Semaphore("write done", 0);
 
     for (;;) {
-        readAvail->P();        // Wait for character to arrive.
-        char ch = console->GetChar();
-        console->PutChar(ch);  // Echo it!
-        writeDone->P();        // Wait for write to finish.
+        char ch = console->ReadSync();
+        console->WriteSync(ch);  // Echo it!
         if (ch == 'q') {
             return;  // If `q`, then quit.
         }
