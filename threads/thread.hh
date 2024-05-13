@@ -40,12 +40,16 @@
 
 
 #include "lib/utility.hh"
-
+#include <lib/list.hh>
 class Semaphore;
 
 #ifdef USER_PROGRAM
+#include "userprog/syscall.h"
+#include "lib/table.hh"
 #include "machine/machine.hh"
 #include "userprog/address_space.hh"
+#include <filesys/open_file.hh>
+#include "filesys/file_system.hh"
 #endif
 
 #include <stdint.h>
@@ -130,7 +134,7 @@ public:
 
     void Print() const;
 
-    //JOIN IMPLEMENTATION
+    // Join Implementation 
     void Join();
 
     // Scheduler Implementation
@@ -141,6 +145,22 @@ public:
     ThreadStatus GetStatus();
 
     const char *PrintStatus();
+    
+#ifdef USER_PROGRAM
+    // File Table Implementation
+
+    // Checkea si hay un archivo en la File Table 
+    bool SearchFile(OpenFileId id);
+
+    // Agrega un archivo a la File Table 
+    OpenFileId AddFile(OpenFile* file);
+
+    // Elimina un archivo de la File Table
+    void RemoveFile(OpenFileId id);
+
+    // Retorna un archivo de la File Table
+    OpenFile* GetFile(OpenFileId id);
+#endif
 
 private:
     // Some of the private data for this class is listed above.
@@ -159,6 +179,7 @@ private:
     void StackAllocate(VoidFunctionPtr func, void *arg);
 
     // JOIN IMPLEMENTATION
+    
     //Booleano para identificar si hace o no Join
     bool join;
 
@@ -169,6 +190,13 @@ private:
 
     //Scheduler implementation
     int priority;
+    
+#ifdef USER_PROGRAM
+    // File Table implementation
+    
+    // File Table 
+    Table<OpenFile*> *fileTable; 
+#endif
 
 #ifdef USER_PROGRAM
     /// User-level CPU register state.

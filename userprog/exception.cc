@@ -23,6 +23,8 @@
 
 
 #include "filesys/file_system.hh"
+#include "filesys/open_file.hh"
+#include "lib/assert.hh"
 #include "transfer.hh"
 #include "syscall.h"
 #include "filesys/directory_entry.hh"
@@ -82,7 +84,7 @@ static void
 SyscallHandler(ExceptionType _et)
 {
     int scid = machine->ReadRegister(2);
-
+    
     switch (scid) {
 
         case SC_HALT:
@@ -118,14 +120,22 @@ SyscallHandler(ExceptionType _et)
             }
             char filename[FILE_NAME_MAX_LEN + 1];
             if (!ReadStringFromUser(filenameAddr, 
-                                    filename, sizeof filename){
+                                    filename, sizeof filename)){
                  DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
             }
         
             DEBUG('e', "`Open` requested for file `%s`.\n", filename);
             
-            //machine->WriteRegister(2, fileSystem->Open(filename));
+            // Abrimos el archivo.
+            OpenFile* file = fileSystem->Open(filename);
+            
+            // Lo guardamos en la File Table de nuestro proceso.
+            OpenFileId fileId = currentThread->AddFile(file);
+            
+            // Escribimos su fd en r2 para retornarlo como salida.
+            machine->WriteRegister(2, fileId);
+
             break;
         }
         case SC_CLOSE: {

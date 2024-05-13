@@ -52,7 +52,7 @@ private:
     /// Assume linear page table translation for now!
     TranslationEntry *pageTable;
 
-    /// Number of pages in the virtual address space. -> Para no guerdar una tabla de paginacion enorme.
+    /// Number of pages in the virtual address space. -> Para no guardar una tabla de paginacion enorme.
     /// Si un proceso quiere acceder a un valor superior al numPages dará una excepción.
     unsigned numPages;
 

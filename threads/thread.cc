@@ -52,7 +52,7 @@ Thread::Thread(const char *threadName, bool isJoin, int threadPriority)
     space    = nullptr;
 #endif
 
-    // JOIN IMPLEMENTATION
+    // Join Implementation
     join = isJoin;
     semName = threadName ? concat("JoinSem ", threadName) : nullptr;
     waitToChild = isJoin ? new Semaphore(semName, 0) : nullptr;
@@ -60,6 +60,21 @@ Thread::Thread(const char *threadName, bool isJoin, int threadPriority)
     // Scheduler Implementation
     ASSERT( -1 < threadPriority && threadPriority < 10);
     priority = threadPriority;
+
+#ifdef USER_PROGRAM
+    // File Table
+    fileTable = new Table<OpenFile*>;
+   
+    ASSERT(fileSystem->Create("0", 1024));
+    ASSERT(fileSystem->Create("1", 1024));
+
+    OpenFile* stdin = fileSystem->Open("0");
+    OpenFile* stdout = fileSystem->Open("1");
+
+    fileTable->Add(stdin);
+    fileTable->Add(stdout);
+#endif
+
 
 }
 
@@ -383,3 +398,35 @@ Thread::PrintStatus()
     }
     return "";
 }
+
+// ----------------- FILE TABLE IMPLEMENTATION ---------------------
+
+#ifdef USER_PROGRAM
+// Checkea si hay un archivo en la File Table 
+bool 
+Thread::SearchFile(OpenFileId id) { return fileTable->HasKey(id); }
+
+// Agrega un archivo a la File Table 
+OpenFileId
+Thread::AddFile(OpenFile* file) {
+    
+    OpenFileId id = fileTable->Add(file); 
+    ASSERT(id != -1);
+    return id;
+
+}
+
+// Elimina un archivo de la File Table
+void
+Thread::RemoveFile(OpenFileId id){
+    
+    fileTable->Remove(id);
+    return;
+
+}
+
+// Retorna un archivo de la File Table
+OpenFile* 
+Thread::GetFile(OpenFileId id) { return fileTable->Get(id); }
+#endif
+

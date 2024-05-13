@@ -1,8 +1,8 @@
 #include "sys_info.hh"
 #include "copyright.h"
 #include "filesys/directory_entry.hh"
-#include "filesys/file_system.hh"
 #include "filesys/raw_file_header.hh"
+#include "filesys/file_system.hh"
 
 #ifdef USER_PROGRAM
 #include "system.hh"
