@@ -1,0 +1,62 @@
+-------------------------------------------------------------------- 14/5/24 ---------------------------------------------------------
+Consideraciones de memoria:
+
+- Ahora tenemos varios procesos en memoria y se pueden hacer algunas optimizaciones.
+
+En NachOS no hacemos memoria compartida.
+
+- Memoria compartida -> Si tengo un proceso en memoria que quiere cargar Halt, puedo fijarme
+si tengo ya una página dedicada a halt que fué previamente usada por otro proceso (por eso se cargó en memoria).
+
+-> Generalmente usado para funciones de librería. 
+Tener rastro de cuantas veces esta compartida la página.
+
+-> Cuando se corren varias instancias del mismo programa estos pueden compartir .text y .data.
+                        --
+- Shell: VPN: 0 PPN: 10   | -> * 
+- Halt: VPN: 0 PPN: 10    |  
+                        --
+- start.s 
+
+*  Comparten .text -> Mecanismo para compartir memoria. 
+
+Caso especial: fork 
+
+fork utiliza primeramente toda la memoria del padre (se comparten todas las páginas) en modo solo lectura. 
+Cuando se quiere escribir en alǵun espacio (mmu detecta escritura y lanza un fallo)
+de memoria (padre o hijo) ahí recien se hace una copia de la memoria y ahi ya marco ambas como rw.
+
+Si hay una seccion que realmente esta marcada como solo lectura (como el .text) el SO se da cuenta de esto
+y no hace la copia de memoria. Simplemente manda un excepción.
+
+- Carga por demanda (deman ..)
+
+gcc debe cargar sus páginas a memoria. Sin embargo, si hago gcc --help, no usaré casi ninguna.
+Las habré cargado de forma innecesaria.
+
+Lo que se puede hacer es que en la tabla de paginacion de gcc (por ejemplo) cargar solo las páginas que 
+contengan main y help primeramente. Si necesito algo del .data la mmu encontrará que la página esta marcada como
+inválida. Como SO puedo mandar una SIGSEGV en caso de error o cargar la página de .data que era realmente necesaria.
+Cargo las páginas que voy necesitando.
+
+Pasa lo mismo con el stack. Le asigno una cantidad de páginas y si sigue creciendo cargo páginas nuevas.
+
+Nachos no tiene carga por demanda. Hay que implementarla.
+
+- Contar cantidad de procesos. -> Problema consola que no se cierra y NachOS no termina.
+
+NachOS
+
+- Memoria virtual
+
+- Implementar soporte para la TLB machine -> PageTable (cr3) (context) -> Registros para cargar -> Manejar la excepcion para cargar la tlb.
+- Encargarse de llenar la TLB. Cada vez que haya un fallo de pag (PageFaultException) (BadVAddr -> coprocesador 0), tendremos que ir a la tabla de paginacion.
+- Agregar un handler al pagefaultexcep. Cuando ocurra un fallo ir a la fale table del proceso (la voy a seguir teniendo en memoria). Debo rellenar la tlb con la info que esta 
+en la tabla de paginacion de los procesos cada vez que ocurra un fallo. Ver que política usar.
+
+- implementar demand loading. Modificar address space. Cuando ocurra una pagefaultexception (por no estar en la tlb o no estar cargada la página o ambas, o direccion inválida -> direc arriba del stack)
+- implementar política de swap (primero fifo o algo sencillo y luego algo óptimo).
+
+
+
+----------------------------------------------------------------------------------------------------------------------------

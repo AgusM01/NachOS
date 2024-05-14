@@ -26,7 +26,12 @@ public:
 
         /// Leer de forma sincronizada a la consola.
         char ReadSync();
+        
+        /// Escribe N bytes a la consola.
+        void WriteNBytes(char* buf, int len);
 
+        // Lee N bytes de la consola.
+        void ReadNBytes(char* buf, int len);
 private:
 
         /// Lock para controlar la escritura.

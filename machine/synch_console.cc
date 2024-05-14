@@ -4,7 +4,7 @@
 #include "lib/utility.hh"
 #include "threads/semaphore.hh"
 #include <climits>
-
+#include <stdio.h>
 //Dummys functions :)
 static void 
 WriteFile (void* s)
@@ -41,6 +41,28 @@ SynchConsole::~SynchConsole(){
     delete writeDone;
     delete readAvail;
 
+}
+
+void
+SynchConsole::WriteNBytes(char* buf, int len){
+    
+    WriteMutex->Acquire();
+    for (int i = 0; i < len; i++){
+        cons->PutChar(buf[i]);
+        writeDone->P();
+    }
+    WriteMutex->Release();
+
+}
+
+void
+SynchConsole::ReadNBytes(char* buf, int len){
+   for (int i = 0; i < len; i++){
+    readAvail->P();
+    buf[i] = cons->GetChar();
+   }
+
+    printf("buf: %s\n", buf);
 }
 
 void

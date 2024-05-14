@@ -23,6 +23,7 @@
 
 
 #include "filesys/file_system.hh"
+#include "synch_console.hh"
 #include "transfer.hh"
 #include "syscall.h"
 #include "filesys/directory_entry.hh"
@@ -191,6 +192,11 @@ SyscallHandler(ExceptionType _et)
             OpenFile *file;
             int status = 0;
             char bufferTransfer[bytesToRead];
+            
+            if (id == 1){
+                DEBUG('e', "Error: File Descriptor Stdout");
+                status = -1;
+            }
 
             if (bufferToWrite == 0){
                 DEBUG('e', "Error: Buffer to write is null. \n");
@@ -203,13 +209,19 @@ SyscallHandler(ExceptionType _et)
             
             // Buscar id
             
-            if(!status && !(file = currentThread->space->fileTableIds->Get(id))) {
+            if(!status && id != 0 && !(file = currentThread->space->fileTableIds->Get(id))) {
                 DEBUG('e', "Error: File not found. \n");
                 status = -1;
             }
             
             if (!status) {
-                status = file->Read(bufferTransfer, bytesToRead);
+                if (id == 0){
+                    status = bytesToRead;
+                    synch_console->ReadNBytes(bufferTransfer, bytesToRead);
+                }
+                else
+                    status = file->Read(bufferTransfer, bytesToRead);
+                
                 WriteBufferToUser(bufferTransfer, bufferToWrite, status);
             }
             
@@ -222,28 +234,39 @@ SyscallHandler(ExceptionType _et)
             int bufferToRead = machine->ReadRegister(4);
             int bytesToWrite = machine->ReadRegister(5);
             OpenFileId id = machine->ReadRegister(6);
-            int status = 0;
+            int status = 0;            
             OpenFile *file;            
             char bufferTransfer[bytesToWrite];
 
-            if (bufferToRead == 0){
+            if (id == 0){
+                DEBUG('e', "Error: File Descriptor Stdin");
+                status = -1;
+            }
+                
+            if (!status && bufferToRead == 0){
                 DEBUG('e', "Error: Buffer to read is null. \n");
                 status = -1;
             }
-            if (!status && bytesToWrite < 0) {
-                DEBUG('e', "Error: Bytes to write is negative. \n");
+
+            if (!status && bytesToWrite <= 0) {
+                DEBUG('e', "Error: Bytes to write is non positive. \n");
                 status = -1;
             }
             
             //Buscar id
-            if(!status && !(file = currentThread->space->fileTableIds->Get(id))) {
+            if(!status && id != 1 && !(file = currentThread->space->fileTableIds->Get(id))) {
                 DEBUG('e', "Error: File not found. \n");
                 status = -1;
             }
             
             if (!status) {
             ReadBufferFromUser(bufferToRead, bufferTransfer, bytesToWrite);
-            status = file->Write(bufferTransfer, bytesToWrite);
+                if (id == 1){
+                    status = bytesToWrite;
+                    synch_console->WriteNBytes(bufferTransfer, bytesToWrite); 
+                }
+                else 
+                    status = file->Write(bufferTransfer, bytesToWrite); 
             }
 
             machine->WriteRegister(2, status);
