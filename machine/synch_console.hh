@@ -16,8 +16,7 @@ class SynchConsole {
 public:
         
         /// Constructor de consola sincronizada.
-        SynchConsole(const char *readFile, const char *writeFile,
-            void *callArg);
+        SynchConsole(const char *readFile, const char *writeFile);
         
         /// Destructor de consola sincronizada.
         ~SynchConsole();
@@ -45,10 +44,6 @@ private:
 
         /// Consola 
         Console* cons;
-
-        void ReadAvail(void *arg);
-
-        void WriteDone(void *arg);
 
 };
 

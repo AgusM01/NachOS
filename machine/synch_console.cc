@@ -3,19 +3,33 @@
 #include "synch_console.hh"
 #include "lib/utility.hh"
 #include "threads/semaphore.hh"
+#include <climits>
 
+//Dummys functions :)
+static void 
+WriteFile (void* s)
+{
+    Semaphore *writeDone = ((Semaphore**)s)[0];
+    writeDone->V();
+}
+
+static void 
+ReadFile (void* s)
+{
+    Semaphore *readDone = ((Semaphore**)s)[1];
+    readDone->V();
+}
 
 /// Constructor de la consola sincronizada. 
-SynchConsole::SynchConsole(const char *readFile, const char *writeFile, void *callArg){
+SynchConsole::SynchConsole(const char *readFile, const char *writeFile){
     
-    cons = new Console(readFile, writeFile, (VoidFunctionPtr)&ReadAvail,
-            (VoidFunctionPtr)&WriteDone, callArg);
 
     WriteMutex = new Lock("SynchConsoleWriteMutex");
     ReadMutex = new Lock("SynchConsoleReadMutex");
-    writeDone = new Semaphore("WriteDoneSem", 0);
-    readAvail = new Semaphore("ReadAvailSem", 0);
+    writeDone = new Semaphore(nullptr, 0);
+    readAvail = new Semaphore(nullptr, 0);
 
+    cons = new Console(readFile, writeFile, ReadFile, WriteFile, (void*)&writeDone);
 }
 
 /// Desturctor de la consola sincronizada.
@@ -36,7 +50,6 @@ SynchConsole::WriteSync(char ch){
     cons->PutChar(ch);
     writeDone->P();
     WriteMutex->Release();
-    return;
 
 }
 
@@ -46,21 +59,5 @@ SynchConsole::ReadSync(){
     readAvail->P();
     char ch = cons->GetChar();
     return ch;
-}
-
-void
-SynchConsole::ReadAvail(void *arg){
-    
-    readAvail->V();
-    return;
-
-}
-
-void
-SynchConsole::WriteDone(void *arg)
-{
-    writeDone->V();
-    return;
-
 }
 
