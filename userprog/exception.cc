@@ -92,45 +92,59 @@ SyscallHandler(ExceptionType _et)
 
         case SC_CREATE: {
             int filenameAddr = machine->ReadRegister(4);
+            int status = 0;
+
             if (filenameAddr == 0) {
                 DEBUG('e', "Error: address to filename string is null.\n");
+                status = -1;
             }
 
             char filename[FILE_NAME_MAX_LEN + 1];
-            if (!ReadStringFromUser(filenameAddr,
+            if (!status && !ReadStringFromUser(filenameAddr,
                                     filename, sizeof filename)) {
                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
+                status = -1;
             }
 
+            if (!status){
             DEBUG('e', "`Create` requested for file `%s`.\n", filename);
             
             unsigned initialSize = machine->ReadRegister(5);
             fileSystem->Create(filename, initialSize);
-
-        }
+            }
             
-            
+            machine->WriteRegister(2, status);
             break;
+        }
         
         case SC_OPEN: {
             int filenameAddr = machine->ReadRegister(4);
+            int status = 0;
+            OpenFile *newFile;
+
             if (filenameAddr == 0){
                 DEBUG('e', "Error: address to filename string is null. \n");
+                status = -1;
             }
+
             char filename[FILE_NAME_MAX_LEN + 1];
-            if (!ReadStringFromUser(filenameAddr, 
+            if (!status && !ReadStringFromUser(filenameAddr, 
                                     filename, sizeof filename)){
                  DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
+                status = -1;
             }
         
-            DEBUG('e', "`Open` requested for file `%s`.\n", filename);
-            OpenFile *newFile = fileSystem->Open(filename);
-            OpenFileId id = currentThread->space->fileTableIds->Add(newFile);
-            machine->WriteRegister(2, id);
-        } 
+            if (!status){
+                DEBUG('e', "`Open` requested for file `%s`.\n", filename);
+                newFile = fileSystem->Open(filename);
+                status = currentThread->space->fileTableIds->Add(newFile);
+            }
+
+            machine->WriteRegister(2, status);
             break;
+        } 
         
         case SC_CLOSE: {
             
@@ -143,22 +157,29 @@ SyscallHandler(ExceptionType _et)
             // Sacarlo de la tabla
             delete file;
 
+            machine->WriteRegister(2, 0);
             break;
         } 
         
         case SC_REMOVE: {
             int filenameAddr = machine->ReadRegister(4);
+            int status = 0;
             if (filenameAddr == 0){
                 DEBUG('e', "Error: address to filename string is null. \n");
+                status = -1;
             }
             char filename[FILE_NAME_MAX_LEN + 1];
-            if (!ReadStringFromUser(filenameAddr, 
+            if (!status && !ReadStringFromUser(filenameAddr, 
                                     filename, sizeof filename)){
                  DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
+                status = -1;
             }
 
-            fileSystem->Remove(filename);
+            if (!status)
+                fileSystem->Remove(filename);
+
+            machine->WriteRegister(2, status);
             break;
         } 
 
@@ -167,23 +188,32 @@ SyscallHandler(ExceptionType _et)
             int bufferToWrite = machine->ReadRegister(4);
             int bytesToRead = machine->ReadRegister(5);
             OpenFileId id = machine->ReadRegister(6);
-            
+            OpenFile *file;
+            int status = 0;
+            char bufferTransfer[bytesToRead];
+
             if (bufferToWrite == 0){
                 DEBUG('e', "Error: Buffer to write is null. \n");
+                status = -1;
             }
-            if (bytesToRead < 0) {
+            if (!status && bytesToRead < 0) {
                 DEBUG('e', "Error: Bytes to read is negative. \n");
+                status = -1;
             }
             
             // Buscar id
-            OpenFile *file = currentThread->space->fileTableIds->Get(id);
             
-            char bufferTransfer[bytesToRead];
-            int bytesRead = file->Read(bufferTransfer, bytesToRead);
-            WriteBufferToUser(bufferTransfer, bufferToWrite, bytesRead);
+            if(!status && !(file = currentThread->space->fileTableIds->Get(id))) {
+                DEBUG('e', "Error: File not found. \n");
+                status = -1;
+            }
             
-            machine->WriteRegister(2, bytesRead);
+            if (!status) {
+                status = file->Read(bufferTransfer, bytesToRead);
+                WriteBufferToUser(bufferTransfer, bufferToWrite, status);
+            }
             
+            machine->WriteRegister(2, status);
             break;       
         }
 
@@ -192,21 +222,31 @@ SyscallHandler(ExceptionType _et)
             int bufferToRead = machine->ReadRegister(4);
             int bytesToWrite = machine->ReadRegister(5);
             OpenFileId id = machine->ReadRegister(6);
-            
+            int status = 0;
+            OpenFile *file;            
+            char bufferTransfer[bytesToWrite];
+
             if (bufferToRead == 0){
                 DEBUG('e', "Error: Buffer to read is null. \n");
+                status = -1;
             }
-            if (bytesToWrite < 0) {
+            if (!status && bytesToWrite < 0) {
                 DEBUG('e', "Error: Bytes to write is negative. \n");
+                status = -1;
             }
             
             //Buscar id
-            OpenFile *file = currentThread->space->fileTableIds->Get(id);
+            if(!status && !(file = currentThread->space->fileTableIds->Get(id))) {
+                DEBUG('e', "Error: File not found. \n");
+                status = -1;
+            }
             
-            char bufferTransfer[bytesToWrite];
+            if (!status) {
             ReadBufferFromUser(bufferToRead, bufferTransfer, bytesToWrite);
-            int bytesWrite = file->Write(bufferTransfer, bytesToWrite);
-            machine->WriteRegister(2, bytesWrite);
+            status = file->Write(bufferTransfer, bytesToWrite);
+            }
+
+            machine->WriteRegister(2, status);
             break;
         
         }

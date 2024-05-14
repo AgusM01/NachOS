@@ -49,9 +49,9 @@ StartProcess(const char *filename)
 /// Threads making I/O requests wait on a `Semaphore` to delay until the I/O
 /// completes.
 
-static SynchConsole *console;
-static Semaphore *readAvail;
-static Semaphore *writeDone;
+//static SynchConsole *console;
+// static Semaphore *readAvail;
+// static Semaphore *writeDone;
 
 /// Console interrupt handlers.
 ///
@@ -69,13 +69,13 @@ static Semaphore *writeDone;
 void
 ConsoleTest(const char *in, const char *out)
 {
-    console   = new SynchConsole(in, out, 0);
-    readAvail = new Semaphore("read avail", 0);
-    writeDone = new Semaphore("write done", 0);
+    // console   = new SynchConsole(in, out, 0);
+    // readAvail = new Semaphore("read avail", 0);
+    // writeDone = new Semaphore("write done", 0);
 
     for (;;) {
-        char ch = console->ReadSync();
-        console->WriteSync(ch);  // Echo it!
+        char ch = synch_console->ReadSync();
+        synch_console->WriteSync(ch);  // Echo it!
         if (ch == 'q') {
             return;  // If `q`, then quit.
         }
