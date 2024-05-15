@@ -8,6 +8,7 @@ nachos
 .cache
 compile_commands.json
 *.coff
+*.txt
 # Para users de VS Code
 
 /.vscode/
