@@ -5,6 +5,7 @@
 #include "threads/semaphore.hh"
 #include <climits>
 #include <stdio.h>
+
 //Dummys functions :)
 static void 
 WriteFile (void* s)
@@ -26,8 +27,8 @@ SynchConsole::SynchConsole(const char *readFile, const char *writeFile){
 
     WriteMutex = new Lock("SynchConsoleWriteMutex");
     ReadMutex = new Lock("SynchConsoleReadMutex");
-    writeDone = new Semaphore(nullptr, 0);
-    readAvail = new Semaphore(nullptr, 0);
+    writeDone = new Semaphore("WriteDoneSem", 0);
+    readAvail = new Semaphore("ReadDoneSem", 0);
 
     cons = new Console(readFile, writeFile, ReadFile, WriteFile, (void*)&writeDone);
 }
@@ -60,9 +61,8 @@ SynchConsole::ReadNBytes(char* buf, int len){
    for (int i = 0; i < len; i++){
     readAvail->P();
     buf[i] = cons->GetChar();
+    //ASSERT(buf[i] != EOF);
    }
-
-    printf("buf: %s\n", buf);
 }
 
 void

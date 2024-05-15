@@ -3,10 +3,9 @@
 
 int main(void){
         
-    Write("Hello world\n", 12, 1);
-    char buf[13];
+    char buf[12];
     Read(buf, 12, 0);
-    printf("%s\n", buf);    
+    Write(buf, 12, 1);    
     Halt();
 
 }
