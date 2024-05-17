@@ -41,8 +41,8 @@ MMU::MMU(unsigned aNumPhysPages)
     numPhysicalPages = aNumPhysPages;
     memorySize = numPhysicalPages * PAGE_SIZE;
 #ifdef USE_TLB
-    tlb = new TranslationEntry[TLB_SIZE];
-    for (unsigned i = 0; i < TLB_SIZE; i++) {
+    tlb = new TranslationEntry[TLB_SIZE]; /// Pequeña TLB 
+    for (unsigned i = 0; i < TLB_SIZE; i++) { /// La inicializa
         tlb[i].valid = false;
     }
     pageTable = nullptr;
@@ -192,7 +192,7 @@ MMU::RetrievePageEntry(unsigned vpn, TranslationEntry **entry) const
         return NO_EXCEPTION;
 
     } else {
-        // Use the TLB.
+        // Use the TLB. --> No usamos mas la tabla de paginacion.
 
         unsigned i;
         for (i = 0; i < TLB_SIZE; i++) {

@@ -20,9 +20,9 @@ Bitmap::Bitmap(unsigned nitems)
 {
     ASSERT(nitems > 0);
 
-    numBits  = nitems;
-    numWords = DivRoundUp(numBits, BITS_IN_WORD);
-    map      = new unsigned [numWords];
+    numBits  = nitems; /// Cantidad de bits 
+    numWords = DivRoundUp(numBits, BITS_IN_WORD); /// Calcula cuantos enteros son (32 bits -> 4 bytes)
+    map      = new unsigned [numWords]; /// Crea un array con la cantidad de enteros que le dió 
     for (unsigned i = 0; i < numBits; i++) {
         Clear(i);
     }
@@ -41,7 +41,7 @@ void
 Bitmap::Mark(unsigned which)
 {
     ASSERT(which < numBits);
-    map[which / BITS_IN_WORD] |= 1 << which % BITS_IN_WORD;
+    map[which / BITS_IN_WORD] |= 1 << which % BITS_IN_WORD; /// Accede al i-ésimo bit haciendo movimientos de bit y ubicandolo mediante divisiones. Cada espacio del array tiene 32 bits (4 bytes)
 }
 
 /// Clear the “nth” bit in a bitmap.

@@ -8,6 +8,7 @@
 
 #include "address_space.hh"
 #include "executable.hh"
+#include "lib/utility.hh"
 #include "threads/system.hh"
 
 #include <string.h>
@@ -21,23 +22,24 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     ASSERT(executable_file != nullptr);
     
     fileTableIds = new Table <OpenFile*>;
-    OpenFile* in = fileSystem->Open("/dev/stdin");
-    OpenFile* out = fileSystem->Open("/dev/stdout");
+    OpenFile* in = nullptr;
+    OpenFile* out = nullptr;
     fileTableIds->Add(in);
     fileTableIds->Add(out);
 
+    /// Creo el ejecutable
     Executable exe (executable_file);
     ASSERT(exe.CheckMagic());
-
+    
+    /// Lo cargo en memoria
     // How big is address space?
 
-    unsigned size = exe.GetSize() + USER_STACK_SIZE;
+    unsigned size = exe.GetSize() + USER_STACK_SIZE; /// Lo que ocupa el .text + el stack.
       // We need to increase the size to leave room for the stack.
     numPages = DivRoundUp(size, PAGE_SIZE);
-    size = numPages * PAGE_SIZE;
+    size = numPages * PAGE_SIZE; /// Recalcula el nuevo tamaño con las páginas de mas incluidas.
 
-    ASSERT(numPages <= machine->GetNumPhysicalPages());
-      // Check we are not trying to run anything too big -- at least until we
+    ASSERT(numPages <= bit_map->CountClear()); /// Calculamos la cantidad de espacio disponible según el bitmap      // Check we are not trying to run anything too big -- at least until we
       // have virtual memory.
 
     DEBUG('a', "Initializing address space, num pages %u, size %u\n",
@@ -46,11 +48,11 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     // First, set up the translation.
     
     // Al momento de usar páginas, marcarlas como usada. Cuando se terminan de usar, marcarlas como libre.
-    pageTable = new TranslationEntry[numPages];
-    for (unsigned i = 0; i < numPages; i++) {
+    pageTable = new TranslationEntry[numPages]; /// Crea la tabla de paginacion
+    for (unsigned i = 0; i < numPages; i++) { /// Asigna 1:1 las páginas con la memoria fisica. -> Cambiar
         pageTable[i].virtualPage  = i;
-          // For now, virtual page number = physical page number.
-        pageTable[i].physicalPage = i;
+          /// Devolvemos el primer lugar de la memoria física libre. 
+        pageTable[i].physicalPage = bit_map->Find();
         pageTable[i].valid        = true;
         pageTable[i].use          = false;
         pageTable[i].dirty        = false;
@@ -59,20 +61,25 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
           // set its pages to be read-only.
     }
 
-    char *mainMemory = machine->mainMemory;
+    char *mainMemory = machine->mainMemory; /// mainMemory es un arreglo de bytes.
 
     // Zero out the entire address space, to zero the unitialized data
     // segment and the stack segment.
-    memset(mainMemory, 0, size);
+
+    for (int i = 0; i < numPages; i++)
+        memset(machine->mainMemory[pageTable[i].physicalPage], 0, PAGE_SIZE);
 
     // Then, copy in the code and data segments into memory.
     uint32_t codeSize = exe.GetCodeSize();
     uint32_t initDataSize = exe.GetInitDataSize();
     if (codeSize > 0) {
         uint32_t virtualAddr = exe.GetCodeAddr();
-        DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
-              virtualAddr, codeSize);
-        exe.ReadCodeBlock(&mainMemory[virtualAddr], codeSize, 0); //Cambiar acá cuando no tengamos un mapeo 1:1.
+        //DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
+              //virtualAddr, codeSize);
+        for (int i = 0; i < codeSize; i++){
+            exe.ReadCodeBlock(&(mainMemory + (pageTable[virtualAddr / PAGE_SIZE].physicalPage)*PAGE_SIZE), PAGE_SIZE - (virtualAddr % PAGE_SIZE), virtualAddr % PAGE_SIZE);
+            virtualAddr++;
+        }
     }
     if (initDataSize > 0) {
         uint32_t virtualAddr = exe.GetInitDataAddr();
@@ -135,6 +142,14 @@ AddressSpace::SaveState()
 void
 AddressSpace::RestoreState()
 {
+    /// Comentar estas dos
     machine->GetMMU()->pageTable     = pageTable;
     machine->GetMMU()->pageTableSize = numPages;
+    
+    //Invalidar la TLB
+    // for (int i = 0; i < TLB_SIZE; i++){
+    //  machine->GetMMU()->tlb[i].valid=0;
+    //
+    // }
+
 }

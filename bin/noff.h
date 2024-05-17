@@ -21,6 +21,7 @@
                               // file.
 
 typedef struct noffSegment {
+    /// Primero le da las direcciones virtuales y LUEGO lo pone en la física.
     uint32_t virtualAddr;  // Location of segment in virtual address space.
     uint32_t inFileAddr;   // Location of segment in this file.
     uint32_t size;         // Size of segment.

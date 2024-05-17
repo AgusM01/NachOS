@@ -42,6 +42,7 @@ SynchDisk *synchDisk;
 #ifdef USER_PROGRAM  // Requires either *FILESYS* or *FILESYS_STUB*.
 Machine *machine;  ///< User program memory and registers.
 SynchConsole *synch_console;
+Bitmap *bit_map;
 #endif
 
 // External definition, to allow us to take a pointer to this function.
@@ -191,14 +192,15 @@ Initialize(int argc, char **argv)
     SystemDep::CallOnUserAbort(Cleanup);  // If user hits ctl-C...
 
 #ifdef USER_PROGRAM
+    
     Debugger *d = debugUserProg ? new Debugger : nullptr;
     
-    // sem1 = new Semaphore(nullptr,0);
-    // sem2 = new Semaphore(nullptr,0);
-
+    machine = new Machine(d, numPhysicalPages);  // This must come first.
+    
     synch_console = new SynchConsole(nullptr,nullptr);
 
-    machine = new Machine(d, numPhysicalPages);  // This must come first.
+    bit_map = new Bitmap(numPhysicalPages);
+
     SetExceptionHandlers();
 #endif
 
@@ -221,6 +223,7 @@ Cleanup()
 #ifdef USER_PROGRAM
     delete machine;
     delete synch_console;
+    delete bit_map;
 #endif
 
 #ifdef FILESYS_NEEDED

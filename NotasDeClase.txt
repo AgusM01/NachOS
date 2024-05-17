@@ -56,7 +56,13 @@ en la tabla de paginacion de los procesos cada vez que ocurra un fallo. Ver que 
 
 - implementar demand loading. Modificar address space. Cuando ocurra una pagefaultexception (por no estar en la tlb o no estar cargada la página o ambas, o direccion inválida -> direc arriba del stack)
 - implementar política de swap (primero fifo o algo sencillo y luego algo óptimo).
-
-
-
 ----------------------------------------------------------------------------------------------------------------------------
+
+
+1 - Implementar TLB. Manejar fallos de la TLB para actualizar la TLB con las entradas que necesite. TLB: Caché de tabla de paginacion.
+2 - Hay que modificar machine para cuando haya un acierto. O algo que cuente los aciertos.
+ 
+ Bandera makefile USE_TLB 
+
+
+
