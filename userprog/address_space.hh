@@ -17,6 +17,7 @@
 #include "filesys/file_system.hh"
 #include "machine/translation_entry.hh"
 #include "lib/table.hh"
+#include <cstdint>
 
 
 const unsigned USER_STACK_SIZE = 1024;  ///< Increase this as necessary!
@@ -54,6 +55,8 @@ private:
 
     /// Assume linear page table translation for now!
     TranslationEntry *pageTable;
+
+    static uint32_t GetPyshicalPage(uint32_t virtualAddr);
 
     /// Number of pages in the virtual address space. -> Para no guerdar una tabla de paginacion enorme.
     /// Si un proceso quiere acceder a un valor superior al numPages dará una excepción.
