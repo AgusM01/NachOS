@@ -76,6 +76,9 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         uint32_t virtualAddr = exe.GetCodeAddr();
         //DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
               //virtualAddr, codeSize);
+
+        // uint32_t ncpag = DivRoundUp(codeSize, PAGE_SIZE); <- Itero sobre esto, que serán menos ciclos.
+        // Cargo el codigo en memoria. ReadCodeBlock llama a ReadAt y utiliza el offset para moverse dentro de las direcciones inFile.
         for (int i = 0; i < codeSize; i++){
             exe.ReadCodeBlock(&(mainMemory + (pageTable[virtualAddr / PAGE_SIZE].physicalPage)*PAGE_SIZE), PAGE_SIZE - (virtualAddr % PAGE_SIZE), virtualAddr % PAGE_SIZE);
             virtualAddr++;
