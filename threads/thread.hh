@@ -41,7 +41,7 @@
 
 #include "lib/utility.hh"
 
-class Semaphore;
+class Channel;
 
 #ifdef USER_PROGRAM
 #include "machine/machine.hh"
@@ -119,7 +119,7 @@ public:
     void Sleep();
 
     /// The thread is done executing.
-    void Finish();
+    void Finish(int returnStatus = 0);
 
     /// Check if thread has overflowed its stack.
     void CheckOverflow() const;
@@ -131,7 +131,7 @@ public:
     void Print() const;
 
     //JOIN IMPLEMENTATION
-    void Join();
+    int Join();
 
     // Scheduler Implementation
     int GetPriority() const;
@@ -163,9 +163,9 @@ private:
     bool join;
 
     //Semaforos para sincronización de Join
-    char* semName;
+    char *chName;
 
-    Semaphore* waitToChild;
+    Channel *waitToChild;
 
     //Scheduler implementation
     int priority;

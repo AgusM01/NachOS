@@ -23,6 +23,7 @@
 
 
 #include "filesys/file_system.hh"
+#include "filesys/open_file.hh"
 #include "synch_console.hh"
 #include "transfer.hh"
 #include "syscall.h"
@@ -61,6 +62,33 @@ DefaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar
     fprintf(stderr, "Unexpected user mode exception: %s, arg %d.\n",
             ExceptionTypeToString(et), exceptionArg);
     ASSERT(false);
+}
+
+/// Run a user program.
+///
+/// Open the executable, load it into memory, and jump to it.
+void
+StartProcess(void *filename)
+{
+    ASSERT(filename != nullptr);
+
+    OpenFile *executable = fileSystem->Open((char*)filename);
+    if (executable == nullptr) {
+        printf("Unable to open file %s\n", (char*)filename);
+        return;
+    }
+
+    AddressSpace *space = new AddressSpace(executable);
+    currentThread->space = space;
+
+    delete executable;
+
+    space->InitRegisters();  // Set the initial register values.
+    space->RestoreState();   // Load page table register.
+
+    machine->Run();  // Jump to the user progam.
+    ASSERT(false);   // `machine->Run` never returns; the address space
+                     // exits by doing the system call `Exit`.
 }
 
 /// Handle a system call exception.
@@ -272,6 +300,46 @@ SyscallHandler(ExceptionType _et)
             machine->WriteRegister(2, status);
             break;
         
+        }
+        case SC_EXEC:{
+            int filenameAddr = machine->ReadRegister(4); 
+            int status = 0;
+
+            if (filenameAddr == 0){
+                DEBUG('e', "Error: address to filename string is null. \n");
+                status = -1;
+            }
+
+            char filename[FILE_NAME_MAX_LEN + 1];
+            if (!status && !ReadStringFromUser(filenameAddr, 
+                                    filename, sizeof filename)){
+                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
+                      FILE_NAME_MAX_LEN);
+                status = -1;
+            }
+
+            Thread* newThread = new Thread(nullptr, true);            
+            newThread->Fork(StartProcess, filename);
+            
+            SpaceId spaceid = space_table->Add(newThread);
+            
+            machine->WriteRegister(2, spaceid);
+            break;
+        } 
+        case SC_EXIT: {
+            
+            currentThread->Finish(machine->ReadRegister(4)); 
+            break;
+        
+        }
+        case SC_JOIN: {
+
+            SpaceId childId = machine->ReadRegister(4); 
+            Thread *child = space_table->Get(childId);
+            
+            machine->WriteRegister(2, child->Join());
+
+        break;
         }
             
         default:

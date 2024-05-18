@@ -21,6 +21,7 @@
 #include "semaphore.hh"
 #include "switch.h"
 #include "system.hh"
+#include "threads/channel.hh"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -54,13 +55,12 @@ Thread::Thread(const char *threadName, bool isJoin, int threadPriority)
 
     // JOIN IMPLEMENTATION
     join = isJoin;
-    semName = threadName ? concat("JoinSem ", threadName) : nullptr;
-    waitToChild = isJoin ? new Semaphore(semName, 0) : nullptr;
+    chName = threadName ? concat("JoinCh ", threadName) : nullptr;
+    waitToChild = isJoin ? new Channel(chName) : nullptr;
 
     // Scheduler Implementation
     ASSERT( -1 < threadPriority && threadPriority < 10);
     priority = threadPriority;
-
 }
 
 /// De-allocate a thread.
@@ -76,7 +76,7 @@ Thread::~Thread()
     DEBUG('t', "Deleting thread \"%s\"\n", name);
 
     delete waitToChild;
-    free(semName);
+    free(chName);
 
     ASSERT(this != currentThread);
     if (stack != nullptr) {
@@ -169,7 +169,7 @@ Thread::Print() const
 /// NOTE: we disable interrupts, so that we do not get a time slice between
 /// setting `threadToBeDestroyed`, and going to sleep.
 void
-Thread::Finish()
+Thread::Finish(int returnStatus)
 {
 
     interrupt->SetLevel(INT_OFF);
@@ -180,7 +180,7 @@ Thread::Finish()
     //JOIN IMPLEMENTATION
     if (join) {
         DEBUG('t', "Signal to father thread to continue with Join\n");
-        waitToChild->V(); 
+        waitToChild->Send(returnStatus); 
     }
 
     threadToBeDestroyed = join ? nullptr : currentThread;
@@ -337,15 +337,18 @@ Thread::RestoreUserState()
 #endif
 
 // --------------- JOIN IMPLEMENTATION --------------------
-void
+int
 Thread::Join() {
 
     ASSERT(join);
+    int ret;
 
     //Espero la respuesta del Child de que terminó
-    waitToChild->P();
+    waitToChild->Receive(&ret);
 
     delete this;
+
+    return ret;
 }
 
 // --------------- SCHEDULER IMPLEMENTATION --------------------

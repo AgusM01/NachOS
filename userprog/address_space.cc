@@ -160,6 +160,9 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 /// Nothing for now!
 AddressSpace::~AddressSpace()
 {
+    for (unsigned i = 0; i < numPages; i++)
+        bit_map->Clear(pageTable[i].physicalPage);
+
     delete [] pageTable;
     delete fileTableIds;
 }
