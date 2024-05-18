@@ -9,8 +9,10 @@
 #include "address_space.hh"
 #include "executable.hh"
 #include "lib/utility.hh"
+#include "mmu.hh"
 #include "threads/system.hh"
 
+#include <cstdint>
 #include <string.h>
 
 
@@ -49,9 +51,10 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     
     // Al momento de usar páginas, marcarlas como usada. Cuando se terminan de usar, marcarlas como libre.
     pageTable = new TranslationEntry[numPages]; /// Crea la tabla de paginacion
-    for (unsigned i = 0; i < numPages; i++) { /// Asigna 1:1 las páginas con la memoria fisica. -> Cambiar
+    for (unsigned int i = 0; i < numPages; i++) { /// Asigna 1:1 las páginas con la memoria fisica. -> Cambiar
         pageTable[i].virtualPage  = i;
-          /// Devolvemos el primer lugar de la memoria física libre. 
+        
+        /// Devolvemos el primer lugar de la memoria física libre. 
         pageTable[i].physicalPage = bit_map->Find();
         pageTable[i].valid        = true;
         pageTable[i].use          = false;
@@ -66,26 +69,65 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     // Zero out the entire address space, to zero the unitialized data
     // segment and the stack segment.
 
-    for (int i = 0; i < numPages; i++)
-        memset(machine->mainMemory[pageTable[i].physicalPage], 0, PAGE_SIZE);
+    for (unsigned int i = 0; i < numPages; i++)
+        memset(&machine->mainMemory[pageTable[i].physicalPage], 0, PAGE_SIZE);
 
     // Then, copy in the code and data segments into memory.
     uint32_t codeSize = exe.GetCodeSize();
     uint32_t initDataSize = exe.GetInitDataSize();
+    
     if (codeSize > 0) {
         uint32_t virtualAddr = exe.GetCodeAddr();
-        //DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
-              //virtualAddr, codeSize);
-        for (int i = 0; i < codeSize; i++){
-            exe.ReadCodeBlock(&(mainMemory + (pageTable[virtualAddr / PAGE_SIZE].physicalPage)*PAGE_SIZE), PAGE_SIZE - (virtualAddr % PAGE_SIZE), virtualAddr % PAGE_SIZE);
-            virtualAddr++;
+        char* loc;
+        uint32_t offset;
+        uint32_t totalCodePags = DivRoundUp(codeSize, PAGE_SIZE);
+        uint32_t cpySize; 
+
+        for (uint32_t i = 0; i < totalCodePags; i++){
+            
+            
+            /// Calculamos la memoria principal: marco * page_size.
+            loc = mainMemory + pageTable[virtualAddr / PAGE_SIZE].physicalPage * PAGE_SIZE;
+            // Representa el desplazamiento dentro de la página.
+            offset = virtualAddr % PAGE_SIZE;
+
+            // Representa de donde hay que comenzar a copiar.
+            // Hay dos casos bordes: el inicio y el final.
+            // Quiza al inicio no hay que copiar desde el comienzo de la página
+            // si no desde, por ejemplo, la mitad.
+            // Lo mismo con el final. Quizá no usará la página entera y nos sobrará.
+            cpySize = PAGE_SIZE - (virtualAddr % PAGE_SIZE);
+
+            exe.ReadCodeBlock(loc, size, offset);
+
+            if (!i)
+                DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
+                    loc, codeSize);
+
+            virtualAddr += cpySize + offset;
         }
     }
     if (initDataSize > 0) {
         uint32_t virtualAddr = exe.GetInitDataAddr();
-        DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
-              virtualAddr, initDataSize);
-        exe.ReadDataBlock(&mainMemory[virtualAddr], initDataSize, 0);
+        char* loc;
+        uint32_t offset;
+        uint32_t totalDataPags = DivRoundUp(initDataSize, PAGE_SIZE);
+        uint32_t cpySize;
+
+        for (uint32_t i = 0; i < totalDataPags; i++){
+            
+            loc = mainMemory + pageTable[virtualAddr / PAGE_SIZE].physicalPage * PAGE_SIZE;
+            offset = virtualAddr % PAGE_SIZE;
+            cpySize = PAGE_SIZE - (virtualAddr % PAGE_SIZE);
+            
+            exe.ReadDataBlock(loc, cpySize, offset);
+            if (!i)
+                DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
+                    virtualAddr, initDataSize);
+
+            virtualAddr += cpySize + offset;
+        }
+    
     }
 
 }

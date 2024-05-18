@@ -18,7 +18,7 @@
 
 const unsigned PAGE_SIZE = SECTOR_SIZE;  ///< Set the page size equal to the
                                          ///< disk sector size, for
-                                         ///< simplicity.
+                                         ///< simplicity. <- 128 bytes. En cada página voy a poder guardar 128 bytes.
 const unsigned DEFAULT_NUM_PHYS_PAGES = 32;
 //const unsigned MEMORY_SIZE = NUM_PHYS_PAGES * PAGE_SIZE;
 
