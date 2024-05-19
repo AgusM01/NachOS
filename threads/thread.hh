@@ -41,11 +41,12 @@
 
 #include "lib/utility.hh"
 
-class Semaphore;
+class Channel;
 
 #ifdef USER_PROGRAM
 #include "machine/machine.hh"
 #include "userprog/address_space.hh"
+//class Table <Thread*>;
 #endif
 
 #include <stdint.h>
@@ -119,7 +120,8 @@ public:
     void Sleep();
 
     /// The thread is done executing.
-    void Finish();
+    /// De manera opcional, si es la finalización de un Child. Este le manda el resultado al padre.
+    void Finish(int ret = 0);
 
     /// Check if thread has overflowed its stack.
     void CheckOverflow() const;
@@ -159,13 +161,16 @@ private:
     void StackAllocate(VoidFunctionPtr func, void *arg);
 
     // JOIN IMPLEMENTATION
+    
     //Booleano para identificar si hace o no Join
     bool join;
 
-    //Semaforos para sincronización de Join
-    char* semName;
-
-    Semaphore* waitToChild;
+    //Channel para sincronización de Join
+    char* chName;
+    Channel* chRet;
+    
+    // Valor de retorno del hijo
+    int* resp;
 
     //Scheduler implementation
     int priority;
@@ -188,7 +193,8 @@ public:
 
     // User code this thread is running.
     AddressSpace *space;
-#endif
+    
+    #endif
 };
 
 /// Magical machine-dependent routines, defined in `switch.s`.

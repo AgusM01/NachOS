@@ -24,10 +24,12 @@
 
 #include "filesys/file_system.hh"
 #include "synch_console.hh"
+#include "threads/thread.hh"
 #include "transfer.hh"
 #include "syscall.h"
 #include "filesys/directory_entry.hh"
 #include "threads/system.hh"
+#include "address_space.hh"
 
 #include <stdio.h>
 
@@ -44,6 +46,32 @@ IncrementPC()
     pc += 4;
     machine->WriteRegister(NEXT_PC_REG, pc);
 }
+
+void
+StartProcess(void *filename)
+{
+    ASSERT(filename != nullptr);
+
+    OpenFile *executable = fileSystem->Open((char*) filename);
+    if (executable == nullptr) {
+        printf("Unable to open file %s\n", (char*) filename);
+        return;
+    }
+
+    AddressSpace *space = new AddressSpace(executable);
+    currentThread->space = space;
+
+    delete executable;
+
+    space->InitRegisters();  // Set the initial register values.
+    space->RestoreState();   // Load page table register.
+
+    machine->Run();  // Jump to the user progam.
+    ASSERT(false);   // `machine->Run` never returns; the address space
+                     // exits by doing the system call `Exit`.
+}
+
+
 
 /// Do some default behavior for an unexpected exception.
 ///
@@ -272,6 +300,39 @@ SyscallHandler(ExceptionType _et)
             machine->WriteRegister(2, status);
             break;
         
+        }
+        case SC_EXEC: {
+            
+            // Cargamos el nombre del ejecutable.
+            int filenameAddr = machine->ReadRegister(4);
+
+            
+
+            if (filenameAddr == 0)
+                DEBUG('e', "Error: address to filename string is null. \n");
+
+            char filename[FILE_NAME_MAX_LEN + 1];
+
+            if (!ReadStringFromUser(filenameAddr, 
+                                    filename, sizeof filename))
+                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
+                      FILE_NAME_MAX_LEN);
+
+
+            Thread* child = new Thread("execChild", true);
+            child->Fork(StartProcess, filename);
+            machine->WriteRegister(2, currentThread->spaceTable->Add(child));
+            
+            break;
+        }
+        case SC_JOIN: {
+            SpaceId child = machine->ReadRegister(2);
+            
+            /// Hago que el padre ejecute el método join del hijo.
+            currentThread->space->spaceTable->Get(child)->Join();
+            machine->WriteRegister(2, currentThread->resp);            
+                          
+            break;
         }
             
         default:

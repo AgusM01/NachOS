@@ -17,7 +17,9 @@
 #include "filesys/file_system.hh"
 #include "machine/translation_entry.hh"
 #include "lib/table.hh"
+#include "threads/thread.hh"
 
+class Thread;
 
 const unsigned USER_STACK_SIZE = 1024;  ///< Increase this as necessary!
 
@@ -49,6 +51,9 @@ public:
     void RestoreState();
 
     Table <OpenFile*> *fileTableIds;
+    
+    // Tabla de hijos ejecutando algo.
+    Table <Thread*> *spaceTable;
 
 private:
 

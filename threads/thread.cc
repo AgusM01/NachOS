@@ -22,9 +22,11 @@
 #include "switch.h"
 #include "system.hh"
 
+#include "channel.hh"
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
+
 
 
 /// This is put at the top of the execution stack, for detecting stack
@@ -54,8 +56,8 @@ Thread::Thread(const char *threadName, bool isJoin, int threadPriority)
 
     // JOIN IMPLEMENTATION
     join = isJoin;
-    semName = threadName ? concat("JoinSem ", threadName) : nullptr;
-    waitToChild = isJoin ? new Semaphore(semName, 0) : nullptr;
+    chName = threadName ? concat("JoinCh ", threadName) : nullptr;
+    chRet = isJoin ? new Channel(chName) : nullptr;
 
     // Scheduler Implementation
     ASSERT( -1 < threadPriority && threadPriority < 10);
@@ -75,8 +77,8 @@ Thread::~Thread()
 {
     DEBUG('t', "Deleting thread \"%s\"\n", name);
 
-    delete waitToChild;
-    free(semName);
+    delete chRet;
+    free(chName);
 
     ASSERT(this != currentThread);
     if (stack != nullptr) {
@@ -169,7 +171,7 @@ Thread::Print() const
 /// NOTE: we disable interrupts, so that we do not get a time slice between
 /// setting `threadToBeDestroyed`, and going to sleep.
 void
-Thread::Finish()
+Thread::Finish(int ret)
 {
 
     interrupt->SetLevel(INT_OFF);
@@ -180,8 +182,8 @@ Thread::Finish()
     //JOIN IMPLEMENTATION
     if (join) {
         DEBUG('t', "Signal to father thread to continue with Join\n");
-        waitToChild->V(); 
-    }
+        chRet->Send(ret);  /// En este caso el padre estará bloqueado esperando el resultado del hijo.
+    } 
 
     threadToBeDestroyed = join ? nullptr : currentThread;
 
@@ -337,13 +339,15 @@ Thread::RestoreUserState()
 #endif
 
 // --------------- JOIN IMPLEMENTATION --------------------
+/// El padre ejecutará este método, el cual será el método Join DEL HIJO. Por eso el delete this.
+/// La respuesta del hijo la guarda en resp.
 void
 Thread::Join() {
 
     ASSERT(join);
 
-    //Espero la respuesta del Child de que terminó
-    waitToChild->P();
+    // Espero la respuesta del Child de que terminó
+    chRet->Receive(resp);
 
     delete this;
 }

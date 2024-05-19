@@ -29,6 +29,9 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     fileTableIds->Add(in);
     fileTableIds->Add(out);
 
+    // Creo la space table
+    spaceTable = new Table <Thread*>; 
+    
     /// Creo el ejecutable
     Executable exe (executable_file);
     ASSERT(exe.CheckMagic());
@@ -85,7 +88,9 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 
         for (uint32_t i = 0; i < totalCodePags; i++){
             
-            
+            /// La ponemos en modo readOnly ya que es el segmento de código (.text)
+            pageTable[virtualAddr / PAGE_SIZE].readOnly = true;
+
             /// Calculamos la memoria principal: marco * page_size.
             loc = mainMemory + pageTable[virtualAddr / PAGE_SIZE].physicalPage * PAGE_SIZE;
             // Representa el desplazamiento dentro de la página.
@@ -138,7 +143,11 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 AddressSpace::~AddressSpace()
 {
     delete [] pageTable;
+    for (unsigned int i = 0; i < numPages; i++)
+        bit_map->Clear(pageTable[i].physicalPage);
+
     delete fileTableIds;
+    delete(spaceTable);
 }
 
 /// Set the initial values for the user-level register set.
