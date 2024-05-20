@@ -89,12 +89,15 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         for (uint32_t i = 0; i < totalCodePags; i++){
             
             /// La ponemos en modo readOnly ya que es el segmento de código (.text)
+            /// virtualAddr / PAGE_SIZE => Esto se debe a que una pagina tiene un tamaño de 2^k (comodidad al trabajar con potencias de dos)
+            /// y una direccion virtual consta de (n - k) bits de numero de pagina y k bits de offset. Al dividir virtualAddr / PAGE_SIZE esto es 
+            /// virtualAddr / 2^k por lo que estamos haciendo un corrimiento de k bits a la derecha de virtualAddr. Así nos quedamos con el número de página.
             pageTable[virtualAddr / PAGE_SIZE].readOnly = true;
 
             /// Calculamos la memoria principal: marco * page_size.
             loc = mainMemory + pageTable[virtualAddr / PAGE_SIZE].physicalPage * PAGE_SIZE;
             // Representa el desplazamiento dentro de la página.
-            offset = virtualAddr % PAGE_SIZE;
+            offset = virtualAddr > PAGE_SIZE ? 0 : virtualAddr % PAGE_SIZE;
 
             // Representa de donde hay que comenzar a copiar.
             // Hay dos casos bordes: el inicio y el final.
@@ -122,14 +125,15 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         for (uint32_t i = 0; i < totalDataPags; i++){
             
             loc = mainMemory + pageTable[virtualAddr / PAGE_SIZE].physicalPage * PAGE_SIZE;
-            offset = virtualAddr % PAGE_SIZE;
+            offset = virtualAddr > PAGE_SIZE ? 0 : virtualAddr % PAGE_SIZE;
             cpySize = PAGE_SIZE - (virtualAddr % PAGE_SIZE);
             
-            exe.ReadDataBlock(loc, cpySize, offset);
-            if (!i)
-                DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
-                    virtualAddr, initDataSize);
+            DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
+                  loc, initDataSize);
 
+            exe.ReadDataBlock(loc, cpySize, offset);
+            
+                       
             virtualAddr += cpySize + offset;
         }
     

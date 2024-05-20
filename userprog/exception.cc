@@ -321,7 +321,7 @@ SyscallHandler(ExceptionType _et)
 
             Thread* child = new Thread("execChild", true);
             child->Fork(StartProcess, filename);
-            machine->WriteRegister(2, currentThread->spaceTable->Add(child));
+            machine->WriteRegister(2, currentThread->space->spaceTable->Add(child));
             
             break;
         }
@@ -334,7 +334,13 @@ SyscallHandler(ExceptionType _et)
                           
             break;
         }
-            
+        case SC_EXIT: {
+           int status = machine->ReadRegister(2);
+           
+            currentThread->Finish(status);
+        
+            break;
+        } 
         default:
             fprintf(stderr, "Unexpected system call: id %d.\n", scid);
             ASSERT(false);

@@ -143,6 +143,9 @@ public:
     ThreadStatus GetStatus();
 
     const char *PrintStatus();
+    
+    // Valor de retorno del hijo en join (exec)
+    int resp;
 
 private:
     // Some of the private data for this class is listed above.
@@ -169,9 +172,7 @@ private:
     char* chName;
     Channel* chRet;
     
-    // Valor de retorno del hijo
-    int* resp;
-
+   
     //Scheduler implementation
     int priority;
 
@@ -193,6 +194,7 @@ public:
 
     // User code this thread is running.
     AddressSpace *space;
+    
     
     #endif
 };

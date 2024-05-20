@@ -347,7 +347,7 @@ Thread::Join() {
     ASSERT(join);
 
     // Espero la respuesta del Child de que terminó
-    chRet->Receive(resp);
+    chRet->Receive(&resp);
 
     delete this;
 }

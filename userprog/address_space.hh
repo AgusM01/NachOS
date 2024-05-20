@@ -17,7 +17,7 @@
 #include "filesys/file_system.hh"
 #include "machine/translation_entry.hh"
 #include "lib/table.hh"
-#include "threads/thread.hh"
+//#include "threads/thread.hh"
 
 class Thread;
 
@@ -52,7 +52,7 @@ public:
 
     Table <OpenFile*> *fileTableIds;
     
-    // Tabla de hijos ejecutando algo.
+    /// Tabla de hijos ejecutando algo.
     Table <Thread*> *spaceTable;
 
 private:
