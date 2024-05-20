@@ -18,12 +18,10 @@
 
 
 #include "thread.hh"
-#include "semaphore.hh"
 #include "switch.h"
 #include "system.hh"
-#include "threads/channel.hh"
+#include "channel.hh"
 
-#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -183,7 +181,7 @@ Thread::Finish(int returnStatus)
         waitToChild->Send(returnStatus); 
     }
 
-    threadToBeDestroyed = join ? nullptr : currentThread;
+    threadToBeDestroyed = currentThread;
 
     Sleep();  // Invokes `SWITCH`.
     // Not reached.
@@ -345,8 +343,6 @@ Thread::Join() {
 
     //Espero la respuesta del Child de que terminó
     waitToChild->Receive(&ret);
-
-    delete this;
 
     return ret;
 }

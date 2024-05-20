@@ -15,6 +15,7 @@
 #include "lib/utility.hh"
 #include "threads/system.hh"
 
+#include <stdio.h>
 #include <string.h>
 
 /// First, set up the translation from program memory to physical memory.
@@ -69,12 +70,12 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     // Zero out the entire address space, to zero the unitialized data
     // segment and the stack segment.
 
+    DEBUG('a', "Seteando en 0 la memoria de las páginas.\n");
     for (unsigned i = 0; i < numPages; i++)
         memset(&mainMemory[PYSHICAL_ADDR(i)], 0, PAGE_SIZE);
 
     // Then, copy in the code and data segments into memory.
     uint32_t codeSize = exe.GetCodeSize();
-    uint32_t initDataSize = exe.GetInitDataSize();
     if (codeSize > 0) {
         uint32_t virtualAddr = exe.GetCodeAddr();
         DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
@@ -85,9 +86,16 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         uint32_t firstPageWriteSize = min(PAGE_SIZE - offsetPage, codeSize);
         uint32_t remainingToWrite = codeSize - firstPageWriteSize;
 
+
+        DEBUG('a', "Write at 0x%X, size %u\n",
+              PYSHICAL_ADDR(virtualPage) + offsetPage, firstPageWriteSize);
+
+
         exe.ReadCodeBlock(&mainMemory[PYSHICAL_ADDR(virtualPage) + offsetPage], firstPageWriteSize, offsetFile);
         pageTable[virtualPage].use = true;
         if (remainingToWrite > 0) {
+            DEBUG('a', "Left to write: %u.\n", remainingToWrite);
+
             offsetFile = firstPageWriteSize; // Desplazamiento en Disco
             virtualPage++;                   // Pasamos a la siguiente página virtual
 
@@ -95,11 +103,14 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
             // tenemos que escribir una página entera
             while(PAGE_SIZE < remainingToWrite) 
             {
+                DEBUG('a', "Write at 0x%X, size %u\n",
+                    PYSHICAL_ADDR(virtualPage), PAGE_SIZE);
+
                 exe.ReadCodeBlock(&mainMemory[PYSHICAL_ADDR(virtualPage)], PAGE_SIZE, offsetFile);
                 pageTable[virtualPage].use = true;
 
-                offsetFile =+ PAGE_SIZE; // Avanzamos en el Disco 
-                remainingToWrite =- PAGE_SIZE; // Nos falta una página menos.
+                offsetFile += PAGE_SIZE; // Avanzamos en el Disco 
+                remainingToWrite -= PAGE_SIZE; // Nos falta una página menos.
 
                 // La página es solo del segmento del código, marcamos como solo lectura.
                 pageTable[virtualPage].readOnly = true; 
@@ -108,6 +119,8 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
                 virtualPage++;
             }
 
+                DEBUG('a', "Last Write at 0x%X, size %u\n",
+                    PYSHICAL_ADDR(virtualPage), remainingToWrite);
             // Ultima escritura, ya que remainingToWrite <= PAGE_SIZE
             exe.ReadCodeBlock(&mainMemory[PYSHICAL_ADDR(virtualPage)], remainingToWrite, offsetFile);
             pageTable[virtualPage].use = true;
@@ -118,6 +131,9 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         }
 
     }
+
+    uint32_t initDataSize = exe.GetInitDataSize();
+
     if (initDataSize > 0) {
         uint32_t virtualAddr = exe.GetInitDataAddr();
         DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
@@ -125,10 +141,13 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         uint32_t offsetPage = virtualAddr % PAGE_SIZE;
         uint32_t offsetFile = 0;
         unsigned virtualPage = virtualAddr / PAGE_SIZE;
-        uint32_t firstPageWriteSize = min(PAGE_SIZE - offsetPage, codeSize);
-        uint32_t remainingToWrite = codeSize - firstPageWriteSize;
+        uint32_t firstPageWriteSize = min(PAGE_SIZE - offsetPage, initDataSize);
+        uint32_t remainingToWrite = initDataSize - firstPageWriteSize;
 
-        exe.ReadCodeBlock(&mainMemory[PYSHICAL_ADDR(virtualPage) + offsetPage], firstPageWriteSize, offsetFile);
+        DEBUG('a', "Write at 0x%X, size %u, offsetPage %u, remainingToWrite %u\n",
+              PYSHICAL_ADDR(virtualPage) + offsetPage, firstPageWriteSize, offsetPage, remainingToWrite);
+
+        exe.ReadDataBlock(&mainMemory[PYSHICAL_ADDR(virtualPage) + offsetPage], firstPageWriteSize, offsetFile);
         pageTable[virtualPage].use = true;
         if (remainingToWrite > 0) {
             offsetFile = firstPageWriteSize; // Desplazamiento en Disco
@@ -138,18 +157,24 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
             // tenemos que escribir una página entera
             while(PAGE_SIZE < remainingToWrite) 
             {
-                exe.ReadCodeBlock(&mainMemory[PYSHICAL_ADDR(virtualPage)], PAGE_SIZE, offsetFile);
+                DEBUG('a', "Write in while at 0x%X, size %u, remainingToWrite\n",
+                    PYSHICAL_ADDR(virtualPage) + offsetPage, PAGE_SIZE, remainingToWrite);
+
+                exe.ReadDataBlock(&mainMemory[PYSHICAL_ADDR(virtualPage)], PAGE_SIZE, offsetFile);
                 pageTable[virtualPage].use = true;
 
-                offsetFile =+ PAGE_SIZE; // Avanzamos en el Disco 
-                remainingToWrite =- PAGE_SIZE; // Nos falta una página menos.
+                offsetFile += PAGE_SIZE; // Avanzamos en el Disco 
+                remainingToWrite -= PAGE_SIZE; // Nos falta una página menos.
 
                 // Avanzamos a la página siguiente
                 virtualPage++;
             }
 
+                DEBUG('a', "Write at last 0x%X, size %u\n",
+                    PYSHICAL_ADDR(virtualPage) + offsetPage, remainingToWrite);
+
             // Ultima escritura, ya que remainingToWrite <= PAGE_SIZE
-            exe.ReadCodeBlock(&mainMemory[PYSHICAL_ADDR(virtualPage)], remainingToWrite, offsetFile);
+            exe.ReadDataBlock(&mainMemory[PYSHICAL_ADDR(virtualPage)], remainingToWrite, offsetFile);
             pageTable[virtualPage].use = true;
         }
     }

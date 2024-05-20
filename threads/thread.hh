@@ -41,7 +41,6 @@
 
 #include "lib/utility.hh"
 
-class Channel;
 
 #ifdef USER_PROGRAM
 #include "machine/machine.hh"
@@ -50,6 +49,7 @@ class Channel;
 
 #include <stdint.h>
 
+class Channel;
 
 /// CPU register state to be saved on context switch.
 ///
@@ -162,7 +162,7 @@ private:
     //Booleano para identificar si hace o no Join
     bool join;
 
-    //Semaforos para sincronización de Join
+    //Channel para sincronización de Join
     char *chName;
 
     Channel *waitToChild;
