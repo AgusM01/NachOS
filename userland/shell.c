@@ -119,8 +119,19 @@ main(void)
 
         // Comment and uncomment according to whether command line arguments
         // are given in the system call or not.
-        const SpaceId newProc = Exec(line);
-        //const SpaceId newProc = Exec(line, argv);
+        SpaceId newProc ;
+        if (argv[1] == NULL){
+            newProc = Exec(line);
+            if (newProc == -1)
+                continue;
+        } else {
+            newProc = Exec2(line, argv);
+            if (newProc == -1){
+                WriteError("asdf", CONSOLE_OUTPUT);
+                continue;
+            }
+        }
+
 
         // TODO: check for errors when calling `Exec`; this depends on how
         //       errors are reported.
