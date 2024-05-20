@@ -106,10 +106,11 @@ WriteArgs(char **args)
     for (unsigned i = 0; i < c; i++){
         char str[255];
         ReadStringFromUser(argsAddress[i], str, 255);
-        printf("String %d : %s", i, str);
+        printf("String %d : %s\n", i, str);
         puts("Holandaa");
     }
 
+    printf("Dir de sp en Write %X.\n",sp);
     machine->WriteRegister(STACK_REG, sp);
     return c;
 }

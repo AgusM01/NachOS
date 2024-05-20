@@ -34,6 +34,10 @@
 #include <stdio.h>
 
 
+void bpoint(){
+
+}
+
 static void
 IncrementPC()
 {
@@ -71,6 +75,8 @@ DefaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar
 void
 ProcessInitArgs(void* arg)
 {
+    int sp = machine->ReadRegister(STACK_REG);
+    printf(" Dir de sp en ProcessInitArgs Antes InitRegisters %X.\n",sp);
     currentThread->space->InitRegisters();  // Set the initial register values.
     currentThread->space->RestoreState();   // Load page table register.
 
@@ -78,11 +84,17 @@ ProcessInitArgs(void* arg)
 
     printf("Primer String %s .\n", argv[0]);
 
+    sp = machine->ReadRegister(STACK_REG);
+    printf(" Dir de sp en ProcessInitArgs Antes WriteArgs %d.\n",sp);
     int c = WriteArgs(argv);
-    int sp = machine->ReadRegister(STACK_REG);
+    sp = machine->ReadRegister(STACK_REG);
+    printf(" Numero de argumentos : %d \nDir de sp en ProcessInitArgs %d.\n", c,sp);
 
     machine->WriteRegister(4, c);
     machine->WriteRegister(5, sp);
+    machine->WriteRegister(STACK_REG, sp - 24);
+
+    bpoint();
 
     machine->Run();  // Jump to the user progam.
     ASSERT(false);   // `machine->Run` never returns; the address space
@@ -411,7 +423,6 @@ SyscallHandler(ExceptionType _et)
                 delete executable;
                 newThread->space = space;
                 status = space_table->Add(newThread);
-                printf("LAPUTA MADRE %d", status);
                 newThread->Fork(ProcessInitArgs, (void*)argv);
             }
 

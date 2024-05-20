@@ -9,9 +9,7 @@ StringLength(const char *s)
     // What if `s` is null?
 
     unsigned i;
-    for (i = 0; s[i] != '\0'; i++) {
-        Write(s + 1, 1, CONSOLE_OUTPUT);
-    }
+    for (i = 0; s[i] != '\0'; i++) {}
     return i;
 }
 
@@ -33,10 +31,8 @@ PrintChar(char c)
 int
 main(int argc, char *argv[])
 {
-    PrintString(argv[0]);
-    PrintString(argv[1]);
-    for (unsigned i = 0; i < argc; i++) {
-        if (i != 0) {
+    for (unsigned i = 1; i < argc; i++) {
+        if (i != 1) {
             PrintChar(' ');
         }
         PrintString(argv[i]);
