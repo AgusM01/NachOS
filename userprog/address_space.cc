@@ -91,8 +91,13 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
               PYSHICAL_ADDR(virtualPage) + offsetPage, firstPageWriteSize);
 
 
-        exe.ReadCodeBlock(&mainMemory[PYSHICAL_ADDR(virtualPage) + offsetPage], firstPageWriteSize, offsetFile);
+        exe.ReadCodeBlock(
+            &mainMemory[PYSHICAL_ADDR(virtualPage) + offsetPage],
+            firstPageWriteSize,
+            offsetFile
+        );
         pageTable[virtualPage].use = true;
+
         if (remainingToWrite > 0) {
             DEBUG('a', "Left to write: %u.\n", remainingToWrite);
 

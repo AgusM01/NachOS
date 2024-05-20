@@ -31,6 +31,7 @@
 #define SC_CLOSE   13
 #define SC_READ    14
 #define SC_WRITE   15
+#define SC_EXEC2    16
 
 
 #ifndef IN_ASM
@@ -59,6 +60,10 @@ typedef int SpaceId;
 /// Run the executable, stored in the Nachos file `name`, and return the
 /// address space identifier.
 SpaceId Exec(char *name);
+
+/// Run the executable, stored in the Nachos file `name` with arguments
+// and return the address space identifier.
+SpaceId Exec2(char *name, char **argv);
 
 /// Only return once the the user program `id` has finished.
 ///

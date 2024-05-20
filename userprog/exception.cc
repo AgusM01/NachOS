@@ -29,6 +29,7 @@
 #include "syscall.h"
 #include "filesys/directory_entry.hh"
 #include "threads/system.hh"
+#include "args.hh"
 
 #include <stdio.h>
 
@@ -67,6 +68,27 @@ DefaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar
 /// Run a user program.
 ///
 /// Open the executable, load it into memory, and jump to it.
+void
+ProcessInitArgs(void* arg)
+{
+    currentThread->space->InitRegisters();  // Set the initial register values.
+    currentThread->space->RestoreState();   // Load page table register.
+
+    char** argv = (char**)arg;
+
+    printf("Primer String %s .\n", argv[0]);
+
+    int c = WriteArgs(argv);
+    int sp = machine->ReadRegister(STACK_REG);
+
+    machine->WriteRegister(4, c);
+    machine->WriteRegister(5, sp);
+
+    machine->Run();  // Jump to the user progam.
+    ASSERT(false);   // `machine->Run` never returns; the address space
+                     // exits by doing the system call `Exit`.
+}
+
 void
 ProcessInit(void* arg)
 {
@@ -184,7 +206,7 @@ SyscallHandler(ExceptionType _et)
             int filenameAddr = machine->ReadRegister(4);
             int status = 0;
             char filename[FILE_NAME_MAX_LEN + 1];
-            |
+
             if (filenameAddr == 0){
                 DEBUG('e', "Error: address to filename string is null. \n");
                 status = -1;
@@ -336,14 +358,75 @@ SyscallHandler(ExceptionType _et)
             machine->WriteRegister(2, status);
             break;
         } 
+        case SC_EXEC2:{
+
+            int filenameAddr = machine->ReadRegister(4); 
+            int argsVector = machine->ReadRegister(5);
+            int status = 0;
+            OpenFile *executable;
+            Thread* newThread;            
+            char** argv;
+            AddressSpace *space; 
+            char filename[FILE_NAME_MAX_LEN + 1];
+
+            if (filenameAddr == 0){
+                DEBUG('e', "Error: address to filename string is null. \n");
+                status = -1;
+            }
+
+            if (!status && argsVector == 0){
+                DEBUG('e', "Error: address to argsVector is null. \n");
+                status = -1;
+            }
+
+            if (!status && !ReadStringFromUser(filenameAddr, 
+                                    filename, sizeof filename)){
+                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
+                      FILE_NAME_MAX_LEN);
+                status = -1;
+            }
+
+            if (!status && !(argv = SaveArgs(argsVector))){
+                 DEBUG('e', "Error: Unable to get User Args Vectors.\n",
+                      FILE_NAME_MAX_LEN);
+                status = -1;
+            }
+
+            if (!status && !(executable = fileSystem->Open(filename))) {
+                DEBUG('e', "Error: Unable to open file %s\n", filename);
+                status = -1;
+            }
+
+            if (!status &&  !(newThread = new Thread(nullptr, true))){
+                DEBUG('e', "Error: Unable to create a thread %s\n", filename);
+                status = -1; 
+            }
+
+            if (!status &&  !(space = new AddressSpace(executable))){
+                DEBUG('e', "Error: Unable to create the address space \n");
+                status = -1;
+            }
+
+            if (!status){
+                delete executable;
+                newThread->space = space;
+                status = space_table->Add(newThread);
+                printf("LAPUTA MADRE %d", status);
+                newThread->Fork(ProcessInitArgs, (void*)argv);
+            }
+
+            machine->WriteRegister(2, status);
+            break;
+        } 
         case SC_EXIT: {
 
             int ret = machine->ReadRegister(4);            
 
             delete currentThread->space;
 
-            if (space_table->IsEmpty()) // Main thread Exit
-                interrupt->Halt();
+
+            // if (space_table->IsEmpty()) // Main thread Exit
+            //     interrupt->Halt();
 
             currentThread->Finish(ret); 
             break;
@@ -354,7 +437,7 @@ SyscallHandler(ExceptionType _et)
             int status = 0;
             Thread *child;
             if (!(child = space_table->Get(childId))){
-                DEBUG('e', "Error: Unable to get the childId.\n")
+                DEBUG('e', "Error: Unable to get the childId.\n");
                 status = -1;
             }
             if (!status){
