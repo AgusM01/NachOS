@@ -5,6 +5,10 @@
 /// All rights reserved.  See `copyright.h` for copyright notice and
 /// limitation of liability and disclaimer of warranty provisions.
 
+#include <cstdint>
+#define min(a,b) a < b ? a : b
+#define PYSHICAL_ADDR(virtualPage) pageTable[virtualPage].physicalPage * PAGE_SIZE 
+
 
 #include "address_space.hh"
 #include "executable.hh"
@@ -12,10 +16,8 @@
 #include "mmu.hh"
 #include "threads/system.hh"
 
-#include <algorithm>
-#include <cstdint>
+#include <stdio.h>
 #include <string.h>
-#include <sys/types.h>
 
 /// First, set up the translation from program memory to physical memory.
 /// For now, this is really simple (1:1), since we are only uniprogramming,
@@ -73,111 +75,121 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     // Zero out the entire address space, to zero the unitialized data
     // segment and the stack segment.
 
-    for (unsigned int i = 0; i < numPages; i++)
-        memset(&machine->mainMemory[pageTable[i].physicalPage], 0, PAGE_SIZE);
+    DEBUG('a', "Seteando en 0 la memoria de las páginas.\n");
+    for (unsigned i = 0; i < numPages; i++)
+        memset(&mainMemory[PYSHICAL_ADDR(i)], 0, PAGE_SIZE);
 
     // Then, copy in the code and data segments into memory.
     uint32_t codeSize = exe.GetCodeSize();
-    uint32_t initDataSize = exe.GetInitDataSize();
-    
-    DEBUG('a', "Initializing codeSize with size: %u\n", codeSize);
-    DEBUG('a', "Initializing initDataSize with size: %u\n", initDataSize);
-
     if (codeSize > 0) {
 
         uint32_t virtualAddr = exe.GetCodeAddr();
-        uint32_t vpage;
-        uint32_t foffset = 0; 
-        char* loc;
-        uint32_t offset;
-        uint32_t cpySize; 
-        
-        while (codeSize > 0){
-            
-            // Una direccion virtual esta compuesta por un número de página y un offset.
-            vpage = virtualAddr / PAGE_SIZE;
-            DEBUG('a', "Code vpage: %u\n", vpage);
-            offset = virtualAddr % PAGE_SIZE;
-            DEBUG('a', "Code offset: %u\n", offset);
+        DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
+              virtualAddr, codeSize);
+        uint32_t offsetPage = virtualAddr % PAGE_SIZE;
+        uint32_t offsetFile = 0;
+        unsigned virtualPage = virtualAddr / PAGE_SIZE;
+        uint32_t firstPageWriteSize = min(PAGE_SIZE - offsetPage, codeSize);
+        uint32_t remainingToWrite = codeSize - firstPageWriteSize;
 
-            cpySize = std::min(codeSize, PAGE_SIZE - offset);
-            
-            
-            /// La ponemos en modo readOnly ya que es el segmento de código (.text)
-            /// virtualAddr / PAGE_SIZE => Esto se debe a que una pagina tiene un tamaño de 2^k (comodidad al trabajar con potencias de dos)
-            /// y una direccion virtual consta de (n - k) bits de numero de pagina y k bits de offset. Al dividir virtualAddr / PAGE_SIZE esto es 
-            /// virtualAddr / 2^k por lo que estamos haciendo un corrimiento de k bits a la derecha de virtualAddr. Así nos quedamos con el número de página.
-            //if (offset == 0)
-            //    pageTable[vpage].readOnly = true;
 
-            /// Calculamos la memoria principal: marco * page_size.
-            loc = mainMemory + pageTable[vpage].physicalPage * PAGE_SIZE + offset;
-            
-            //offset = virtualAddr & 127;
-            //DEBUG('a', "Code offset: %u\n", offset);
-            
-            DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
-                loc, cpySize);
+        DEBUG('a', "Write at 0x%X, size %u\n",
+              PYSHICAL_ADDR(virtualPage) + offsetPage, firstPageWriteSize);
 
-            exe.ReadCodeBlock(loc, cpySize, foffset);
-            
-            virtualAddr += cpySize;
-            codeSize -= cpySize;
-            foffset += cpySize;
-        
+
+        exe.ReadCodeBlock(
+            &mainMemory[PYSHICAL_ADDR(virtualPage) + offsetPage],
+            firstPageWriteSize,
+            offsetFile
+        );
+        pageTable[virtualPage].use = true;
+
+        if (remainingToWrite > 0) {
+            DEBUG('a', "Left to write: %u.\n", remainingToWrite);
+
+            offsetFile = firstPageWriteSize; // Desplazamiento en Disco
+            virtualPage++;                   // Pasamos a la siguiente página virtual
+
+            // Si lo que falta escribir supera el tamaño de una página,
+            // tenemos que escribir una página entera
+            while(PAGE_SIZE < remainingToWrite) 
+            {
+                DEBUG('a', "Write at 0x%X, size %u\n",
+                    PYSHICAL_ADDR(virtualPage), PAGE_SIZE);
+
+                exe.ReadCodeBlock(&mainMemory[PYSHICAL_ADDR(virtualPage)], PAGE_SIZE, offsetFile);
+                pageTable[virtualPage].use = true;
+
+                offsetFile += PAGE_SIZE; // Avanzamos en el Disco 
+                remainingToWrite -= PAGE_SIZE; // Nos falta una página menos.
+
+                // La página es solo del segmento del código, marcamos como solo lectura.
+                pageTable[virtualPage].readOnly = true; 
+
+                // Avanzamos a la página siguiente
+                virtualPage++;
+            }
+
+                DEBUG('a', "Last Write at 0x%X, size %u\n",
+                    PYSHICAL_ADDR(virtualPage), remainingToWrite);
+            // Ultima escritura, ya que remainingToWrite <= PAGE_SIZE
+            exe.ReadCodeBlock(&mainMemory[PYSHICAL_ADDR(virtualPage)], remainingToWrite, offsetFile);
+            pageTable[virtualPage].use = true;
+
+            //Si la útima escritura es una página entera, marcamos la página como solo lecutura.
+            if (remainingToWrite == PAGE_SIZE)
+                pageTable[virtualPage].readOnly = true;
         }
 
-        DEBUG('a', "Finish code allocation\n");
     }
-        
+
+    uint32_t initDataSize = exe.GetInitDataSize();
 
     if (initDataSize > 0) {
 
         uint32_t virtualAddr = exe.GetInitDataAddr();
-        uint32_t vpage;
-        uint32_t foffset = 0;
-        char* loc;
-        uint32_t offset;
-        uint32_t cpySize;
-        
-        while (initDataSize > 0){
-            
-            // Representa el desplazamiento dentro de la página.
-            offset = virtualAddr % PAGE_SIZE;
-            DEBUG('a', "Data offset: %u\n", offset);
- 
-            vpage = virtualAddr / PAGE_SIZE;
-            DEBUG('a', "Data vpage: %u\n", vpage);
-            
-            cpySize = std::min(initDataSize, PAGE_SIZE - offset);
+        DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
+              virtualAddr, initDataSize);
+        uint32_t offsetPage = virtualAddr % PAGE_SIZE;
+        uint32_t offsetFile = 0;
+        unsigned virtualPage = virtualAddr / PAGE_SIZE;
+        uint32_t firstPageWriteSize = min(PAGE_SIZE - offsetPage, initDataSize);
+        uint32_t remainingToWrite = initDataSize - firstPageWriteSize;
 
-            /// La ponemos en modo readOnly ya que es el segmento de código (.text)
-            /// virtualAddr / PAGE_SIZE => Esto se debe a que una pagina tiene un tamaño de 2^k (comodidad al trabajar con potencias de dos)
-            /// y una direccion virtual consta de (n - k) bits de numero de pagina y k bits de offset. Al dividir virtualAddr / PAGE_SIZE esto es 
-            /// virtualAddr / 2^k por lo que estamos haciendo un corrimiento de k bits a la derecha de virtualAddr. Así nos quedamos con el número de página.
-            ///pageTable[vpage].readOnly = true;
+        DEBUG('a', "Write at 0x%X, size %u, offsetPage %u, remainingToWrite %u\n",
+              PYSHICAL_ADDR(virtualPage) + offsetPage, firstPageWriteSize, offsetPage, remainingToWrite);
 
-            /// Calculamos la memoria principal: marco * page_size.
-            loc = mainMemory + pageTable[vpage].physicalPage * PAGE_SIZE + offset;
-            
-           
-            //offset = virtualAddr & 127;
-            //DEBUG('a', "Data offset: %u\n", offset);
-            
-            DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
-                loc, cpySize);
+        exe.ReadDataBlock(&mainMemory[PYSHICAL_ADDR(virtualPage) + offsetPage], firstPageWriteSize, offsetFile);
+        pageTable[virtualPage].use = true;
+        if (remainingToWrite > 0) {
+            offsetFile = firstPageWriteSize; // Desplazamiento en Disco
+            virtualPage++;                   // Pasamos a la siguiente página virtual
 
-            exe.ReadDataBlock(loc, cpySize, foffset);
-                
-            virtualAddr += cpySize;
-            initDataSize -= cpySize; 
-            foffset += cpySize;
-        
+            // Si lo que falta escribir supera el tamaño de una página,
+            // tenemos que escribir una página entera
+            while(PAGE_SIZE < remainingToWrite) 
+            {
+                DEBUG('a', "Write in while at 0x%X, size %u, remainingToWrite\n",
+                    PYSHICAL_ADDR(virtualPage) + offsetPage, PAGE_SIZE, remainingToWrite);
+
+                exe.ReadDataBlock(&mainMemory[PYSHICAL_ADDR(virtualPage)], PAGE_SIZE, offsetFile);
+                pageTable[virtualPage].use = true;
+
+                offsetFile += PAGE_SIZE; // Avanzamos en el Disco 
+                remainingToWrite -= PAGE_SIZE; // Nos falta una página menos.
+
+                // Avanzamos a la página siguiente
+                virtualPage++;
+            }
+
+                DEBUG('a', "Write at last 0x%X, size %u\n",
+                    PYSHICAL_ADDR(virtualPage) + offsetPage, remainingToWrite);
+
+            // Ultima escritura, ya que remainingToWrite <= PAGE_SIZE
+            exe.ReadDataBlock(&mainMemory[PYSHICAL_ADDR(virtualPage)], remainingToWrite, offsetFile);
+            pageTable[virtualPage].use = true;
         }
-        
-        DEBUG('a', "Finished data allocation\n");
     }
-
 }
 
 /// Deallocate an address space.
@@ -185,6 +197,9 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 /// Nothing for now!
 AddressSpace::~AddressSpace()
 {
+    for (unsigned i = 0; i < numPages; i++)
+        bit_map->Clear(pageTable[i].physicalPage);
+
     delete [] pageTable;
     for (unsigned int i = 0; i < numPages; i++)
         bit_map->Clear(pageTable[i].physicalPage);

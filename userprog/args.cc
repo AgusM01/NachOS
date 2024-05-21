@@ -6,6 +6,7 @@
 #include "transfer.hh"
 #include "machine/machine.hh"
 #include "threads/system.hh"
+#include <stdio.h>
 
 #include <string.h>
 

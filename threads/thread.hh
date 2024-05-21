@@ -41,7 +41,6 @@
 
 #include "lib/utility.hh"
 
-class Channel;
 
 #ifdef USER_PROGRAM
 #include "machine/machine.hh"
@@ -51,6 +50,7 @@ class Channel;
 
 #include <stdint.h>
 
+class Channel;
 
 /// CPU register state to be saved on context switch.
 ///
@@ -120,8 +120,7 @@ public:
     void Sleep();
 
     /// The thread is done executing.
-    /// De manera opcional, si es la finalización de un Child. Este le manda el resultado al padre.
-    void Finish(int ret = 0);
+    void Finish(int returnStatus = 0);
 
     /// Check if thread has overflowed its stack.
     void CheckOverflow() const;
@@ -133,7 +132,7 @@ public:
     void Print() const;
 
     //JOIN IMPLEMENTATION
-    void Join();
+    int Join();
 
     // Scheduler Implementation
     int GetPriority() const;
@@ -169,10 +168,10 @@ private:
     bool join;
 
     //Channel para sincronización de Join
-    char* chName;
-    Channel* chRet;
-    
-   
+    char *chName;
+
+    Channel *waitToChild;
+
     //Scheduler implementation
     int priority;
 

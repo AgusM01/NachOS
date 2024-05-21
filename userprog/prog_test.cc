@@ -34,6 +34,8 @@ StartProcess(const char *filename)
     AddressSpace *space = new AddressSpace(executable);
     currentThread->space = space;
 
+    space_table->Add(currentThread);
+
     delete executable;
 
     space->InitRegisters();  // Set the initial register values.

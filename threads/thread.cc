@@ -18,12 +18,10 @@
 
 
 #include "thread.hh"
-#include "semaphore.hh"
 #include "switch.h"
 #include "system.hh"
-
 #include "channel.hh"
-#include <inttypes.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -57,12 +55,11 @@ Thread::Thread(const char *threadName, bool isJoin, int threadPriority)
     // JOIN IMPLEMENTATION
     join = isJoin;
     chName = threadName ? concat("JoinCh ", threadName) : nullptr;
-    chRet = isJoin ? new Channel(chName) : nullptr;
+    waitToChild = isJoin ? new Channel(chName) : nullptr;
 
     // Scheduler Implementation
     ASSERT( -1 < threadPriority && threadPriority < 10);
     priority = threadPriority;
-
 }
 
 /// De-allocate a thread.
@@ -77,7 +74,7 @@ Thread::~Thread()
 {
     DEBUG('t', "Deleting thread \"%s\"\n", name);
 
-    delete chRet;
+    delete waitToChild;
     free(chName);
 
     ASSERT(this != currentThread);
@@ -171,7 +168,7 @@ Thread::Print() const
 /// NOTE: we disable interrupts, so that we do not get a time slice between
 /// setting `threadToBeDestroyed`, and going to sleep.
 void
-Thread::Finish(int ret)
+Thread::Finish(int returnStatus)
 {
 
     interrupt->SetLevel(INT_OFF);
@@ -182,10 +179,10 @@ Thread::Finish(int ret)
     //JOIN IMPLEMENTATION
     if (join) {
         DEBUG('t', "Signal to father thread to continue with Join\n");
-        chRet->Send(ret);  /// En este caso el padre estará bloqueado esperando el resultado del hijo.
-    } 
+        waitToChild->Send(returnStatus); 
+    }
 
-    threadToBeDestroyed = join ? nullptr : currentThread;
+    threadToBeDestroyed = currentThread;
 
     Sleep();  // Invokes `SWITCH`.
     // Not reached.
@@ -339,17 +336,16 @@ Thread::RestoreUserState()
 #endif
 
 // --------------- JOIN IMPLEMENTATION --------------------
-/// El padre ejecutará este método, el cual será el método Join DEL HIJO. Por eso el delete this.
-/// La respuesta del hijo la guarda en resp.
-void
+int
 Thread::Join() {
 
     ASSERT(join);
+    int ret;
 
-    // Espero la respuesta del Child de que terminó
-    chRet->Receive(&resp);
+    //Espero la respuesta del Child de que terminó
+    waitToChild->Receive(&ret);
 
-    delete this;
+    return ret;
 }
 
 // --------------- SCHEDULER IMPLEMENTATION --------------------

@@ -43,6 +43,7 @@ SynchDisk *synchDisk;
 Machine *machine;  ///< User program memory and registers.
 SynchConsole *synch_console;
 Bitmap *bit_map;
+Table <Thread*> *space_table;
 #endif
 
 // External definition, to allow us to take a pointer to this function.
@@ -200,6 +201,8 @@ Initialize(int argc, char **argv)
     synch_console = new SynchConsole(nullptr,nullptr);
 
     bit_map = new Bitmap(numPhysicalPages);
+    
+    space_table = new Table <Thread*>;
 
     SetExceptionHandlers();
 #endif
@@ -224,6 +227,7 @@ Cleanup()
     delete machine;
     delete synch_console;
     delete bit_map;
+    delete space_table;
 #endif
 
 #ifdef FILESYS_NEEDED
