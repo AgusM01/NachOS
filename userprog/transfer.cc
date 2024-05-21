@@ -35,6 +35,7 @@ void ReadBufferFromUser(int userAddress, char *outBuffer,
     return;
 }
 
+/// Cambiar los ASSERT cuando se haga el soporte para TLB
 bool ReadStringFromUser(int userAddress, char *outString,
                         unsigned maxByteCount)
 {

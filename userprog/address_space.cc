@@ -87,6 +87,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 
         uint32_t virtualAddr = exe.GetCodeAddr();
         uint32_t vpage;
+        uint32_t foffset = 0; 
         char* loc;
         uint32_t offset;
         uint32_t cpySize; 
@@ -106,26 +107,23 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
             /// virtualAddr / PAGE_SIZE => Esto se debe a que una pagina tiene un tamaño de 2^k (comodidad al trabajar con potencias de dos)
             /// y una direccion virtual consta de (n - k) bits de numero de pagina y k bits de offset. Al dividir virtualAddr / PAGE_SIZE esto es 
             /// virtualAddr / 2^k por lo que estamos haciendo un corrimiento de k bits a la derecha de virtualAddr. Así nos quedamos con el número de página.
-            pageTable[vpage].readOnly = true;
+            //if (offset == 0)
+            //    pageTable[vpage].readOnly = true;
 
             /// Calculamos la memoria principal: marco * page_size.
-            loc = mainMemory + pageTable[vpage].physicalPage * PAGE_SIZE;
+            loc = mainMemory + pageTable[vpage].physicalPage * PAGE_SIZE + offset;
             
-            // Representa el desplazamiento dentro de la página.
-            //offset = (virtualAddr % PAGE_SIZE) > PAGE_SIZE || (virtualAddr % PAGE_SIZE) > codeSize ? 0 : (virtualAddr % PAGE_SIZE);
-            //offset = virtualAddr % PAGE_SIZE;
-            //DEBUG('a', "offset1: %u\n", offset);
-
             //offset = virtualAddr & 127;
             //DEBUG('a', "Code offset: %u\n", offset);
             
             DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
                 loc, cpySize);
 
-            exe.ReadCodeBlock(loc, cpySize, offset);
+            exe.ReadCodeBlock(loc, cpySize, foffset);
             
             virtualAddr += cpySize;
-            codeSize -= cpySize; 
+            codeSize -= cpySize;
+            foffset += cpySize;
         
         }
 
@@ -137,6 +135,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 
         uint32_t virtualAddr = exe.GetInitDataAddr();
         uint32_t vpage;
+        uint32_t foffset = 0;
         char* loc;
         uint32_t offset;
         uint32_t cpySize;
@@ -144,7 +143,6 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         while (initDataSize > 0){
             
             // Representa el desplazamiento dentro de la página.
-            //offset = (virtualAddr % PAGE_SIZE) > PAGE_SIZE || (virtualAddr % PAGE_SIZE) > initDataSize ? 0 : (virtualAddr % PAGE_SIZE);
             offset = virtualAddr % PAGE_SIZE;
             DEBUG('a', "Data offset: %u\n", offset);
  
@@ -157,10 +155,10 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
             /// virtualAddr / PAGE_SIZE => Esto se debe a que una pagina tiene un tamaño de 2^k (comodidad al trabajar con potencias de dos)
             /// y una direccion virtual consta de (n - k) bits de numero de pagina y k bits de offset. Al dividir virtualAddr / PAGE_SIZE esto es 
             /// virtualAddr / 2^k por lo que estamos haciendo un corrimiento de k bits a la derecha de virtualAddr. Así nos quedamos con el número de página.
-            pageTable[vpage].readOnly = true;
+            ///pageTable[vpage].readOnly = true;
 
             /// Calculamos la memoria principal: marco * page_size.
-            loc = mainMemory + pageTable[vpage].physicalPage * PAGE_SIZE;
+            loc = mainMemory + pageTable[vpage].physicalPage * PAGE_SIZE + offset;
             
            
             //offset = virtualAddr & 127;
@@ -169,10 +167,11 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
             DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
                 loc, cpySize);
 
-            exe.ReadDataBlock(loc, cpySize, offset);
+            exe.ReadDataBlock(loc, cpySize, foffset);
                 
             virtualAddr += cpySize;
             initDataSize -= cpySize; 
+            foffset += cpySize;
         
         }
         

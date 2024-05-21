@@ -64,5 +64,8 @@ en la tabla de paginacion de los procesos cada vez que ocurra un fallo. Ver que 
  
  Bandera makefile USE_TLB 
 
+------------------------------------------------------------------------------------------------------------------------------
 
+La bandera -no-pie permite que el SO no aleatorice el espacio de direcciones de un proceso (lo hace por defecto por cuestiones de seguridad).
 
+Cuando hay un fallo y se arregla se va a producir un hit. No hay que contar ese hit ya que previamente fué un fallo.

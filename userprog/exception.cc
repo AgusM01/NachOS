@@ -23,6 +23,7 @@
 
 
 #include "filesys/file_system.hh"
+#include "lib/assert.hh"
 #include "synch_console.hh"
 #include "threads/thread.hh"
 #include "transfer.hh"
@@ -293,10 +294,9 @@ SyscallHandler(ExceptionType _et)
         }
         case SC_EXEC: {
                         
-            DEBUG('a', "Inicia Exec\n");
             // Cargamos el nombre del ejecutable.
             int filenameAddr = machine->ReadRegister(4);
-
+    
             if (filenameAddr == 0)
                 DEBUG('e', "Error: address to filename string is null. \n");
 
@@ -311,7 +311,8 @@ SyscallHandler(ExceptionType _et)
             
             if (executable == nullptr) {
                 printf("Unable to open file %s\n", (char*) filename);
-                return;
+                machine->WriteRegister(2,-1);
+                break;
             }
 
             AddressSpace *space = new AddressSpace(executable);
@@ -324,16 +325,25 @@ SyscallHandler(ExceptionType _et)
             child->Fork(StartProcess, nullptr);
             machine->WriteRegister(2, currentThread->space->spaceTable->Add(child));
             
-            DEBUG('a', "Fin Exec\n");
             break;
         }
         case SC_JOIN: {
+
+            DEBUG('a', "Thread Join\n");
             SpaceId child = machine->ReadRegister(2);
-            
+             
             /// Hago que el padre ejecute el método join del hijo.
-            currentThread->space->spaceTable->Get(child)->Join();
-            machine->WriteRegister(2, currentThread->resp);            
-                          
+            Thread* childJoin = currentThread->space->spaceTable->Get(child);
+
+            if(childJoin != nullptr){
+                childJoin->Join();
+                machine->WriteRegister(2, currentThread->resp);
+            }
+            else 
+                machine->WriteRegister(2, -1);
+                       
+            
+            DEBUG('a', "Thread Join End\n");
             break;
         }
         case SC_EXIT: {
