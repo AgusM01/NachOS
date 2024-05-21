@@ -12,9 +12,10 @@
 #include "mmu.hh"
 #include "threads/system.hh"
 
+#include <algorithm>
 #include <cstdint>
 #include <string.h>
-
+#include <sys/types.h>
 
 /// First, set up the translation from program memory to physical memory.
 /// For now, this is really simple (1:1), since we are only uniprogramming,
@@ -79,64 +80,103 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     uint32_t codeSize = exe.GetCodeSize();
     uint32_t initDataSize = exe.GetInitDataSize();
     
+    DEBUG('a', "Initializing codeSize with size: %u\n", codeSize);
+    DEBUG('a', "Initializing initDataSize with size: %u\n", initDataSize);
+
     if (codeSize > 0) {
+
         uint32_t virtualAddr = exe.GetCodeAddr();
+        uint32_t vpage;
         char* loc;
         uint32_t offset;
-        uint32_t totalCodePags = DivRoundUp(codeSize, PAGE_SIZE);
         uint32_t cpySize; 
+        
+        while (codeSize > 0){
+            
+            // Una direccion virtual esta compuesta por un número de página y un offset.
+            vpage = virtualAddr / PAGE_SIZE;
+            DEBUG('a', "Code vpage: %u\n", vpage);
+            offset = virtualAddr % PAGE_SIZE;
+            DEBUG('a', "Code offset: %u\n", offset);
 
-        for (uint32_t i = 0; i < totalCodePags; i++){
+            cpySize = std::min(codeSize, PAGE_SIZE - offset);
+            
             
             /// La ponemos en modo readOnly ya que es el segmento de código (.text)
             /// virtualAddr / PAGE_SIZE => Esto se debe a que una pagina tiene un tamaño de 2^k (comodidad al trabajar con potencias de dos)
             /// y una direccion virtual consta de (n - k) bits de numero de pagina y k bits de offset. Al dividir virtualAddr / PAGE_SIZE esto es 
             /// virtualAddr / 2^k por lo que estamos haciendo un corrimiento de k bits a la derecha de virtualAddr. Así nos quedamos con el número de página.
-            pageTable[virtualAddr / PAGE_SIZE].readOnly = true;
+            pageTable[vpage].readOnly = true;
 
             /// Calculamos la memoria principal: marco * page_size.
-            loc = mainMemory + pageTable[virtualAddr / PAGE_SIZE].physicalPage * PAGE_SIZE;
+            loc = mainMemory + pageTable[vpage].physicalPage * PAGE_SIZE;
+            
             // Representa el desplazamiento dentro de la página.
-            offset = virtualAddr > PAGE_SIZE ? 0 : virtualAddr % PAGE_SIZE;
+            //offset = (virtualAddr % PAGE_SIZE) > PAGE_SIZE || (virtualAddr % PAGE_SIZE) > codeSize ? 0 : (virtualAddr % PAGE_SIZE);
+            //offset = virtualAddr % PAGE_SIZE;
+            //DEBUG('a', "offset1: %u\n", offset);
 
-            // Representa de donde hay que comenzar a copiar.
-            // Hay dos casos bordes: el inicio y el final.
-            // Quiza al inicio no hay que copiar desde el comienzo de la página
-            // si no desde, por ejemplo, la mitad.
-            // Lo mismo con el final. Quizá no usará la página entera y nos sobrará.
-            cpySize = PAGE_SIZE - (virtualAddr % PAGE_SIZE);
+            //offset = virtualAddr & 127;
+            //DEBUG('a', "Code offset: %u\n", offset);
+            
+            DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
+                loc, cpySize);
 
-            exe.ReadCodeBlock(loc, size, offset);
-
-            if (!i)
-                DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
-                    loc, codeSize);
-
-            virtualAddr += cpySize + offset;
+            exe.ReadCodeBlock(loc, cpySize, offset);
+            
+            virtualAddr += cpySize;
+            codeSize -= cpySize; 
+        
         }
+
+        DEBUG('a', "Finish code allocation\n");
     }
+        
+
     if (initDataSize > 0) {
+
         uint32_t virtualAddr = exe.GetInitDataAddr();
+        uint32_t vpage;
         char* loc;
         uint32_t offset;
-        uint32_t totalDataPags = DivRoundUp(initDataSize, PAGE_SIZE);
         uint32_t cpySize;
-
-        for (uint32_t i = 0; i < totalDataPags; i++){
+        
+        while (initDataSize > 0){
             
-            loc = mainMemory + pageTable[virtualAddr / PAGE_SIZE].physicalPage * PAGE_SIZE;
-            offset = virtualAddr > PAGE_SIZE ? 0 : virtualAddr % PAGE_SIZE;
-            cpySize = PAGE_SIZE - (virtualAddr % PAGE_SIZE);
+            // Representa el desplazamiento dentro de la página.
+            //offset = (virtualAddr % PAGE_SIZE) > PAGE_SIZE || (virtualAddr % PAGE_SIZE) > initDataSize ? 0 : (virtualAddr % PAGE_SIZE);
+            offset = virtualAddr % PAGE_SIZE;
+            DEBUG('a', "Data offset: %u\n", offset);
+ 
+            vpage = virtualAddr / PAGE_SIZE;
+            DEBUG('a', "Data vpage: %u\n", vpage);
+            
+            cpySize = std::min(initDataSize, PAGE_SIZE - offset);
+
+            /// La ponemos en modo readOnly ya que es el segmento de código (.text)
+            /// virtualAddr / PAGE_SIZE => Esto se debe a que una pagina tiene un tamaño de 2^k (comodidad al trabajar con potencias de dos)
+            /// y una direccion virtual consta de (n - k) bits de numero de pagina y k bits de offset. Al dividir virtualAddr / PAGE_SIZE esto es 
+            /// virtualAddr / 2^k por lo que estamos haciendo un corrimiento de k bits a la derecha de virtualAddr. Así nos quedamos con el número de página.
+            pageTable[vpage].readOnly = true;
+
+            /// Calculamos la memoria principal: marco * page_size.
+            loc = mainMemory + pageTable[vpage].physicalPage * PAGE_SIZE;
+            
+           
+            //offset = virtualAddr & 127;
+            //DEBUG('a', "Data offset: %u\n", offset);
             
             DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
-                  loc, initDataSize);
+                loc, cpySize);
 
             exe.ReadDataBlock(loc, cpySize, offset);
-            
-                       
-            virtualAddr += cpySize + offset;
+                
+            virtualAddr += cpySize;
+            initDataSize -= cpySize; 
+        
         }
-    
+        
+        DEBUG('a', "Finished data allocation\n");
     }
 
 }
@@ -201,6 +241,7 @@ AddressSpace::RestoreState()
     machine->GetMMU()->pageTable     = pageTable;
     machine->GetMMU()->pageTableSize = numPages;
     
+    DEBUG('a', "RestoreState done\n");
     //Invalidar la TLB
     // for (int i = 0; i < TLB_SIZE; i++){
     //  machine->GetMMU()->tlb[i].valid=0;

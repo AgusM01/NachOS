@@ -99,7 +99,7 @@ void
 Machine::WriteRegister(unsigned num, int value)
 {
     ASSERT(num < NUM_TOTAL_REGS);
-    //DEBUG('m', "WriteRegister %u, value %d\n", num, value);
+    DEBUG('m', "WriteRegister %u, value %d\n", num, value);
 
     // Register 0 never changes its value: it is always 0.
     if (num != 0) {

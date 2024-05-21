@@ -1,6 +1,5 @@
 #include "syscall.h"
 
-
 int
 main(void)
 {
@@ -10,7 +9,6 @@ main(void)
     char       prompt[2] = { '-', '-' };
     char       ch, buffer[60];
     int        i;
-
     for (;;) {
         Write(prompt, 2, output);
         i = 0;

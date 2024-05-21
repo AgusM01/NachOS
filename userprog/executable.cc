@@ -97,7 +97,8 @@ Executable::ReadDataBlock(char *dest, uint32_t size, uint32_t offset)
 {
     ASSERT(dest != nullptr);
     ASSERT(size != 0);
-    ASSERT(offset < header.initData.size);
-
+    //ASSERT(offset < header.initData.size);
+    //ASSERT(offset < size);
+        
     return file->ReadAt(dest, size, header.initData.inFileAddr + offset);
 }

@@ -50,21 +50,9 @@ IncrementPC()
 void
 StartProcess(void *filename)
 {
-    ASSERT(filename != nullptr);
-
-    OpenFile *executable = fileSystem->Open((char*) filename);
-    if (executable == nullptr) {
-        printf("Unable to open file %s\n", (char*) filename);
-        return;
-    }
-
-    AddressSpace *space = new AddressSpace(executable);
-    currentThread->space = space;
-
-    delete executable;
-
-    space->InitRegisters();  // Set the initial register values.
-    space->RestoreState();   // Load page table register.
+    
+    currentThread->space->InitRegisters();  // Set the initial register values.
+    currentThread->space->RestoreState();   // Load page table register.
 
     machine->Run();  // Jump to the user progam.
     ASSERT(false);   // `machine->Run` never returns; the address space
@@ -250,6 +238,7 @@ SyscallHandler(ExceptionType _et)
                 else
                     status = file->Read(bufferTransfer, bytesToRead);
                 
+                DEBUG('a', "Success: Read done\n");
                 WriteBufferToUser(bufferTransfer, bufferToWrite, status);
             }
             
@@ -297,16 +286,16 @@ SyscallHandler(ExceptionType _et)
                     status = file->Write(bufferTransfer, bytesToWrite); 
             }
 
+            DEBUG('a', "Success: Write done\n");
             machine->WriteRegister(2, status);
             break;
         
         }
         case SC_EXEC: {
-            
+                        
+            DEBUG('a', "Inicia Exec\n");
             // Cargamos el nombre del ejecutable.
             int filenameAddr = machine->ReadRegister(4);
-
-            
 
             if (filenameAddr == 0)
                 DEBUG('e', "Error: address to filename string is null. \n");
@@ -317,12 +306,25 @@ SyscallHandler(ExceptionType _et)
                                     filename, sizeof filename))
                  DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
+            
+            OpenFile *executable = fileSystem->Open((char*) filename);
+            
+            if (executable == nullptr) {
+                printf("Unable to open file %s\n", (char*) filename);
+                return;
+            }
 
+            AddressSpace *space = new AddressSpace(executable);
 
             Thread* child = new Thread("execChild", true);
-            child->Fork(StartProcess, filename);
+            
+            child->space = space;
+            delete executable;
+            
+            child->Fork(StartProcess, nullptr);
             machine->WriteRegister(2, currentThread->space->spaceTable->Add(child));
             
+            DEBUG('a', "Fin Exec\n");
             break;
         }
         case SC_JOIN: {
