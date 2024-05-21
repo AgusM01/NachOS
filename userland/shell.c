@@ -6,6 +6,7 @@
 #define ARG_SEPARATOR  ' '
 
 #define NULL  ((void *) 0)
+#define max(a,b) a > b ? a : b
 
 static inline unsigned
 strlen(const char *s)
@@ -120,23 +121,34 @@ main(void)
         // Comment and uncomment according to whether command line arguments
         // are given in the system call or not.
         SpaceId newProc ;
-        if (argv[1] == NULL){
-            newProc = Exec(line);
-            if (newProc == -1)
-                continue;
-        } else {
-            newProc = Exec2(line, argv);
+        int segundoPlano = 0;
+
+        if (argv[0][0] == '&' && argv[0][1] == '\0'){
+            segundoPlano = 1;
+        }
+
+        if (argv[1 + segundoPlano] == NULL){
+            newProc = Exec(*(argv + segundoPlano), segundoPlano ? 0 : 1 );
             if (newProc == -1){
-                WriteError("asdf", CONSOLE_OUTPUT);
+                WriteError("Error Exec\n", CONSOLE_OUTPUT);
                 continue;
             }
+        } else {
+            newProc = Exec2(*(argv + segundoPlano), (char**)(argv + segundoPlano), segundoPlano ? 0 : 1);
+            if (newProc == -1){
+                WriteError("Error Exec2\n", CONSOLE_OUTPUT);
+                continue;
+            }
+        }
+
+        if (!segundoPlano){
+            Join(newProc);
         }
 
 
         // TODO: check for errors when calling `Exec`; this depends on how
         //       errors are reported.
 
-        Join(newProc);
         // TODO: is it necessary to check for errors after `Join` too, or
         //       can you be sure that, with the implementation of the system
         //       call handler you made, it will never give an error?; what

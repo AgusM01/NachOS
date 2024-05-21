@@ -83,7 +83,6 @@ WriteArgs(char **args)
     unsigned c;
     int sp = machine->ReadRegister(STACK_REG);
     for (c = 0; c < MAX_ARG_COUNT; c++) {
-        printf("String %d : %s \n",c,args[c]);
         if (args[c] == nullptr) {   // If the last was reached, terminate.
             break;
         }
@@ -103,14 +102,6 @@ WriteArgs(char **args)
     }
     machine->WriteMem(sp + 4 * c, 4, 0);  // The last is null.
 
-    for (unsigned i = 0; i < c; i++){
-        char str[255];
-        ReadStringFromUser(argsAddress[i], str, 255);
-        printf("String %d : %s\n", i, str);
-        puts("Holandaa");
-    }
-
-    printf("Dir de sp en Write %X.\n",sp);
     machine->WriteRegister(STACK_REG, sp);
     return c;
 }

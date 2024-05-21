@@ -34,10 +34,6 @@
 #include <stdio.h>
 
 
-void bpoint(){
-
-}
-
 static void
 IncrementPC()
 {
@@ -75,26 +71,23 @@ DefaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar
 void
 ProcessInitArgs(void* arg)
 {
-    int sp = machine->ReadRegister(STACK_REG);
-    printf(" Dir de sp en ProcessInitArgs Antes InitRegisters %X.\n",sp);
+    int sp;
+
     currentThread->space->InitRegisters();  // Set the initial register values.
     currentThread->space->RestoreState();   // Load page table register.
 
     char** argv = (char**)arg;
 
-    printf("Primer String %s .\n", argv[0]);
-
-    sp = machine->ReadRegister(STACK_REG);
-    printf(" Dir de sp en ProcessInitArgs Antes WriteArgs %d.\n",sp);
     int c = WriteArgs(argv);
+
+    //sp tiene el puntero a argv[]
     sp = machine->ReadRegister(STACK_REG);
-    printf(" Numero de argumentos : %d \nDir de sp en ProcessInitArgs %d.\n", c,sp);
 
     machine->WriteRegister(4, c);
     machine->WriteRegister(5, sp);
-    machine->WriteRegister(STACK_REG, sp - 24);
 
-    bpoint();
+    //Le hacemos caso a args.hh
+    machine->WriteRegister(STACK_REG, sp - 24);
 
     machine->Run();  // Jump to the user progam.
     ASSERT(false);   // `machine->Run` never returns; the address space
@@ -327,6 +320,7 @@ SyscallHandler(ExceptionType _et)
         case SC_EXEC:{
 
             int filenameAddr = machine->ReadRegister(4); 
+            int join = machine->ReadRegister(5); 
             int status = 0;
             OpenFile *executable;
             Thread* newThread;            
@@ -350,7 +344,7 @@ SyscallHandler(ExceptionType _et)
                 status = -1;
             }
 
-            if (!status &&  !(newThread = new Thread(nullptr, true))){
+            if (!status &&  !(newThread = new Thread(nullptr,join ? true : false))){
                 DEBUG('e', "Error: Unable to create a thread %s\n", filename);
                 status = -1; 
             }
@@ -374,6 +368,7 @@ SyscallHandler(ExceptionType _et)
 
             int filenameAddr = machine->ReadRegister(4); 
             int argsVector = machine->ReadRegister(5);
+            int join = machine->ReadRegister(6);
             int status = 0;
             OpenFile *executable;
             Thread* newThread;            
@@ -409,7 +404,7 @@ SyscallHandler(ExceptionType _et)
                 status = -1;
             }
 
-            if (!status &&  !(newThread = new Thread(nullptr, true))){
+            if (!status &&  !(newThread = new Thread(nullptr, join ? true : false))){
                 DEBUG('e', "Error: Unable to create a thread %s\n", filename);
                 status = -1; 
             }
@@ -436,8 +431,8 @@ SyscallHandler(ExceptionType _et)
             delete currentThread->space;
 
 
-            // if (space_table->IsEmpty()) // Main thread Exit
-            //     interrupt->Halt();
+            if (space_table->Get(0) == currentThread) // Main thread Exit
+                interrupt->Halt();
 
             currentThread->Finish(ret); 
             break;
