@@ -268,7 +268,8 @@ SyscallHandler(ExceptionType _et)
                 else
                     status = file->Read(bufferTransfer, bytesToRead);
                 
-                WriteBufferToUser(bufferTransfer, bufferToWrite, status);
+                if (status != 0) // NO estoy en EOF
+                    WriteBufferToUser(bufferTransfer, bufferToWrite, status);
             }
             
             machine->WriteRegister(2, status);

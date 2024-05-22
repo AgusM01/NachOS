@@ -1,31 +1,39 @@
-#include "syscall.h"
+#include "../userprog/syscall.h"
 
 #define ARG_LIMIT 10
 
 unsigned strlen(const char* str){
     unsigned ret;
-    for(ret = 0; *(str + ret) != '\0'; ret++);
+    for(ret = 0; str[ret] != '\0'; ret++);
     return ret;
 }
 
-void puts(const char* str){
-    const OpenFileId OUTPUT = CONSOLE_OUTPUT;
+int puts(const char* str){
     unsigned len = strlen(str);
-    Write(str, len , OUTPUT);
+    return Write(str, len , CONSOLE_OUTPUT);
 }
 
 void itoa(int n, char* str){
-    int count = strlen(str);
+    // toma un n, por ejemplo 234 y imprime 234
+    // 0xffffffff
+    int count = 1;
     int sign = n >> 31;
-    int floor = n > 0 ? n : -1 * n;
-    int mod = n % 10;
+    int div = n > 0 ? n : -1 * n;
+    int mod = div % 10;
 
-    if (sign)
+    //Si el n es 7 count = 1, si el es 234
+    for(int i = 10; i < div ; i *= 10 ) {
+        count++;
+    }   
+    
+    if (sign){
         str[0] = '-';
+        count++;
+    }
 
-    while ((floor /= 10)) {
+    while ((div /= 10)) {
         str[--count] = mod + '0';
-        mod = floor % 10;
+        mod = div % 10;
     }
     str[--count] = mod + '0';
 }
