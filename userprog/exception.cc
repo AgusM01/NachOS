@@ -155,7 +155,7 @@ SyscallHandler(ExceptionType _et)
             DEBUG('e', "`Create` requested for file `%s`.\n", filename);
             
             unsigned initialSize = machine->ReadRegister(5);
-            fileSystem->Create(filename, initialSize);
+            status = fileSystem->Create(filename, initialSize) ? 0 : -1;
             }
             
             machine->WriteRegister(2, status);
@@ -181,12 +181,15 @@ SyscallHandler(ExceptionType _et)
                 status = -1;
             }
         
-            if (!status){
-                DEBUG('e', "`Open` requested for file `%s`.\n", filename);
-                newFile = fileSystem->Open(filename);
-                status = currentThread->space->fileTableIds->Add(newFile);
+            if (!status && !(newFile = fileSystem->Open(filename))){
+                DEBUG('e', "Cannot open file %s.\n", filename);
+                status = -1; 
             }
 
+            if (!status){
+                DEBUG('e', "`Open` requested for file `%s`.\n", filename);
+                status = currentThread->space->fileTableIds->Add(newFile);
+            }
             machine->WriteRegister(2, status);
             break;
         } 
@@ -225,7 +228,7 @@ SyscallHandler(ExceptionType _et)
             }
 
             if (!status)
-                fileSystem->Remove(filename);
+                status = fileSystem->Remove(filename) ? 0 : -1;
 
             machine->WriteRegister(2, status);
             break;
