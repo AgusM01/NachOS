@@ -45,6 +45,7 @@ MMU::MMU(unsigned aNumPhysPages)
     for (unsigned i = 0; i < TLB_SIZE; i++) { /// La inicializa
         tlb[i].valid = false;
     }
+    indxTLB = 0;
     pageTable = nullptr;
 #else  // Use linear page table.
     tlb = nullptr;

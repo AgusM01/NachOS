@@ -15,9 +15,6 @@
 #include "lib/utility.hh"
 #include "threads/system.hh"
 
-#include <stdio.h>
-#include <string.h>
-
 /// First, set up the translation from program memory to physical memory.
 /// For now, this is really simple (1:1), since we are only uniprogramming,
 /// and we have a single unsegmented page table.
@@ -241,13 +238,12 @@ void
 AddressSpace::RestoreState()
 {
     /// Comentar estas dos
-    machine->GetMMU()->pageTable     = pageTable;
-    machine->GetMMU()->pageTableSize = numPages;
+    //machine->GetMMU()->pageTable     = pageTable;
+    //machine->GetMMU()->pageTableSize = numPages;
     
     //Invalidar la TLB
-    // for (int i = 0; i < TLB_SIZE; i++){
-    //  machine->GetMMU()->tlb[i].valid=0;
-    //
-    // }
+    for (int i = 0; i < TLB_SIZE; i++){
+        machine->GetMMU()->tlb[i].valid = false;
+    }
 
 }
