@@ -6,7 +6,6 @@
 #include "transfer.hh"
 #include "machine/machine.hh"
 #include "threads/system.hh"
-#include <stdio.h>
 
 #include <string.h>
 
@@ -27,7 +26,13 @@ bool CountArgsToSave(int address, unsigned *count)
     int val;
     unsigned c = 0;
     do {
+#ifdef USE_TLB
+        int i;
+        for(i = 0; i < NUM_EXCEPTION_TYPES && !machine->ReadMem(address + 4 * c, 4, &val); i++);
+        ASSERT(i != NUM_EXCEPTION_TYPES);
+#else
         machine->ReadMem(address + 4 * c, 4, &val);
+#endif
         c++;
     } while (c < MAX_ARG_COUNT && val != 0);
     if (c == MAX_ARG_COUNT && val != 0) {
@@ -61,7 +66,13 @@ SaveArgs(int address)
         args[i] = new char [MAX_ARG_LENGTH];
         int strAddr;
         // For each pointer, read the corresponding string.
+#ifdef USE_TLB
+        int status;
+        for(status = 0; status < NUM_EXCEPTION_TYPES && !machine->ReadMem(address + i * 4, 4, &strAddr); status++);
+        ASSERT(status != NUM_EXCEPTION_TYPES);
+#else
         machine->ReadMem(address + i * 4, 4, &strAddr);
+#endif
         ReadStringFromUser(strAddr, args[i], MAX_ARG_LENGTH);
     }
     args[count] = nullptr;  // Write the trailing null.
@@ -98,10 +109,21 @@ WriteArgs(char **args)
     sp -= c * 4 + 4;  // Make room for `argv`, including the trailing null.
     // Write each argument's address.
     for (unsigned i = 0; i < c; i++) {
+#ifdef USE_TLB
+        int status;
+        for(status = 0; status < NUM_EXCEPTION_TYPES && !machine->WriteMem(sp + 4 * i, 4, argsAddress[i]); status++)
+        ASSERT(status != NUM_EXCEPTION_TYPES);
+#else
         machine->WriteMem(sp + 4 * i, 4, argsAddress[i]);
+#endif
     }
-    machine->WriteMem(sp + 4 * c, 4, 0);  // The last is null.
-
+    #ifdef USE_TLB
+    int status;
+    for(status = 0; status < NUM_EXCEPTION_TYPES && !machine->WriteMem(sp + 4 * c, 4, 0)/*The last is null*/; status++)
+    ASSERT(status != NUM_EXCEPTION_TYPES);
+#else
+    machine->WriteMem(sp + 4 * c, 4, 0)/*The last is null*/;
+#endif
     machine->WriteRegister(STACK_REG, sp);
     return c;
 }

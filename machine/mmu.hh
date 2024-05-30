@@ -12,8 +12,6 @@
 #include "exception_type.hh"
 #include "disk.hh"
 #include "translation_entry.hh"
-#include "../threads/lock.hh"
-
 
 /// Definitions related to the size, and format of user memory.
 
@@ -77,14 +75,10 @@ public:
     TranslationEntry *tlb;  ///< This pointer should be considered
                             ///< “read-only” to Nachos kernel code.
 
-    int indxTLB; //Matiene el índice a la siguiente página a matar.
-
     TranslationEntry *pageTable;
     unsigned pageTableSize;
 
 private:
-
-    //Lock mutex;
 
     /// Retrieve a page entry either from a page table or the TLB.
     ExceptionType RetrievePageEntry(unsigned vpn,

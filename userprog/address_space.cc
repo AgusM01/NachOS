@@ -9,7 +9,7 @@
 #define min(a,b) a < b ? a : b
 #define PYSHICAL_ADDR(virtualPage) pageTable[virtualPage].physicalPage * PAGE_SIZE 
 
-
+#include <cstring>
 #include "address_space.hh"
 #include "executable.hh"
 #include "lib/utility.hh"
@@ -53,8 +53,12 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     for (unsigned i = 0; i < numPages; i++) { /// Asigna 1:1 las páginas con la memoria fisica. -> Cambiar
         pageTable[i].virtualPage  = i;
           /// Devolvemos el primer lugar de la memoria física libre. 
+        #ifndef USE_DL
         pageTable[i].physicalPage = bit_map->Find();
         pageTable[i].valid        = true;
+        #else
+        pageTable[i].valid        = false;
+        #endif
         pageTable[i].use          = false;
         pageTable[i].dirty        = false;
         pageTable[i].readOnly     = false;
@@ -62,6 +66,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
           // set its pages to be read-only.
     }
 
+    #ifndef USE_DL
     char *mainMemory = machine->mainMemory; /// mainMemory es un arreglo de bytes.
 
     // Zero out the entire address space, to zero the unitialized data
@@ -180,6 +185,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
             pageTable[virtualPage].use = true;
         }
     }
+    #endif
 }
 
 /// Deallocate an address space.
@@ -237,13 +243,29 @@ AddressSpace::SaveState()
 void
 AddressSpace::RestoreState()
 {
-    /// Comentar estas dos
-    //machine->GetMMU()->pageTable     = pageTable;
-    //machine->GetMMU()->pageTableSize = numPages;
-    
+    #ifdef USE_TLB
     //Invalidar la TLB
-    for (int i = 0; i < TLB_SIZE; i++){
+    for (unsigned i = 0; i < TLB_SIZE; i++){
         machine->GetMMU()->tlb[i].valid = false;
     }
+    #else
+    machine->GetMMU()->pageTable     = pageTable;
+    machine->GetMMU()->pageTableSize = numPages;
+    #endif
+}
 
+TranslationEntry AddressSpace::GetPage(unsigned vpn){
+
+    #ifdef USE_DL
+    if (pageTable[vpn].valid == false){
+        DEBUG('a', "Write vp  0x%X, size %u, remainingToWrite\n",
+            PYSHICAL_ADDR(virtualPage) + offsetPage, PAGE_SIZE, remainingToWrite);
+
+        exe.ReadDataBlock(&mainMemory[PYSHICAL_ADDR(vpn)], PAGE_SIZE, offsetFile);
+        pageTable[virtualPage].valid = true;
+        pageTable[virtualPage].use = true;
+    }
+    #endif
+
+    return pageTable[vpn];
 }

@@ -49,6 +49,8 @@ public:
     void SaveState();
     void RestoreState();
 
+    TranslationEntry GetPage(unsigned vpn);
+
     Table <OpenFile*> *fileTableIds;
 
 private:

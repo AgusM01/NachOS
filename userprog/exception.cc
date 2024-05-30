@@ -30,11 +30,11 @@
 #include "filesys/directory_entry.hh"
 #include "threads/system.hh"
 #include "args.hh"
+#include "../machine/mmu.hh"
 
 #include <stdio.h>
 
 #define GetVPN(address) (address / PAGE_SIZE)
-#define MMU machine->GetMMU()
 
 static void
 IncrementPC()
@@ -67,15 +67,32 @@ DefaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar
     ASSERT(false);
 }
 
+
+#ifdef USE_TLB
 static void
 PageFaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar el PC. Cuestion es: de donde sacar la dirección => VPN que fallo? De un registro simulado machine->register[BadVAddr]
 {
-    int vaddr  = machine->ReadRegister(BAD_VADDR_REG);
-    int vpn = GetVPN(vaddr);
-    DEBUG('y', "Page Fault vaddr %d vpn %d.\n");
-    MMU->tlb[MMU->indxTLB] = currentThread->space->pageTable[vpn];
-    MMU->indxTLB = MMU->indxTLB++ % TLB_SIZE;
+
+    unsigned vaddr  = machine->ReadRegister(BAD_VADDR_REG);
+    unsigned vpn = GetVPN(vaddr);
+    MMU *mmu = machine->GetMMU();
+    DEBUG('y', "Page Fault vaddr %d vpn %d.\n", vaddr, vpn);
+    mmu->tlb[tlbIndexFIFO] = currentThread->space->GetPage(vpn);
+    tlbIndexFIFO++;
+    tlbIndexFIFO = tlbIndexFIFO % TLB_SIZE;
 }
+
+static void
+ReadOnlyHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar el PC. Cuestion es: de donde sacar la dirección => VPN que fallo? De un registro simulado machine->register[BadVAddr]
+{
+    // int vaddr  = machine->ReadRegister(BAD_VADDR_REG);
+    // int vpn = GetVPN(vaddr);
+    // MMU *mmu = machine->GetMMU();
+    // DEBUG('y', "Page Fault vaddr %d vpn %d.\n");
+    // mmu->tlb[mmu->tlbIndexFIFO] = currentThread->space->pageTable[vpn];
+    // mmu->tlbIndexFIFO = mmu->tlbIndexFIFO++ % TLB_SIZE;
+}
+#endif
 
 /// Run a user program.
 ///
@@ -485,8 +502,13 @@ SetExceptionHandlers()
 {
     machine->SetHandler(NO_EXCEPTION,            &DefaultHandler);
     machine->SetHandler(SYSCALL_EXCEPTION,       &SyscallHandler);
+#ifdef USE_TLB
     machine->SetHandler(PAGE_FAULT_EXCEPTION,    &PageFaultHandler); /// Cambiar el manejador por PageFaultHandler
+    machine->SetHandler(READ_ONLY_EXCEPTION,     &ReadOnlyHandler);
+#else
+    machine->SetHandler(PAGE_FAULT_EXCEPTION,    &DefaultHandler); /// Cambiar el manejador por PageFaultHandler
     machine->SetHandler(READ_ONLY_EXCEPTION,     &DefaultHandler);
+#endif
     machine->SetHandler(BUS_ERROR_EXCEPTION,     &DefaultHandler);
     machine->SetHandler(ADDRESS_ERROR_EXCEPTION, &DefaultHandler);
     machine->SetHandler(OVERFLOW_EXCEPTION,      &DefaultHandler);

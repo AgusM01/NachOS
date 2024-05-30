@@ -46,6 +46,10 @@ Bitmap *bit_map;
 Table <Thread*> *space_table;
 #endif
 
+#ifdef USE_TLB
+unsigned tlbIndexFIFO = 0;
+#endif
+
 // External definition, to allow us to take a pointer to this function.
 extern void Cleanup();
 
