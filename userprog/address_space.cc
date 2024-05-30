@@ -24,12 +24,6 @@
 AddressSpace::AddressSpace(OpenFile *executable_file)
 {
     ASSERT(executable_file != nullptr);
-    
-    fileTableIds = new Table <OpenFile*>;
-    OpenFile* in = nullptr;
-    OpenFile* out = nullptr;
-    fileTableIds->Add(in);
-    fileTableIds->Add(out);
 
     /// Creo el ejecutable
     Executable exe (executable_file);
@@ -194,7 +188,6 @@ AddressSpace::~AddressSpace()
         bit_map->Clear(pageTable[i].physicalPage);
 
     delete [] pageTable;
-    delete fileTableIds;
 }
 
 /// Set the initial values for the user-level register set.

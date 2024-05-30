@@ -49,8 +49,6 @@ public:
     void SaveState();
     void RestoreState();
 
-    Table <OpenFile*> *fileTableIds;
-
 private:
 
     /// Assume linear page table translation for now!

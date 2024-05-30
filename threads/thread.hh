@@ -188,6 +188,8 @@ public:
 
     // User code this thread is running.
     AddressSpace *space;
+
+    Table <OpenFile*> *fileTableIds;
 #endif
 };
 
