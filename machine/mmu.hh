@@ -24,7 +24,8 @@ const unsigned DEFAULT_NUM_PHYS_PAGES = 32;
 /// Number of entries in the TLB, if one is present.
 ///
 /// If there is a TLB, it will be small compared to page tables.
-const unsigned TLB_SIZE = 4;
+const unsigned TLB_SIZE = 64;
+
 
 
 /// This class simulates an MMU (memory management unit) that can use either

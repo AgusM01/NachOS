@@ -36,7 +36,7 @@ StartProcess(const char *filename)
 
     space_table->Add(currentThread);
 
-    #ifdef USE_DL
+    #ifndef USE_DL
     delete executable;
     #endif
 

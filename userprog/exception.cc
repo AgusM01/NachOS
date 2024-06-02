@@ -75,25 +75,24 @@ DefaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar
 static void
 PageFaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar el PC. Cuestion es: de donde sacar la dirección => VPN que fallo? De un registro simulado machine->register[BadVAddr]
 {
-
     unsigned vaddr  = machine->ReadRegister(BAD_VADDR_REG);
     unsigned vpn = GetVPN(vaddr);
     MMU *mmu = machine->GetMMU();
     DEBUG('y', "Page Fault vaddr %d vpn %d.\n", vaddr, vpn);
-    mmu->tlb[tlbIndexFIFO] = currentThread->space->GetPage(vpn);
-    tlbIndexFIFO++;
+    mmu->tlb[tlbIndexFIFO++] = currentThread->space->GetPage(vpn);
     tlbIndexFIFO = tlbIndexFIFO % TLB_SIZE;
+    stats->numPageFaults++;
+
 }
 
 static void
 ReadOnlyHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar el PC. Cuestion es: de donde sacar la dirección => VPN que fallo? De un registro simulado machine->register[BadVAddr]
 {
-    // int vaddr  = machine->ReadRegister(BAD_VADDR_REG);
-    // int vpn = GetVPN(vaddr);
-    // MMU *mmu = machine->GetMMU();
-    // DEBUG('y', "Page Fault vaddr %d vpn %d.\n");
-    // mmu->tlb[mmu->tlbIndexFIFO] = currentThread->space->pageTable[vpn];
-    // mmu->tlbIndexFIFO = mmu->tlbIndexFIFO++ % TLB_SIZE;
+    int readOnlyAddr = machine->ReadRegister(BAD_VADDR_REG);
+
+    fprintf(stderr, "Unexpected user mode exception: %s, vaddr %d.\n",
+            ExceptionTypeToString(et), readOnlyAddr);
+    ASSERT(false);
 }
 #endif
 
