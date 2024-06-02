@@ -6,12 +6,15 @@
 /// limitation of liability and disclaimer of warranty provisions.
 
 #include <cstdint>
-#define min(a,b) a < b ? a : b
+#define MIN(a,b) a < b ? a : b
+#define MAX(a,b) a > b ? a : b
 #define PYSHICAL_ADDR(virtualPage) pageTable[virtualPage].physicalPage * PAGE_SIZE 
 
 #include <cstring>
 #include "address_space.hh"
+#ifndef USE_DL
 #include "executable.hh"
+#endif
 #include "lib/utility.hh"
 #include "threads/system.hh"
 
@@ -29,7 +32,12 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     fileTableIds->Add(out);
 
     /// Creo el ejecutable
+    #ifndef USE_DL
     Executable exe (executable_file);
+    #else
+    exe_file = executable_file;
+    exe = exe (executable_file);
+    #endif
     ASSERT(exe.CheckMagic());
     
     /// Lo cargo en memoria
@@ -85,7 +93,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         uint32_t offsetPage = virtualAddr % PAGE_SIZE;
         uint32_t offsetFile = 0;
         unsigned virtualPage = virtualAddr / PAGE_SIZE;
-        uint32_t firstPageWriteSize = min(PAGE_SIZE - offsetPage, codeSize);
+        uint32_t firstPageWriteSize = MIN(PAGE_SIZE - offsetPage, codeSize);
         uint32_t remainingToWrite = codeSize - firstPageWriteSize;
 
 
@@ -148,7 +156,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         uint32_t offsetPage = virtualAddr % PAGE_SIZE;
         uint32_t offsetFile = 0;
         unsigned virtualPage = virtualAddr / PAGE_SIZE;
-        uint32_t firstPageWriteSize = min(PAGE_SIZE - offsetPage, initDataSize);
+        uint32_t firstPageWriteSize = MIN(PAGE_SIZE - offsetPage, initDataSize);
         uint32_t remainingToWrite = initDataSize - firstPageWriteSize;
 
         DEBUG('a', "Write at 0x%X, size %u, offsetPage %u, remainingToWrite %u\n",
@@ -165,7 +173,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
             while(PAGE_SIZE < remainingToWrite) 
             {
                 DEBUG('a', "Write in while at 0x%X, size %u, remainingToWrite\n",
-                    PYSHICAL_ADDR(virtualPage) + offsetPage, PAGE_SIZE, remainingToWrite);
+                    PYSHICAL_ADDR(virtualPage), PAGE_SIZE, remainingToWrite);
 
                 exe.ReadDataBlock(&mainMemory[PYSHICAL_ADDR(virtualPage)], PAGE_SIZE, offsetFile);
                 pageTable[virtualPage].use = true;
@@ -195,6 +203,10 @@ AddressSpace::~AddressSpace()
 {
     for (unsigned i = 0; i < numPages; i++)
         bit_map->Clear(pageTable[i].physicalPage);
+
+    #ifdef USE_DL
+    delete exe_file;
+    #endif
 
     delete [] pageTable;
     delete fileTableIds;
@@ -256,14 +268,34 @@ AddressSpace::RestoreState()
 
 TranslationEntry AddressSpace::GetPage(unsigned vpn){
 
+    //#define USE_DL
     #ifdef USE_DL
     if (pageTable[vpn].valid == false){
-        DEBUG('a', "Write vp  0x%X, size %u, remainingToWrite\n",
-            PYSHICAL_ADDR(virtualPage) + offsetPage, PAGE_SIZE, remainingToWrite);
+        pageTable[vpn].valid = true;
+        pageTable[vpn].physical = bit_map->Find();
+        char* mainMemory = machine->mainMemory;
+        // DEBUG('a', "Write vp  0x%X, size %u, remainingToWrite\n",
+        //     PYSHICAL_ADDR(vpn), PAGE_SIZE, PAGE_SIZE);
+        DEBUG('a',"Invalid Page, start loading process.\n");
+        unsigned pageDownAddress = vpn * PAGE_SIZE;
+        unsigned pageUpAddress = pageDownAddress + PAGE_SIZE;
+        unsigned codeAddr = exe.GetCodeAddr();
+        unsigned codeSize = exe.GetCodeSize();
+        unsigned dataAddr = exe.GetDataAddr();
+        unsigned dataSize = exe.GetDataSize();
 
-        exe.ReadDataBlock(&mainMemory[PYSHICAL_ADDR(vpn)], PAGE_SIZE, offsetFile);
-        pageTable[virtualPage].valid = true;
-        pageTable[virtualPage].use = true;
+        if (pageDownAddress < codeAddr + codeSize){
+            unsigned firstAddre = MAX(pageDownAddress, codeAddr);
+            unsigned offSet = firstAddre % PAGE_SIZE;
+            unsigned fileOffSet = firstAddre - codeAddr;
+            unsigned toWrite = MIN(codeAddr + codeSize - firstAddre, pageUpAddress - firstAddre);
+            exe.ReadCodeBlock(&mainMemory[PYSHICAL_ADDR(firstAddre) + offSet], toWrite, fileOffSet);
+        }
+
+
+        exe.ReadDataBlock(machine->mainMemory[PYSHICAL_ADDR(vpn)], PAGE_SIZE, vpn * PAGE_SIZE);
+        pageTable[vpn].valid = true;
+        pageTable[vpn].use = true;
     }
     #endif
 

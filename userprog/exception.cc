@@ -30,7 +30,10 @@
 #include "filesys/directory_entry.hh"
 #include "threads/system.hh"
 #include "args.hh"
+
+#ifdef USE_TLB
 #include "../machine/mmu.hh"
+#endif
 
 #include <stdio.h>
 
@@ -379,16 +382,21 @@ SyscallHandler(ExceptionType _et)
 
             if (!status &&  !(newThread = new Thread(nullptr,join ? true : false))){
                 DEBUG('e', "Error: Unable to create a thread %s\n", filename);
+                delete executable;
                 status = -1; 
             }
 
             if (!status &&  !(space = new AddressSpace(executable))){
                 DEBUG('e', "Error: Unable to create the address space \n");
+                delete executable;
+                delete newThread;
                 status = -1;
             }
 
             if (!status){
+                #ifndef USE_DL
                 delete executable;
+                #endif
                 newThread->space = space;
                 status = space_table->Add(newThread);
                 newThread->Fork(ProcessInit, nullptr);
@@ -439,16 +447,21 @@ SyscallHandler(ExceptionType _et)
 
             if (!status &&  !(newThread = new Thread(nullptr, join ? true : false))){
                 DEBUG('e', "Error: Unable to create a thread %s\n", filename);
+                delete executable;
                 status = -1; 
             }
 
             if (!status &&  !(space = new AddressSpace(executable))){
                 DEBUG('e', "Error: Unable to create the address space \n");
+                delete executable;
+                delete newThread;
                 status = -1;
             }
 
             if (!status){
+                #ifndef USE_DL
                 delete executable;
+                #endif
                 newThread->space = space;
                 status = space_table->Add(newThread);
                 newThread->Fork(ProcessInitArgs, (void*)argv);
