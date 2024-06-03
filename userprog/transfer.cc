@@ -32,7 +32,6 @@ void ReadBufferFromUser(int userAddress, char *outBuffer,
 #ifdef USE_TLB
         int i;
         for(i = 0; i < NUM_EXCEPTION_TYPES && !machine->ReadMem(userAddress, 1, &temp); i++);
-        DEBUG('h',"TRANSFER i = %u \n", i);
         userAddress++;
         ASSERT(i != NUM_EXCEPTION_TYPES);
 #else
@@ -59,7 +58,6 @@ bool ReadStringFromUser(int userAddress, char *outString,
 #ifdef USE_TLB
         int i;
         for(i = 0; i < NUM_EXCEPTION_TYPES && !machine->ReadMem(userAddress, 1, &temp); i++);
-        DEBUG('h',"TRANSFER i = %u \n", i);
         userAddress++;
         ASSERT(i != NUM_EXCEPTION_TYPES);
 #else
@@ -86,7 +84,6 @@ void WriteBufferToUser(const char *buffer, int userAddress,
 #ifdef USE_TLB
         int i;
         for(i = 0; i < NUM_EXCEPTION_TYPES && !machine->WriteMem(userAddress, 1, temp); i++);
-        DEBUG('h',"TRANSFER i = %u \n", i);
         userAddress++;
         ASSERT(i != NUM_EXCEPTION_TYPES);
 #else
@@ -109,7 +106,6 @@ void WriteStringToUser(const char *string, int userAddress)
 #ifdef USE_TLB
         int i;
         for(i = 0; i < NUM_EXCEPTION_TYPES && !machine->WriteMem(userAddress, 1, temp); i++);
-        DEBUG('h',"TRANSFER i = %u \n", i);
         userAddress++;
         ASSERT(i != NUM_EXCEPTION_TYPES);
 #else

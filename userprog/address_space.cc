@@ -39,16 +39,13 @@ AddressSpace::AddressSpace(OpenFile *executable_file) : exe(executable_file)
     /// Creo el ejecutable
     #ifndef USE_DL
     Executable exe (executable_file);
+    ASSERT(exe.CheckMagic());
     #else
     exe_file = executable_file;
     #endif
-    ASSERT(exe.CheckMagic());
     
-    /// Lo cargo en memoria
-    // How big is address space?
-
-    unsigned size = exe.GetSize() + USER_STACK_SIZE; /// Lo que ocupa el .text + el stack.
-      // We need to increase the size to leave room for the stack.
+    unsigned size = exe.GetSize() + USER_STACK_SIZE; /// Lo que ocupa el .code + .data + .unidata + el stack.
+    // We need to increase the size to leave room for the stack.
     numPages = DivRoundUp(size, PAGE_SIZE);
     DEBUG('y',"Numero de paginas %u.\n", numPages);
     size = numPages * PAGE_SIZE; /// Recalcula el nuevo tamaño con las páginas de mas incluidas.
@@ -203,12 +200,11 @@ AddressSpace::AddressSpace(OpenFile *executable_file) : exe(executable_file)
 }
 
 /// Deallocate an address space.
-///
-/// Nothing for now!
 AddressSpace::~AddressSpace()
 {
     for (unsigned i = 0; i < numPages; i++)
-        bit_map->Clear(pageTable[i].physicalPage);
+        if (pageTable[i].valid)
+            bit_map->Clear(pageTable[i].physicalPage);
 
     #ifdef USE_DL
     delete exe_file;
@@ -276,11 +272,11 @@ TranslationEntry AddressSpace::GetPage(unsigned vpn){
 
     #ifdef USE_DL
     if (pageTable[vpn].valid == false){
+
         pageTable[vpn].physicalPage = bit_map->Find();
         char* mainMemory = machine->mainMemory;
-        DEBUG('y', "Write vp  %u, initAddr 0x%x, size %u\n",
-            vpn, PHYSICAL_PAGE_ADDR(vpn), PAGE_SIZE); 
         DEBUG('y',"Invalid Page, start loading process.\n");
+
         // Direccion virtual del incio de la página
         unsigned pageDownAddress = vpn * PAGE_SIZE; 
 
@@ -290,20 +286,22 @@ TranslationEntry AddressSpace::GetPage(unsigned vpn){
         unsigned codeAddr = exe.GetCodeAddr();          //Inicio segmento código
         unsigned codeSize = exe.GetCodeSize();          //Tamaño del segmento de código
         unsigned dataAddr = exe.GetInitDataAddr();      //Inicio segmento datos
-        unsigned dataSize = exe.GetInitDataSize();
+        unsigned dataSize = exe.GetInitDataSize();      //Tamaño del segmento de datos
+
+        DEBUG('y', "Write vp  %u, initAddr %u, size %u\n",
+            vpn, PHYSICAL_PAGE_ADDR(vpn), PAGE_SIZE); 
 
         memset(&mainMemory[PHYSICAL_PAGE_ADDR(vpn)], 0, PAGE_SIZE);
 
         //Necesito escribir algo del segmento de código
         if (codeSize > 0 && pageDownAddress < codeAddr + codeSize){ 
             //Parte de direcciones virtuales
-            unsigned firstAddre = MAX(pageDownAddress, codeAddr);
+            unsigned firstAddre = MAX(pageDownAddress, codeAddr); // En nachos podríamos dejar solo pageDownAddress
             unsigned offSet = firstAddre % PAGE_SIZE;
             unsigned bytesToWrite = MIN(codeAddr + codeSize - firstAddre, pageUpAddress - firstAddre);
 
             //Si lo que escribimos en el segmento de código es un página entera,
-            //entonces la página es del segmento de código y se puede marcar como
-            //read only
+            //entonces la página se puede marcar como read only
             if (bytesToWrite == PAGE_SIZE)
                 pageTable[vpn].readOnly = true;
 
@@ -311,13 +309,13 @@ TranslationEntry AddressSpace::GetPage(unsigned vpn){
             unsigned fileOffSet = firstAddre - codeAddr;
 
             //Escritura en la página física
-            exe.ReadCodeBlock(&mainMemory[PHYSICAL_PAGE_ADDR(firstAddre) + offSet], bytesToWrite, fileOffSet);
+            exe.ReadCodeBlock(&mainMemory[PHYSICAL_PAGE_ADDR(vpn) + offSet], bytesToWrite, fileOffSet);
         }
 
         //Necesito escribir algo del segmento de datos inicializados
         if (dataSize > 0 && dataAddr < pageUpAddress && pageDownAddress < dataAddr + dataSize){
             //Parte de direcciones virtuales
-            unsigned firstAddre = MAX(pageDownAddress, dataAddr);
+            unsigned firstAddre = MAX(pageDownAddress, dataAddr); //Acá es necesario el max
             unsigned offSet = firstAddre % PAGE_SIZE;
             unsigned bytesToWrite = MIN(dataAddr + dataSize - firstAddre, pageUpAddress - firstAddre);
 
@@ -325,12 +323,11 @@ TranslationEntry AddressSpace::GetPage(unsigned vpn){
             unsigned fileOffSet = firstAddre - dataAddr;
 
             //Escritura en la página física
-            exe.ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(firstAddre) + offSet], bytesToWrite, fileOffSet);
+            exe.ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(vpn) + offSet], bytesToWrite, fileOffSet);
         }
 
         pageTable[vpn].valid = true;
         pageTable[vpn].use = true;
-        //ASSERT(vpn != 11);
     }
     #endif
     return pageTable[vpn];
