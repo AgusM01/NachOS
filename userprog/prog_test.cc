@@ -35,7 +35,9 @@ StartProcess(const char *filename)
 
     space_table->Add(currentThread);
 
+    #ifndef USE_DL
     delete executable;
+    #endif
 
     space->InitRegisters();  // Set the initial register values.
     space->RestoreState();   // Load page table register.

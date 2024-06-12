@@ -46,6 +46,10 @@ extern Table <Thread*> *space_table;
 extern FileSystem *fileSystem;
 #endif
 
+#ifdef USE_TLB
+extern unsigned tlbIndexFIFO;
+#endif
+
 #ifdef FILESYS
 #include "filesys/synch_disk.hh"
 extern SynchDisk *synchDisk;

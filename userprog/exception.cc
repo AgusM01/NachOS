@@ -31,8 +31,13 @@
 #include "threads/system.hh"
 #include "args.hh"
 
+#ifdef USE_TLB
+#include "../machine/mmu.hh"
+#endif
+
 #include <stdio.h>
 
+#define GetVPN(address) (address / PAGE_SIZE)
 
 static void
 IncrementPC()
@@ -78,6 +83,32 @@ DefaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar
             ExceptionTypeToString(et), exceptionArg);
     ASSERT(false);
 }
+
+
+#ifdef USE_TLB
+static void
+PageFaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar el PC. Cuestion es: de donde sacar la dirección => VPN que fallo? De un registro simulado machine->register[BadVAddr]
+{
+    unsigned vaddr  = machine->ReadRegister(BAD_VADDR_REG);
+    unsigned vpn = GetVPN(vaddr);
+    MMU *mmu = machine->GetMMU();
+    DEBUG('y', "Page Fault vaddr %d vpn %d.\n", vaddr, vpn);
+    mmu->tlb[tlbIndexFIFO++] = currentThread->space->GetPage(vpn);
+    tlbIndexFIFO = tlbIndexFIFO % TLB_SIZE;
+    stats->numPageFaults++;
+
+}
+
+static void
+ReadOnlyHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar el PC. Cuestion es: de donde sacar la dirección => VPN que fallo? De un registro simulado machine->register[BadVAddr]
+{
+    int readOnlyAddr = machine->ReadRegister(BAD_VADDR_REG);
+
+    fprintf(stderr, "Unexpected user mode exception: %s, vaddr %d.\n",
+            ExceptionTypeToString(et), readOnlyAddr);
+    ASSERT(false);
+}
+#endif
 
 /// Run a user program.
 ///
@@ -487,16 +518,21 @@ SyscallHandler(ExceptionType _et)
 
             if (!status &&  !(newThread = new Thread(nullptr,join ? true : false))){
                 DEBUG('e', "Error: Unable to create a thread %s\n", filename);
+                delete executable;
                 status = -1; 
             }
 
             if (!status &&  !(space = new AddressSpace(executable))){
                 DEBUG('e', "Error: Unable to create the address space \n");
+                delete executable;
+                delete newThread;
                 status = -1;
             }
 
             if (!status){
+                #ifndef USE_DL
                 delete executable;
+                #endif
                 newThread->space = space;
                 status = space_table->Add(newThread);
                 newThread->Fork(ProcessInit, nullptr);
@@ -547,16 +583,21 @@ SyscallHandler(ExceptionType _et)
 
             if (!status &&  !(newThread = new Thread(nullptr, join ? true : false))){
                 DEBUG('e', "Error: Unable to create a thread %s\n", filename);
+                delete executable;
                 status = -1; 
             }
 
             if (!status &&  !(space = new AddressSpace(executable))){
                 DEBUG('e', "Error: Unable to create the address space \n");
+                delete executable;
+                delete newThread;
                 status = -1;
             }
 
             if (!status){
+                #ifndef USE_DL
                 delete executable;
+                #endif
                 newThread->space = space;
                 status = space_table->Add(newThread);
                 newThread->Fork(ProcessInitArgs, (void*)argv);
@@ -610,8 +651,13 @@ SetExceptionHandlers()
 {
     machine->SetHandler(NO_EXCEPTION,            &DefaultHandler);
     machine->SetHandler(SYSCALL_EXCEPTION,       &SyscallHandler);
+#ifdef USE_TLB
+    machine->SetHandler(PAGE_FAULT_EXCEPTION,    &PageFaultHandler); /// Cambiar el manejador por PageFaultHandler
+    machine->SetHandler(READ_ONLY_EXCEPTION,     &ReadOnlyHandler);
+#else
     machine->SetHandler(PAGE_FAULT_EXCEPTION,    &DefaultHandler); /// Cambiar el manejador por PageFaultHandler
     machine->SetHandler(READ_ONLY_EXCEPTION,     &DefaultHandler);
+#endif
     machine->SetHandler(BUS_ERROR_EXCEPTION,     &DefaultHandler);
     machine->SetHandler(ADDRESS_ERROR_EXCEPTION, &DefaultHandler);
     machine->SetHandler(OVERFLOW_EXCEPTION,      &DefaultHandler);

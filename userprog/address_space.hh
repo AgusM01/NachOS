@@ -17,6 +17,9 @@
 #include "filesys/file_system.hh"
 #include "machine/translation_entry.hh"
 #include "lib/table.hh"
+#ifdef USE_DL
+#include "executable.hh"
+#endif
 #include <cstdint>
 
 class Thread;
@@ -50,10 +53,19 @@ public:
     void SaveState();
     void RestoreState();
 
+    TranslationEntry GetPage(unsigned vpn);
+
+    Table <OpenFile*> *fileTableIds;
+
 private:
 
     /// Assume linear page table translation for now!
     TranslationEntry *pageTable;
+
+    #ifdef USE_DL
+    OpenFile *exe_file;
+    Executable exe;
+    #endif
 
     static uint32_t GetPyshicalPage(uint32_t virtualAddr);
 

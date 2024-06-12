@@ -7,6 +7,7 @@
 
 
 #include "syscall.h"
+#include "lib.c"
 
 
 /// Sum total of the arrays does not fit in physical memory.
@@ -40,5 +41,9 @@ main(void)
     }
 
     // And then we are done.
+    // char res[11] = {0};
+    // itoa(C[DIM - 1][DIM - 1], res);
+    // puts(res);
+    // puts("\n");
     return C[DIM - 1][DIM - 1];
 }
