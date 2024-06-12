@@ -66,6 +66,11 @@ private:
     OpenFile *exe_file;
     Executable exe;
     #endif
+    
+    #ifdef SWAP
+    char* swapname;
+    OpenFile *swap_pid;
+    #endif
 
     static uint32_t GetPyshicalPage(uint32_t virtualAddr);
 

@@ -12,6 +12,9 @@
 #define PHYSICAL_PAGE_ADDR(virtualPage) pageTable[virtualPage].physicalPage * PAGE_SIZE 
 
 #include <cstring>
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "address_space.hh"
 #ifndef USE_DL
 #include "executable.hh"
@@ -30,7 +33,8 @@ AddressSpace::AddressSpace(OpenFile *executable_file) : exe(executable_file)
 #endif
 {
     ASSERT(executable_file != nullptr);
-
+    
+    
     /// Creo el ejecutable
     #ifndef USE_DL
     Executable exe (executable_file);
@@ -45,8 +49,13 @@ AddressSpace::AddressSpace(OpenFile *executable_file) : exe(executable_file)
     DEBUG('y',"Numero de paginas %u.\n", numPages);
     size = numPages * PAGE_SIZE; /// Recalcula el nuevo tamaño con las páginas de mas incluidas.
 
+    #ifdef SWAP
+    swapname = concat("SWAP.", std::to_string(currentThread->GetPid()));
+    ASSERT(Create(swapname, size));
+    #else 
     ASSERT(numPages <= bit_map->CountClear()); /// Calculamos la cantidad de espacio disponible según el bitmap      // Check we are not trying to run anything too big -- at least until we
       // have virtual memory.
+    #endif
 
     DEBUG('a', "Initializing address space, num pages %u, size %u\n",
           numPages, size);
@@ -244,7 +253,9 @@ AddressSpace::InitRegisters()
 /// For now, nothing!
 void
 AddressSpace::SaveState()
-{}
+{
+    /// Guardar lo que tiene la tlb en la page table
+}
 
 /// On a context switch, restore the machine state so that this address space
 /// can run.
@@ -268,8 +279,13 @@ TranslationEntry AddressSpace::GetPage(unsigned vpn){
 
     #ifdef USE_DL
     if (pageTable[vpn].valid == false){
-
+        
+        #ifndef SWAP /// Bit de swap <- si ya se swapeó antes o no
         pageTable[vpn].physicalPage = bit_map->Find();
+        #else
+        pageTable[vpn].physicalPage = CoreMap->Find(vpn, currentThread->proc_id);
+        #endif
+
         char* mainMemory = machine->mainMemory;
         DEBUG('y',"Invalid Page, start loading process.\n");
 

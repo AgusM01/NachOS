@@ -33,7 +33,7 @@ StartProcess(const char *filename)
     AddressSpace *space = new AddressSpace(executable);
     currentThread->space = space;
 
-    space_table->Add(currentThread);
+    currentThread->SetPid(space_table->Add(currentThread));
 
     #ifndef USE_DL
     delete executable;

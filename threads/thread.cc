@@ -18,6 +18,7 @@
 
 
 #include "thread.hh"
+#include "lib/assert.hh"
 #include "switch.h"
 #include "system.hh"
 #include "channel.hh"
@@ -394,3 +395,20 @@ Thread::PrintStatus()
     }
     return "";
 }
+
+// ---------------------------------------------------------------
+
+void 
+Thread::SetPid(pid p)
+{
+    ASSERT(p != -1);
+    proc_id = p;
+}
+
+pid
+Thread::GetPid()
+{
+    return proc_id;
+}
+
+

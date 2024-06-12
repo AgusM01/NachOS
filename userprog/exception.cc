@@ -93,6 +93,7 @@ PageFaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No increment
     unsigned vpn = GetVPN(vaddr);
     MMU *mmu = machine->GetMMU();
     DEBUG('y', "Page Fault vaddr %d vpn %d.\n", vaddr, vpn);
+    /// Hacer copia
     mmu->tlb[tlbIndexFIFO++] = currentThread->space->GetPage(vpn);
     tlbIndexFIFO = tlbIndexFIFO % TLB_SIZE;
     stats->numPageFaults++;
@@ -379,113 +380,6 @@ SyscallHandler(ExceptionType _et)
             }
 
             DEBUG('a', "Success: Write done\n");
-            machine->WriteRegister(2, status);
-            break;
-        }
-        case SC_EXEC:{
-
-            int filenameAddr = machine->ReadRegister(4); 
-            int join = machine->ReadRegister(5); 
-            int status = 0;
-            OpenFile *executable;
-            Thread* newThread;            
-            AddressSpace *space; 
-            char filename[FILE_NAME_MAX_LEN + 1];
-
-            if (filenameAddr == 0){
-                DEBUG('e', "Error: address to filename string is null. \n");
-                status = -1;
-            }
-
-            if (!status && !ReadStringFromUser(filenameAddr, 
-                                    filename, sizeof filename)){
-                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
-                      FILE_NAME_MAX_LEN);
-                status = -1;
-            }
-
-            if (!status && !(executable = fileSystem->Open(filename))) {
-                DEBUG('e', "Error: Unable to open file %s\n", filename);
-                status = -1;
-            }
-
-            if (!status &&  !(newThread = new Thread(nullptr,join ? true : false))){
-                DEBUG('e', "Error: Unable to create a thread %s\n", filename);
-                status = -1; 
-            }
-
-            if (!status &&  !(space = new AddressSpace(executable))){
-                DEBUG('e', "Error: Unable to create the address space \n");
-                status = -1;
-            }
-
-            if (!status){
-                delete executable;
-                newThread->space = space;
-                status = space_table->Add(newThread);
-                newThread->Fork(ProcessInit, nullptr);
-            }
-
-            machine->WriteRegister(2, status);
-            break;
-        } 
-        case SC_EXEC2:{
-
-            int filenameAddr = machine->ReadRegister(4); 
-            int argsVector = machine->ReadRegister(5);
-            int join = machine->ReadRegister(6);
-            int status = 0;
-            OpenFile *executable;
-            Thread* newThread;            
-            char** argv;
-            AddressSpace *space; 
-            char filename[FILE_NAME_MAX_LEN + 1];
-
-            if (filenameAddr == 0){
-                DEBUG('e', "Error: address to filename string is null. \n");
-                status = -1;
-            }
-
-            if (!status && argsVector == 0){
-                DEBUG('e', "Error: address to argsVector is null. \n");
-                status = -1;
-            }
-
-            if (!status && !ReadStringFromUser(filenameAddr, 
-                                    filename, sizeof filename)){
-                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
-                      FILE_NAME_MAX_LEN);
-                status = -1;
-            }
-
-            if (!status && !(argv = SaveArgs(argsVector))){
-                 DEBUG('e', "Error: Unable to get User Args Vectors.\n",
-                      FILE_NAME_MAX_LEN);
-                status = -1;
-            }
-
-            if (!status && !(executable = fileSystem->Open(filename))) {
-                DEBUG('e', "Error: Unable to open file %s\n", filename);
-                status = -1;
-            }
-
-            if (!status &&  !(newThread = new Thread(nullptr, join ? true : false))){
-                DEBUG('e', "Error: Unable to create a thread %s\n", filename);
-                status = -1; 
-            }
-
-            if (!status &&  !(space = new AddressSpace(executable))){
-                DEBUG('e', "Error: Unable to create the address space \n");
-                status = -1;
-            }
-
-            if (!status){
-                delete executable;
-                newThread->space = space;
-                status = space_table->Add(newThread);
-                newThread->Fork(ProcessInitArgs, (void*)argv);
-            }
-
             machine->WriteRegister(2, status);
             break;
         }

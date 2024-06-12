@@ -48,6 +48,8 @@
 //class Table <Thread*>;
 #endif
 
+typedef int pid;
+
 #include <stdint.h>
 
 class Channel;
@@ -143,6 +145,10 @@ public:
 
     const char *PrintStatus();
     
+    void SetPid(pid p);
+    
+    pid GetPid();
+
     // Valor de retorno del hijo en join (exec)
     int resp;
 
@@ -174,6 +180,8 @@ private:
 
     //Scheduler implementation
     int priority;
+
+    pid proc_id;
 
 #ifdef USER_PROGRAM
     /// User-level CPU register state.
