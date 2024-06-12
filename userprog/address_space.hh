@@ -50,11 +50,6 @@ public:
     void SaveState();
     void RestoreState();
 
-    Table <OpenFile*> *fileTableIds;
-    
-    /// Tabla de hijos ejecutando algo.
-    Table <Thread*> *spaceTable;
-
 private:
 
     /// Assume linear page table translation for now!

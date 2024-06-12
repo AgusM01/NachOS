@@ -127,18 +127,10 @@ main(void)
             segundoPlano = 1;
         }
 
-        if (argv[1 + segundoPlano] == NULL){
-            newProc = Exec(*(argv + segundoPlano), segundoPlano ? 0 : 1 );
-            if (newProc == -1){
-                WriteError("Error Exec\n", CONSOLE_OUTPUT);
-                continue;
-            }
-        } else {
-            newProc = Exec2(*(argv + segundoPlano), (char**)(argv + segundoPlano), segundoPlano ? 0 : 1);
-            if (newProc == -1){
-                WriteError("Error Exec2\n", CONSOLE_OUTPUT);
-                continue;
-            }
+        newProc = Exec2(*(argv + segundoPlano), (char**)(argv + segundoPlano), segundoPlano ? 0 : 1);
+        if (newProc == -1){
+            WriteError("Error Exec2\n", CONSOLE_OUTPUT);
+            continue;
         }
 
         if (!segundoPlano){

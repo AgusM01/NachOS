@@ -193,9 +193,9 @@ public:
 
     // User code this thread is running.
     AddressSpace *space;
-    
-    
-    #endif
+
+    Table <OpenFile*> *fileTableIds;
+#endif
 };
 
 /// Magical machine-dependent routines, defined in `switch.s`.

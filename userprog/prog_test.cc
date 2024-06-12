@@ -10,7 +10,6 @@
 
 
 #include "address_space.hh"
-#include "machine/synch_console.hh"
 #include "threads/semaphore.hh"
 #include "threads/system.hh"
 
