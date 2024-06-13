@@ -5,6 +5,7 @@
 /// All rights reserved.  See `copyright.h` for copyright notice and
 /// limitation of liability and disclaimer of warranty provisions.
 
+#include "translation_entry.hh"
 #include <complex.h>
 #include <cstdint>
 #define MIN(a,b) a < b ? a : b
@@ -253,8 +254,15 @@ AddressSpace::InitRegisters()
 /// For now, nothing!
 void
 AddressSpace::SaveState()
-{
-    /// Guardar lo que tiene la tlb en la page table
+{ 
+    #ifdef USE_TLB
+    TranslationEntry to_cpy;
+    for(unsigned int i = 0; i < TLB_SIZE; i++){
+        to_cpy = machine->GetMMU()->tlb[i];
+        if (to_cpy.valid && !to_cpy.readOnly)
+            this->CommitPage(to_cpy);
+   }
+    #endif
 }
 
 /// On a context switch, restore the machine state so that this address space
@@ -274,8 +282,15 @@ AddressSpace::RestoreState()
     machine->GetMMU()->pageTableSize = numPages;
     #endif
 }
-
-TranslationEntry AddressSpace::GetPage(unsigned vpn){
+void
+AddressSpace::CommitPage(TranslationEntry newTransEntry)
+{
+    pageTable[newTransEntry.virtualPage] = newTransEntry;
+    return;
+}    
+TranslationEntry 
+AddressSpace::GetPage(unsigned vpn)
+{
 
     #ifdef USE_DL
     if (pageTable[vpn].valid == false){

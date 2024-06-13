@@ -33,6 +33,7 @@
 
 #ifdef USE_TLB
 #include "../machine/mmu.hh"
+#include <string.h>
 #endif
 
 #include <stdio.h>
@@ -92,8 +93,10 @@ PageFaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No increment
     unsigned vaddr  = machine->ReadRegister(BAD_VADDR_REG);
     unsigned vpn = GetVPN(vaddr);
     MMU *mmu = machine->GetMMU();
+    TranslationEntry to_be_rep = mmu->tlb[tlbIndexFIFO];
     DEBUG('y', "Page Fault vaddr %d vpn %d.\n", vaddr, vpn);
-    /// Hacer copia
+    if(to_be_rep.valid && !to_be_rep.readOnly)
+        currentThread->space->CommitPage(to_be_rep);
     mmu->tlb[tlbIndexFIFO++] = currentThread->space->GetPage(vpn);
     tlbIndexFIFO = tlbIndexFIFO % TLB_SIZE;
     stats->numPageFaults++;

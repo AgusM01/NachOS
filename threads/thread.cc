@@ -193,7 +193,12 @@ Thread::Finish(int returnStatus)
         DEBUG('t', "Signal to father thread to continue with Join\n");
         waitToChild->Send(returnStatus); 
     }
-
+   
+    /// Lo saco de la space_table
+    #ifdef USER_PROGRAM
+    ASSERT(currentThread == space_table->Remove(proc_id));
+    #endif
+    
     threadToBeDestroyed = currentThread;
 
     Sleep();  // Invokes `SWITCH`.

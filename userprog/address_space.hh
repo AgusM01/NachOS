@@ -55,6 +55,8 @@ public:
 
     TranslationEntry GetPage(unsigned vpn);
 
+    void CommitPage(TranslationEntry newTransEntry); 
+
     Table <OpenFile*> *fileTableIds;
 
 private:
