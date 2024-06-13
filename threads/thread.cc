@@ -196,7 +196,9 @@ Thread::Finish(int returnStatus)
    
     /// Lo saco de la space_table
     #ifdef USER_PROGRAM
-    ASSERT(currentThread == space_table->Remove(proc_id));
+    ASSERT(currentThread == space_table->Remove(currentThread->proc_id));
+    if (space_table->IsEmpty())
+        interrupt->Halt();
     #endif
     
     threadToBeDestroyed = currentThread;

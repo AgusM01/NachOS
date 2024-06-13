@@ -20,6 +20,9 @@
 #ifdef USE_DL
 #include "executable.hh"
 #endif
+#ifdef SWAP
+#include "lib/bitmap.hh"
+#endif
 #include <cstdint>
 
 class Thread;
@@ -51,11 +54,18 @@ public:
     /// Save/restore address space-specific info on a context switch.
 
     void SaveState();
+    
     void RestoreState();
 
     TranslationEntry GetPage(unsigned vpn);
 
+    void LetSwap(unsigned vpn);
+    
+    void GetSwap(unsigned ppn);
+
     void CommitPage(TranslationEntry newTransEntry); 
+    
+    void RetrievePage(unsigned vpn);
 
     Table <OpenFile*> *fileTableIds;
 
@@ -63,7 +73,7 @@ private:
 
     /// Assume linear page table translation for now!
     TranslationEntry *pageTable;
-
+    
     #ifdef USE_DL
     OpenFile *exe_file;
     Executable exe;
@@ -72,6 +82,7 @@ private:
     #ifdef SWAP
     char* swapname;
     OpenFile *swap_pid;
+    Bitmap* swap_map;
     #endif
 
     static uint32_t GetPyshicalPage(uint32_t virtualAddr);

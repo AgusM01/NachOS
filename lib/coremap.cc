@@ -65,6 +65,7 @@ CoreMap::Test(unsigned which) const
     return map[which].used;
 }
 
+
 /// Return the number of the first bit which is clear.  As a side effect, set
 /// the bit (mark it as in use).  (In other words, find and allocate a bit.)
 ///
@@ -120,8 +121,19 @@ CoreMap::PickVictim()
    return SystemDep::Random() % numBits; 
 }
 
+unsigned
+CoreMap::GetPid(int which)
+{
+    ASSERT(which < numBits);
+    return map[which].pid;
+}
 
-
+unsigned
+CoreMap::GetVpn(int which)
+{
+    ASSERT(which < numBits);
+    return map[which].vpn;
+}
 /// Initialize the contents of a coremap from a Nachos file.
 ///
 /// Note: this is not needed until the *FILESYS* assignment.

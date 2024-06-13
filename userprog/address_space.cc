@@ -5,6 +5,7 @@
 /// All rights reserved.  See `copyright.h` for copyright notice and
 /// limitation of liability and disclaimer of warranty provisions.
 
+#include "lib/coremap.hh"
 #include "translation_entry.hh"
 #include <complex.h>
 #include <cstdint>
@@ -53,6 +54,8 @@ AddressSpace::AddressSpace(OpenFile *executable_file) : exe(executable_file)
     #ifdef SWAP
     swapname = concat("SWAP.", std::to_string(currentThread->GetPid()));
     ASSERT(Create(swapname, size));
+    swap_pid = Open(swapname);
+    swap_map = new Bitmap(numPages); 
     #else 
     ASSERT(numPages <= bit_map->CountClear()); /// Calculamos la cantidad de espacio disponible según el bitmap      // Check we are not trying to run anything too big -- at least until we
       // have virtual memory.
@@ -216,6 +219,10 @@ AddressSpace::~AddressSpace()
     #ifdef USE_DL
     delete exe_file;
     #endif
+    #ifdef SWAP 
+    swap_pid->Close(swapname);
+    delete swap_map;
+    #endif
 
     delete [] pageTable;
 }
@@ -260,7 +267,7 @@ AddressSpace::SaveState()
     for(unsigned int i = 0; i < TLB_SIZE; i++){
         to_cpy = machine->GetMMU()->tlb[i];
         if (to_cpy.valid && !to_cpy.readOnly)
-            this->CommitPage(to_cpy);
+            CommitPage(to_cpy);
    }
     #endif
 }
@@ -282,12 +289,114 @@ AddressSpace::RestoreState()
     machine->GetMMU()->pageTableSize = numPages;
     #endif
 }
+
+#ifdef SWAP 
+void 
+AddressSpace::Swapping(unsigned vpn)
+{
+    if(swap_map->Test() && !pageTable[vpn].dirty){
+        pageTable[vpn].valid = false;
+        return;
+    }
+    
+    char* mainMemory = machine->mainMemory;
+    char* to_write = &mainMemory[PHYSICAL_PAGE_ADDR(vpn) * PAGE_SIZE] ;
+    swap_pid->WriteAt(to_write, PAGE_SIZE, PHYSICAL_PAGE_ADDR(vpn)*PAGE_SIZE);
+    swap_map->Mark(vpn);
+    pageTable[vpn].valid = false;
+    return;
+}
+
+void 
+AddressSpace::GetSwap(unsigned ppn)
+{
+    char* mainMemory = machine->mainMemory;
+    memset(&mainMemory[ppn*PAGE_SIZE], 0, PAGE_SIZE);
+
+    swap_pid->ReadAt(&mainMemory[ppn*PAGE_SIZE], PAGE_SIZE, ppn*PAGE_SIZE);
+    return;
+}
+
+void
+AddressSpace::LetSwap(unsigned vpn)
+{
+    int to_be_fucked = CoreMap->PickVictim();
+    int pid_proc = CoreMap->GetPid(to_be_fucked);
+    int vpn_fuck = CoreMap->GetVpn(to_be_fucked);
+
+    Thread* thread_to_fuck;
+    thread_to_fuck = space_table->Get(pid_proc);
+    TranslationEntry page_fuck = thread_to_fuck->space->Swapping(vpn);
+    pageTable[vpn] = to_be_fucked;
+    return;
+}
+#endif
+
 void
 AddressSpace::CommitPage(TranslationEntry newTransEntry)
 {
     pageTable[newTransEntry.virtualPage] = newTransEntry;
     return;
-}    
+}
+
+#ifdef USE_DL
+void 
+AddressSpace::RetrievePage(unsigned vpn)
+{
+    char* mainMemory = machine->mainMemory;
+    DEBUG('y',"Invalid Page, start loading process.\n");
+
+    // Direccion virtual del incio de la página
+    unsigned pageDownAddress = vpn * PAGE_SIZE; 
+
+    // Direccion de la siguiente página (tope de la página actual)
+    unsigned pageUpAddress = pageDownAddress + PAGE_SIZE;
+
+    unsigned codeAddr = exe.GetCodeAddr();          //Inicio segmento código
+    unsigned codeSize = exe.GetCodeSize();          //Tamaño del segmento de código
+    unsigned dataAddr = exe.GetInitDataAddr();      //Inicio segmento datos
+    unsigned dataSize = exe.GetInitDataSize();      //Tamaño del segmento de datos
+
+    DEBUG('y', "Write vp  %u, initAddr %u, size %u\n",
+        vpn, PHYSICAL_PAGE_ADDR(vpn), PAGE_SIZE); 
+
+    memset(&mainMemory[PHYSICAL_PAGE_ADDR(vpn)], 0, PAGE_SIZE);
+
+    //Necesito escribir algo del segmento de código
+    if (codeSize > 0 && pageDownAddress < codeAddr + codeSize){ 
+        //Parte de direcciones virtuales
+        unsigned firstAddre = MAX(pageDownAddress, codeAddr); // En nachos podríamos dejar solo pageDownAddress
+        unsigned offSet = firstAddre % PAGE_SIZE;
+        unsigned bytesToWrite = MIN(codeAddr + codeSize - firstAddre, pageUpAddress - firstAddre);
+
+        //Si lo que escribimos en el segmento de código es un página entera,
+        //entonces la página se puede marcar como read only
+        if (bytesToWrite == PAGE_SIZE)
+            pageTable[vpn].readOnly = true;
+
+        //Parte el archivo del ejecutable
+        unsigned fileOffSet = firstAddre - codeAddr;
+
+        //Escritura en la página física
+        exe.ReadCodeBlock(&mainMemory[PHYSICAL_PAGE_ADDR(vpn) + offSet], bytesToWrite, fileOffSet);
+    }
+
+    //Necesito escribir algo del segmento de datos inicializados
+    if (dataSize > 0 && dataAddr < pageUpAddress && pageDownAddress < dataAddr + dataSize){
+        //Parte de direcciones virtuales
+        unsigned firstAddre = MAX(pageDownAddress, dataAddr); //Acá es necesario el max
+        unsigned offSet = firstAddre % PAGE_SIZE;
+        unsigned bytesToWrite = MIN(dataAddr + dataSize - firstAddre, pageUpAddress - firstAddre);
+
+        //Parte el archivo del ejecutable
+        unsigned fileOffSet = firstAddre - dataAddr;
+
+        //Escritura en la página física
+        exe.ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(vpn) + offSet], bytesToWrite, fileOffSet);
+    }
+
+}
+#endif 
 TranslationEntry 
 AddressSpace::GetPage(unsigned vpn)
 {
@@ -297,61 +406,21 @@ AddressSpace::GetPage(unsigned vpn)
         
         #ifndef SWAP /// Bit de swap <- si ya se swapeó antes o no
         pageTable[vpn].physicalPage = bit_map->Find();
+        RetrievePage(vpn);    
         #else
         pageTable[vpn].physicalPage = CoreMap->Find(vpn, currentThread->proc_id);
+        if(pageTable[vpn].physicalPage == -1)
+            LetSwap(vpn); /// Marcarla como invalid y mandarla a swap
+        
+        if(swap_map->Test(vpn)){
+            GetSwap(PHYSICAL_PAGE_ADDR(vpn));
+            pageTable[vpn].dirty = false;
+
+        }
+        else{
+            RetrievePage(vpn);    
+        }
         #endif
-
-        char* mainMemory = machine->mainMemory;
-        DEBUG('y',"Invalid Page, start loading process.\n");
-
-        // Direccion virtual del incio de la página
-        unsigned pageDownAddress = vpn * PAGE_SIZE; 
-
-        // Direccion de la siguiente página (tope de la página actual)
-        unsigned pageUpAddress = pageDownAddress + PAGE_SIZE;
-
-        unsigned codeAddr = exe.GetCodeAddr();          //Inicio segmento código
-        unsigned codeSize = exe.GetCodeSize();          //Tamaño del segmento de código
-        unsigned dataAddr = exe.GetInitDataAddr();      //Inicio segmento datos
-        unsigned dataSize = exe.GetInitDataSize();      //Tamaño del segmento de datos
-
-        DEBUG('y', "Write vp  %u, initAddr %u, size %u\n",
-            vpn, PHYSICAL_PAGE_ADDR(vpn), PAGE_SIZE); 
-
-        memset(&mainMemory[PHYSICAL_PAGE_ADDR(vpn)], 0, PAGE_SIZE);
-
-        //Necesito escribir algo del segmento de código
-        if (codeSize > 0 && pageDownAddress < codeAddr + codeSize){ 
-            //Parte de direcciones virtuales
-            unsigned firstAddre = MAX(pageDownAddress, codeAddr); // En nachos podríamos dejar solo pageDownAddress
-            unsigned offSet = firstAddre % PAGE_SIZE;
-            unsigned bytesToWrite = MIN(codeAddr + codeSize - firstAddre, pageUpAddress - firstAddre);
-
-            //Si lo que escribimos en el segmento de código es un página entera,
-            //entonces la página se puede marcar como read only
-            if (bytesToWrite == PAGE_SIZE)
-                pageTable[vpn].readOnly = true;
-
-            //Parte el archivo del ejecutable
-            unsigned fileOffSet = firstAddre - codeAddr;
-
-            //Escritura en la página física
-            exe.ReadCodeBlock(&mainMemory[PHYSICAL_PAGE_ADDR(vpn) + offSet], bytesToWrite, fileOffSet);
-        }
-
-        //Necesito escribir algo del segmento de datos inicializados
-        if (dataSize > 0 && dataAddr < pageUpAddress && pageDownAddress < dataAddr + dataSize){
-            //Parte de direcciones virtuales
-            unsigned firstAddre = MAX(pageDownAddress, dataAddr); //Acá es necesario el max
-            unsigned offSet = firstAddre % PAGE_SIZE;
-            unsigned bytesToWrite = MIN(dataAddr + dataSize - firstAddre, pageUpAddress - firstAddre);
-
-            //Parte el archivo del ejecutable
-            unsigned fileOffSet = firstAddre - dataAddr;
-
-            //Escritura en la página física
-            exe.ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(vpn) + offSet], bytesToWrite, fileOffSet);
-        }
 
         pageTable[vpn].valid = true;
         pageTable[vpn].use = true;

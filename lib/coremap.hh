@@ -33,7 +33,8 @@ public:
 
     /// Is the “nth” bit set?
     bool Test(unsigned which) const;
-
+    
+    
     /// Return the index of a clear bit, and as a side effect, set the bit.
     ///
     /// If no bits are clear, return -1.
@@ -59,6 +60,10 @@ public:
    
     /// Devuelve un numero de marco que será la víctima a reemplazo.
     int PickVictim();
+    
+    unsigned GetPid(int which);
+
+    unsigned GetVpn(int which);
 
 private:
 

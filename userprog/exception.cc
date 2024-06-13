@@ -432,7 +432,10 @@ SyscallHandler(ExceptionType _et)
                 #endif
                 newThread->space = space;
                 status = space_table->Add(newThread);
-                newThread->Fork(ProcessInit, nullptr);
+                if (status != -1){
+                    newThread->SetPid(status);
+                    newThread->Fork(ProcessInit, nullptr);
+                }
             }
 
             machine->WriteRegister(2, status);
@@ -497,7 +500,10 @@ SyscallHandler(ExceptionType _et)
                 #endif
                 newThread->space = space;
                 status = space_table->Add(newThread);
-                newThread->Fork(ProcessInitArgs, (void*)argv);
+                if (status != -1){
+                    newThread->SetPid(status);
+                    newThread->Fork(ProcessInitArgs, (void*)argv);
+                }
             }
 
             machine->WriteRegister(2, status);
@@ -508,10 +514,9 @@ SyscallHandler(ExceptionType _et)
             int ret = machine->ReadRegister(4);            
 
             delete currentThread->space;
-
-
-            if (space_table->Get(0) == currentThread) // Main thread Exit
-                interrupt->Halt();
+            
+            //if (space_table->Get(0) == currentThread) //Main thread Exit
+              //  interrupt->Halt();
 
             currentThread->Finish(ret); 
             break;
@@ -526,7 +531,7 @@ SyscallHandler(ExceptionType _et)
                 status = -1;
             }
             if (!status){
-                space_table->Remove(childId);
+                //space_table->Remove(childId);
                 status = child->Join();
             }
             
