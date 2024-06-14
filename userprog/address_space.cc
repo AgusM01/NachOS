@@ -80,7 +80,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file) : exe(executable_file)
         pageTable[i].physicalPage = bit_map->Find();
         pageTable[i].valid        = true;
         #else
-        pageTable[i].physicalPage = machine->GetNumPhysicalPages() + 1;
+        pageTable[i].physicalPage = -1;
         pageTable[i].valid        = false;
         #endif
         pageTable[i].use          = false;
@@ -413,8 +413,8 @@ AddressSpace::GetPage(unsigned vpn)
         pageTable[vpn].physicalPage = bit_map->Find();
         RetrievePage(vpn);    
         #else
-        pageTable[vpn].physicalPage = core_map->Find(vpn, currentThread->GetPid());
-        if(pageTable[vpn].physicalPage == machine->GetNumPhysicalPages() + 1)
+        int is_phys = core_map->Find(vpn, currentThread->GetPid());
+        if(is_phys == -1)
             LetSwap(vpn); /// Marcarla como invalid y mandarla a swap
         
         if(swap_map->Test(vpn)){
