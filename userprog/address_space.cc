@@ -25,6 +25,9 @@
 #include "mmu.hh"
 #include "threads/system.hh"
 
+#ifdef SWAP
+#include "filesys/file_system.hh"
+#endif
 /// First, set up the translation from program memory to physical memory.
 /// For now, this is really simple (1:1), since we are only uniprogramming,
 /// and we have a single unsegmented page table.
@@ -52,9 +55,11 @@ AddressSpace::AddressSpace(OpenFile *executable_file) : exe(executable_file)
     size = numPages * PAGE_SIZE; /// Recalcula el nuevo tamaño con las páginas de mas incluidas.
 
     #ifdef SWAP
-    swapname = concat("SWAP.", std::to_string(currentThread->GetPid()));
-    ASSERT(Create(swapname, size));
-    swap_pid = Open(swapname);
+    char* id;
+    sprintf(id, "%d", currentThread->GetPid());
+    swapname = concat("SWAP.", id);
+    ASSERT(fileSystem->Create(swapname, size));
+    swap_pid = fileSystem->Open(swapname);
     swap_map = new Bitmap(numPages); 
     #else 
     ASSERT(numPages <= bit_map->CountClear()); /// Calculamos la cantidad de espacio disponible según el bitmap      // Check we are not trying to run anything too big -- at least until we
@@ -75,7 +80,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file) : exe(executable_file)
         pageTable[i].physicalPage = bit_map->Find();
         pageTable[i].valid        = true;
         #else
-        pageTable[i].physicalPage = -1;
+        pageTable[i].physicalPage = machine->GetNumPhysicalPages() + 1;
         pageTable[i].valid        = false;
         #endif
         pageTable[i].use          = false;
@@ -220,7 +225,7 @@ AddressSpace::~AddressSpace()
     delete exe_file;
     #endif
     #ifdef SWAP 
-    swap_pid->Close(swapname);
+    delete swap_pid;
     delete swap_map;
     #endif
 
@@ -294,7 +299,7 @@ AddressSpace::RestoreState()
 void 
 AddressSpace::Swapping(unsigned vpn)
 {
-    if(swap_map->Test() && !pageTable[vpn].dirty){
+    if(swap_map->Test(vpn) && !pageTable[vpn].dirty){
         pageTable[vpn].valid = false;
         return;
     }
@@ -320,14 +325,14 @@ AddressSpace::GetSwap(unsigned ppn)
 void
 AddressSpace::LetSwap(unsigned vpn)
 {
-    int to_be_fucked = CoreMap->PickVictim();
-    int pid_proc = CoreMap->GetPid(to_be_fucked);
-    int vpn_fuck = CoreMap->GetVpn(to_be_fucked);
+    int to_be_fucked = core_map->PickVictim();
+    int pid_proc = core_map->GetPid(to_be_fucked);
+    //int vpn_fuck = core_map->GetVpn(to_be_fucked);
 
     Thread* thread_to_fuck;
     thread_to_fuck = space_table->Get(pid_proc);
-    TranslationEntry page_fuck = thread_to_fuck->space->Swapping(vpn);
-    pageTable[vpn] = to_be_fucked;
+    thread_to_fuck->space->Swapping(vpn);
+    pageTable[vpn].physicalPage = to_be_fucked;
     return;
 }
 #endif
@@ -408,8 +413,8 @@ AddressSpace::GetPage(unsigned vpn)
         pageTable[vpn].physicalPage = bit_map->Find();
         RetrievePage(vpn);    
         #else
-        pageTable[vpn].physicalPage = CoreMap->Find(vpn, currentThread->proc_id);
-        if(pageTable[vpn].physicalPage == -1)
+        pageTable[vpn].physicalPage = core_map->Find(vpn, currentThread->GetPid());
+        if(pageTable[vpn].physicalPage == machine->GetNumPhysicalPages() + 1)
             LetSwap(vpn); /// Marcarla como invalid y mandarla a swap
         
         if(swap_map->Test(vpn)){

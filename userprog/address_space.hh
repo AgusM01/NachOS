@@ -58,10 +58,14 @@ public:
     void RestoreState();
 
     TranslationEntry GetPage(unsigned vpn);
-
+    
+#ifdef SWAP 
     void LetSwap(unsigned vpn);
     
     void GetSwap(unsigned ppn);
+    
+    void Swapping(unsigned vpn);
+#endif 
 
     void CommitPage(TranslationEntry newTransEntry); 
     
