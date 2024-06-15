@@ -120,7 +120,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
             firstPageWriteSize,
             offsetFile
         );
-        pageTable[virtualPage].use = true;
+        //pageTable[virtualPage].use = true;
 
         if (remainingToWrite > 0) {
             DEBUG('a', "Left to write: %u.\n", remainingToWrite);
@@ -136,7 +136,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
                     PHYSICAL_PAGE_ADDR(virtualPage), PAGE_SIZE);
 
                 exe->ReadCodeBlock(&mainMemory[PHYSICAL_PAGE_ADDR(virtualPage)], PAGE_SIZE, offsetFile);
-                pageTable[virtualPage].use = true;
+               //pageTable[virtualPage].use = true;
 
                 offsetFile += PAGE_SIZE; // Avanzamos en el Disco 
                 remainingToWrite -= PAGE_SIZE; // Nos falta una página menos.
@@ -178,7 +178,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
               PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage, firstPageWriteSize, offsetPage, remainingToWrite);
 
         exe->ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage], firstPageWriteSize, offsetFile);
-        pageTable[virtualPage].use = true;
+        //pageTable[virtualPage].use = true;
         if (remainingToWrite > 0) {
             offsetFile = firstPageWriteSize; // Desplazamiento en Disco
             virtualPage++;                   // Pasamos a la siguiente página virtual
@@ -191,7 +191,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
                     PHYSICAL_PAGE_ADDR(virtualPage), PAGE_SIZE, remainingToWrite);
 
                 exe->ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(virtualPage)], PAGE_SIZE, offsetFile);
-                pageTable[virtualPage].use = true;
+                //pageTable[virtualPage].use = true;
 
                 offsetFile += PAGE_SIZE; // Avanzamos en el Disco 
                 remainingToWrite -= PAGE_SIZE; // Nos falta una página menos.
@@ -205,7 +205,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 
             // Ultima escritura, ya que remainingToWrite <= PAGE_SIZE
             exe->ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(virtualPage)], remainingToWrite, offsetFile);
-            pageTable[virtualPage].use = true;
+            //pageTable[virtualPage].use = true;
         }
     }
     #endif
@@ -296,6 +296,7 @@ AddressSpace::RestoreState()
 void 
 AddressSpace::Swapping(unsigned vpn)
 {
+    DEBUG('w', "TE MANDE A SWAP PUTO PROCESO: %d \t PAGE %u\n", currentThread->GetPid(), vpn);
     if(swap_map->Test(vpn) && !pageTable[vpn].dirty){
         pageTable[vpn].valid = false;
         return;
@@ -303,19 +304,20 @@ AddressSpace::Swapping(unsigned vpn)
     
     char* mainMemory = machine->mainMemory;
     char* to_write = &mainMemory[PHYSICAL_PAGE_ADDR(vpn)] ;
-    swap_pid->WriteAt(to_write, PAGE_SIZE, PHYSICAL_PAGE_ADDR(vpn));
+    ASSERT(swap_pid->WriteAt(to_write, PAGE_SIZE, vpn * PAGE_SIZE) == PAGE_SIZE);
     swap_map->Mark(vpn);
     pageTable[vpn].valid = false;
     return;
 }
 
 void 
-AddressSpace::GetSwap(unsigned ppn)
+AddressSpace::GetSwap(unsigned vpn)
 {
+    DEBUG('w', "TE PIDO DE SWAP LA PAGINA: %u PUTO\n");
     char* mainMemory = machine->mainMemory;
-    memset(&mainMemory[ppn], 0, PAGE_SIZE);
+    memset(&mainMemory[PHYSICAL_PAGE_ADDR(vpn)], 0, PAGE_SIZE);
 
-    swap_pid->ReadAt(&mainMemory[ppn], PAGE_SIZE, ppn);
+    ASSERT(swap_pid->ReadAt(&mainMemory[PHYSICAL_PAGE_ADDR(vpn)], PAGE_SIZE, vpn * PAGE_SIZE) == PAGE_SIZE);
     return;
 }
 
@@ -346,7 +348,7 @@ void
 AddressSpace::RetrievePage(unsigned vpn)
 {
     char* mainMemory = machine->mainMemory;
-    DEBUG('y',"Invalid Page, start loading process.\n");
+    DEBUG('y',"Invalid Page: %u, start loading process.\n", vpn);
 
     // Direccion virtual del incio de la página
     unsigned pageDownAddress = vpn * PAGE_SIZE; 
@@ -402,7 +404,8 @@ AddressSpace::RetrievePage(unsigned vpn)
 TranslationEntry 
 AddressSpace::GetPage(unsigned vpn)
 {
-
+    
+    DEBUG('w', "PIDO LA PAGINA: %u PUTO\n", vpn);
     #ifdef USE_DL
     if (pageTable[vpn].valid == false){
         
@@ -417,16 +420,17 @@ AddressSpace::GetPage(unsigned vpn)
             pageTable[vpn].physicalPage = is_phys;
 
         if(swap_map->Test(vpn)){
-            GetSwap(PHYSICAL_PAGE_ADDR(vpn));
+            DEBUG('w', "LA MIERDA DE VPN: %u ESTA EN SWAP PUTO\n", vpn);
+            GetSwap(vpn);
             pageTable[vpn].dirty = false;
         }
         else{
+            //DEBUG('w', "LA MIERDA DE VPN: %u NO ESTA EN SWAP PUTO\n", vpn);
             RetrievePage(vpn);    
         }
         #endif
 
         pageTable[vpn].valid = true;
-        pageTable[vpn].use = true;
     }
     #endif
     return pageTable[vpn];
