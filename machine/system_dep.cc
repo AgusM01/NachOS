@@ -51,7 +51,7 @@ extern "C" {
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/mman.h>
-
+#include <errno.h>
 }
 
 
@@ -166,6 +166,7 @@ void
 Lseek(int fd, int offset, int whence)
 {
     int retVal = lseek(fd, offset, whence);
+    //perror("LSEEK:");
     ASSERT(retVal >= 0);
 }
 

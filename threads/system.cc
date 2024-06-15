@@ -44,6 +44,7 @@ Machine *machine;  ///< User program memory and registers.
 SynchConsole *synch_console;
 Bitmap *bit_map;
 Table <Thread*> *space_table;
+CoreMap *core_map;
 #endif
 
 #ifdef USE_TLB
@@ -207,6 +208,8 @@ Initialize(int argc, char **argv)
     bit_map = new Bitmap(numPhysicalPages);
     
     space_table = new Table <Thread*>;
+    
+    core_map = new CoreMap(numPhysicalPages);
 
     SetExceptionHandlers();
 #endif

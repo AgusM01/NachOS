@@ -74,13 +74,12 @@ public:
     Table <OpenFile*> *fileTableIds;
 
 private:
-
-    /// Assume linear page table translation for now!
+    
     TranslationEntry *pageTable;
     
     #ifdef USE_DL
     OpenFile *exe_file;
-    Executable exe;
+    Executable* exe;
     #endif
     
     #ifdef SWAP
@@ -89,6 +88,8 @@ private:
     Bitmap* swap_map;
     #endif
 
+    /// Assume linear page table translation for now!
+    
     static uint32_t GetPyshicalPage(uint32_t virtualAddr);
 
     /// Number of pages in the virtual address space. -> Para no guerdar una tabla de paginacion enorme.

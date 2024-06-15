@@ -61,9 +61,9 @@ public:
     /// Devuelve un numero de marco que será la víctima a reemplazo.
     int PickVictim();
     
-    unsigned GetPid(int which);
+    unsigned GetPid(unsigned which);
 
-    unsigned GetVpn(int which);
+    unsigned GetVpn(unsigned which);
 
 private:
 

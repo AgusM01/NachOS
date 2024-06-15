@@ -10,8 +10,7 @@ unsigned strlen(const char* str){
 
 int puts(const char* str){
     unsigned len = strlen(str);
-    Write(str, len , CONSOLE_OUTPUT);
-    return Write("\n", 1, CONSOLE_OUTPUT);
+    return Write(str, len , CONSOLE_OUTPUT);
 }
 
 void itoa(int n, char* str){

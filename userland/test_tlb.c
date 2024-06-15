@@ -6,9 +6,11 @@ int main(){
     for(int i = 0; i < 2; i++)
         pids[i] = Exec("matmult", 1);
     
-    for(int i = 0; i < 2; i++)
+    for(int i = 0; i < 2; i++){
         Join(pids[i]);
+        puts("termine\n");
+    }
 
-    puts("chau");
+    puts("chau\n");
     return 0;
 }

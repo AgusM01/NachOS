@@ -98,6 +98,7 @@ USERPROG_HDR = userprog/address_space.hh            	\
                filesys/file_system.hh               	\
                filesys/open_file.hh                 	\
                lib/bitmap.hh                        	\
+							 lib/coremap.hh													\
                machine/console.hh                   	\
                machine/encoding.hh                  	\
                machine/endianness.hh                	\
@@ -116,6 +117,7 @@ USERPROG_SRC = userprog/address_space.cc            	\
                userprog/transfer.cc                 	\
 							 userprog/synch_console.cc								\
                lib/bitmap.cc                        	\
+							 lib/coremap.cc													\
                machine/console.cc                   	\
                machine/encoding.cc                  	\
                machine/endianness.cc                	\

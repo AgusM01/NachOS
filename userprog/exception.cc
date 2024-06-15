@@ -40,6 +40,8 @@
 
 #define GetVPN(address) (address / PAGE_SIZE)
 
+static char nameThread[9] = "cuquita4";
+
 static void
 IncrementPC()
 {
@@ -413,7 +415,9 @@ SyscallHandler(ExceptionType _et)
                 status = -1;
             }
 
-            if (!status &&  !(newThread = new Thread(nullptr,join ? true : false))){
+            nameThread[7]++;
+
+            if (!status &&  !(newThread = new Thread(nameThread ,join ? true : false))){
                 DEBUG('e', "Error: Unable to create a thread %s\n", filename);
                 delete executable;
                 status = -1; 
@@ -513,8 +517,7 @@ SyscallHandler(ExceptionType _et)
 
             int ret = machine->ReadRegister(4);            
 
-            delete currentThread->space;
-            
+            DEBUG('w', "ESTOY HACIENDO EXIT PAAAAA %d\n", currentThread->GetPid()); 
             //if (space_table->Get(0) == currentThread) //Main thread Exit
               //  interrupt->Halt();
 

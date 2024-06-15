@@ -87,7 +87,9 @@ Thread::~Thread()
 
 #ifdef USER_PROGRAM
     delete fileTableIds;
-#endif
+    if (space != nullptr)
+        delete space;
+    #endif
 
     ASSERT(this != currentThread);
     if (stack != nullptr) {
@@ -197,8 +199,10 @@ Thread::Finish(int returnStatus)
     /// Lo saco de la space_table
     #ifdef USER_PROGRAM
     ASSERT(currentThread == space_table->Remove(currentThread->proc_id));
-    if (space_table->IsEmpty())
+    if (space_table->IsEmpty()){
+        DEBUG('w', "HOLANDA.\n");
         interrupt->Halt();
+    }
     #endif
     
     threadToBeDestroyed = currentThread;
@@ -221,7 +225,7 @@ Thread::Finish(int returnStatus)
 /// return, we re-set the interrupt level to its original state, in case we
 /// are called with interrupts disabled.
 ///
-/// Similar to `Thread::Sleep`, but a little different.
+/// Similar to `Sleep`, but a little different.
 void
 Thread::Yield()
 {

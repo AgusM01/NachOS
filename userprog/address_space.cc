@@ -31,32 +31,29 @@
 /// First, set up the translation from program memory to physical memory.
 /// For now, this is really simple (1:1), since we are only uniprogramming,
 /// and we have a single unsegmented page table.
-#ifndef USE_DL
 AddressSpace::AddressSpace(OpenFile *executable_file)
-#else
-AddressSpace::AddressSpace(OpenFile *executable_file) : exe(executable_file)
-#endif
 {
     ASSERT(executable_file != nullptr);
     
     
     /// Creo el ejecutable
     #ifndef USE_DL
-    Executable exe (executable_file);
-    ASSERT(exe.CheckMagic());
+    Executable *exe = new Executable(executable_file);
+    ASSERT(exe->CheckMagic());
     #else
     exe_file = executable_file;
+    exe = new Executable(executable_file);
     #endif
     
-    unsigned size = exe.GetSize() + USER_STACK_SIZE; /// Lo que ocupa el .code + .data + .unidata + el stack.
+    unsigned size = exe->GetSize() + USER_STACK_SIZE; /// Lo que ocupa el .code + .data + .unidata + el stack.
     // We need to increase the size to leave room for the stack.
     numPages = DivRoundUp(size, PAGE_SIZE);
     DEBUG('y',"Numero de paginas %u.\n", numPages);
     size = numPages * PAGE_SIZE; /// Recalcula el nuevo tamaño con las páginas de mas incluidas.
 
     #ifdef SWAP
-    char* id;
-    sprintf(id, "%d", currentThread->GetPid());
+    char id[12] = {0};
+    itoa(currentThread->GetPid(), id);
     swapname = concat("SWAP.", id);
     ASSERT(fileSystem->Create(swapname, size));
     swap_pid = fileSystem->Open(swapname);
@@ -101,10 +98,10 @@ AddressSpace::AddressSpace(OpenFile *executable_file) : exe(executable_file)
         memset(&mainMemory[PHYSICAL_PAGE_ADDR(i)], 0, PAGE_SIZE);
 
     // Then, copy in the code and data segments into memory.
-    uint32_t codeSize = exe.GetCodeSize();
+    uint32_t codeSize = exe->GetCodeSize();
     if (codeSize > 0) {
 
-        uint32_t virtualAddr = exe.GetCodeAddr();
+        uint32_t virtualAddr = exe->GetCodeAddr();
         DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
               virtualAddr, codeSize);
         uint32_t offsetPage = virtualAddr % PAGE_SIZE;
@@ -118,7 +115,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file) : exe(executable_file)
               PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage, firstPageWriteSize);
 
 
-        exe.ReadCodeBlock(
+        exe->ReadCodeBlock(
             &mainMemory[PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage],
             firstPageWriteSize,
             offsetFile
@@ -138,7 +135,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file) : exe(executable_file)
                 DEBUG('a', "Write at 0x%X, size %u\n",
                     PHYSICAL_PAGE_ADDR(virtualPage), PAGE_SIZE);
 
-                exe.ReadCodeBlock(&mainMemory[PHYSICAL_PAGE_ADDR(virtualPage)], PAGE_SIZE, offsetFile);
+                exe->ReadCodeBlock(&mainMemory[PHYSICAL_PAGE_ADDR(virtualPage)], PAGE_SIZE, offsetFile);
                 pageTable[virtualPage].use = true;
 
                 offsetFile += PAGE_SIZE; // Avanzamos en el Disco 
@@ -154,7 +151,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file) : exe(executable_file)
                 DEBUG('a', "Last Write at 0x%X, size %u\n",
                     PHYSICAL_PAGE_ADDR(virtualPage), remainingToWrite);
             // Ultima escritura, ya que remainingToWrite <= PAGE_SIZE
-            exe.ReadCodeBlock(&mainMemory[PHYSICAL_PAGE_ADDR(virtualPage)], remainingToWrite, offsetFile);
+            exe->ReadCodeBlock(&mainMemory[PHYSICAL_PAGE_ADDR(virtualPage)], remainingToWrite, offsetFile);
             pageTable[virtualPage].use = true;
 
             //Si la útima escritura es una página entera, marcamos la página como solo lecutura.
@@ -164,11 +161,11 @@ AddressSpace::AddressSpace(OpenFile *executable_file) : exe(executable_file)
 
     }
 
-    uint32_t initDataSize = exe.GetInitDataSize();
+    uint32_t initDataSize = exe->GetInitDataSize();
 
     if (initDataSize > 0) {
 
-        uint32_t virtualAddr = exe.GetInitDataAddr();
+        uint32_t virtualAddr = exe->GetInitDataAddr();
         DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
               virtualAddr, initDataSize);
         uint32_t offsetPage = virtualAddr % PAGE_SIZE;
@@ -180,7 +177,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file) : exe(executable_file)
         DEBUG('a', "Write at 0x%X, size %u, offsetPage %u, remainingToWrite %u\n",
               PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage, firstPageWriteSize, offsetPage, remainingToWrite);
 
-        exe.ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage], firstPageWriteSize, offsetFile);
+        exe->ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage], firstPageWriteSize, offsetFile);
         pageTable[virtualPage].use = true;
         if (remainingToWrite > 0) {
             offsetFile = firstPageWriteSize; // Desplazamiento en Disco
@@ -193,7 +190,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file) : exe(executable_file)
                 DEBUG('a', "Write in while at 0x%X, size %u, remainingToWrite\n",
                     PHYSICAL_PAGE_ADDR(virtualPage), PAGE_SIZE, remainingToWrite);
 
-                exe.ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(virtualPage)], PAGE_SIZE, offsetFile);
+                exe->ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(virtualPage)], PAGE_SIZE, offsetFile);
                 pageTable[virtualPage].use = true;
 
                 offsetFile += PAGE_SIZE; // Avanzamos en el Disco 
@@ -207,7 +204,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file) : exe(executable_file)
                     PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage, remainingToWrite);
 
             // Ultima escritura, ya que remainingToWrite <= PAGE_SIZE
-            exe.ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(virtualPage)], remainingToWrite, offsetFile);
+            exe->ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(virtualPage)], remainingToWrite, offsetFile);
             pageTable[virtualPage].use = true;
         }
     }
@@ -227,8 +224,8 @@ AddressSpace::~AddressSpace()
     #ifdef SWAP 
     delete swap_pid;
     delete swap_map;
+    free(swapname);
     #endif
-
     delete [] pageTable;
 }
 
@@ -305,8 +302,8 @@ AddressSpace::Swapping(unsigned vpn)
     }
     
     char* mainMemory = machine->mainMemory;
-    char* to_write = &mainMemory[PHYSICAL_PAGE_ADDR(vpn) * PAGE_SIZE] ;
-    swap_pid->WriteAt(to_write, PAGE_SIZE, PHYSICAL_PAGE_ADDR(vpn)*PAGE_SIZE);
+    char* to_write = &mainMemory[PHYSICAL_PAGE_ADDR(vpn)] ;
+    swap_pid->WriteAt(to_write, PAGE_SIZE, PHYSICAL_PAGE_ADDR(vpn));
     swap_map->Mark(vpn);
     pageTable[vpn].valid = false;
     return;
@@ -316,9 +313,9 @@ void
 AddressSpace::GetSwap(unsigned ppn)
 {
     char* mainMemory = machine->mainMemory;
-    memset(&mainMemory[ppn*PAGE_SIZE], 0, PAGE_SIZE);
+    memset(&mainMemory[ppn], 0, PAGE_SIZE);
 
-    swap_pid->ReadAt(&mainMemory[ppn*PAGE_SIZE], PAGE_SIZE, ppn*PAGE_SIZE);
+    swap_pid->ReadAt(&mainMemory[ppn], PAGE_SIZE, ppn);
     return;
 }
 
@@ -327,11 +324,11 @@ AddressSpace::LetSwap(unsigned vpn)
 {
     int to_be_fucked = core_map->PickVictim();
     int pid_proc = core_map->GetPid(to_be_fucked);
-    //int vpn_fuck = core_map->GetVpn(to_be_fucked);
+    int vpn_fuck = core_map->GetVpn(to_be_fucked);
 
     Thread* thread_to_fuck;
     thread_to_fuck = space_table->Get(pid_proc);
-    thread_to_fuck->space->Swapping(vpn);
+    thread_to_fuck->space->Swapping(vpn_fuck);
     pageTable[vpn].physicalPage = to_be_fucked;
     return;
 }
@@ -357,10 +354,10 @@ AddressSpace::RetrievePage(unsigned vpn)
     // Direccion de la siguiente página (tope de la página actual)
     unsigned pageUpAddress = pageDownAddress + PAGE_SIZE;
 
-    unsigned codeAddr = exe.GetCodeAddr();          //Inicio segmento código
-    unsigned codeSize = exe.GetCodeSize();          //Tamaño del segmento de código
-    unsigned dataAddr = exe.GetInitDataAddr();      //Inicio segmento datos
-    unsigned dataSize = exe.GetInitDataSize();      //Tamaño del segmento de datos
+    unsigned codeAddr = exe->GetCodeAddr();          //Inicio segmento código
+    unsigned codeSize = exe->GetCodeSize();          //Tamaño del segmento de código
+    unsigned dataAddr = exe->GetInitDataAddr();      //Inicio segmento datos
+    unsigned dataSize = exe->GetInitDataSize();      //Tamaño del segmento de datos
 
     DEBUG('y', "Write vp  %u, initAddr %u, size %u\n",
         vpn, PHYSICAL_PAGE_ADDR(vpn), PAGE_SIZE); 
@@ -383,7 +380,7 @@ AddressSpace::RetrievePage(unsigned vpn)
         unsigned fileOffSet = firstAddre - codeAddr;
 
         //Escritura en la página física
-        exe.ReadCodeBlock(&mainMemory[PHYSICAL_PAGE_ADDR(vpn) + offSet], bytesToWrite, fileOffSet);
+        exe->ReadCodeBlock(&mainMemory[PHYSICAL_PAGE_ADDR(vpn) + offSet], bytesToWrite, fileOffSet);
     }
 
     //Necesito escribir algo del segmento de datos inicializados
@@ -397,7 +394,7 @@ AddressSpace::RetrievePage(unsigned vpn)
         unsigned fileOffSet = firstAddre - dataAddr;
 
         //Escritura en la página física
-        exe.ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(vpn) + offSet], bytesToWrite, fileOffSet);
+        exe->ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(vpn) + offSet], bytesToWrite, fileOffSet);
     }
 
 }
@@ -416,11 +413,12 @@ AddressSpace::GetPage(unsigned vpn)
         int is_phys = core_map->Find(vpn, currentThread->GetPid());
         if(is_phys == -1)
             LetSwap(vpn); /// Marcarla como invalid y mandarla a swap
-        
+        else
+            pageTable[vpn].physicalPage = is_phys;
+
         if(swap_map->Test(vpn)){
             GetSwap(PHYSICAL_PAGE_ADDR(vpn));
             pageTable[vpn].dirty = false;
-
         }
         else{
             RetrievePage(vpn);    

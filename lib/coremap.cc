@@ -21,9 +21,8 @@ CoreMap::CoreMap(unsigned nitems)
 {
     ASSERT(nitems > 0);
 
-    numBits  = nitems; /// Cantidad de bits 
-    numWords = DivRoundUp(numBits, BITS_IN_WORD); /// Calcula cuantos enteros son (32 bits -> 4 bytes)
-    map      = new CoreStruct [numWords]; /// Crea un array con la cantidad de enteros que le dió 
+    numBits = nitems;
+    map = new CoreStruct [numBits]; /// Crea un array con la cantidad de enteros que le dió 
     for (unsigned i = 0; i < numBits; i++) {
         Clear(i);
     }
@@ -122,14 +121,14 @@ CoreMap::PickVictim()
 }
 
 unsigned
-CoreMap::GetPid(int which)
+CoreMap::GetPid(unsigned which)
 {
     ASSERT(which < numBits);
     return map[which].pid;
 }
 
 unsigned
-CoreMap::GetVpn(int which)
+CoreMap::GetVpn(unsigned which)
 {
     ASSERT(which < numBits);
     return map[which].vpn;
