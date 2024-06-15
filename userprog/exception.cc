@@ -92,17 +92,19 @@ DefaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar
 static void
 PageFaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar el PC. Cuestion es: de donde sacar la dirección => VPN que fallo? De un registro simulado machine->register[BadVAddr]
 {
+    DEBUG('w', "HOLA HANDLER PUTO\n");
     unsigned vaddr  = machine->ReadRegister(BAD_VADDR_REG);
     unsigned vpn = GetVPN(vaddr);
     MMU *mmu = machine->GetMMU();
     TranslationEntry to_be_rep = mmu->tlb[tlbIndexFIFO];
     DEBUG('y', "Page Fault vaddr %d vpn %d.\n", vaddr, vpn);
-    if(to_be_rep.valid && !to_be_rep.readOnly)
+    if(to_be_rep.valid)
         currentThread->space->CommitPage(to_be_rep);
     mmu->tlb[tlbIndexFIFO++] = currentThread->space->GetPage(vpn);
     tlbIndexFIFO = tlbIndexFIFO % TLB_SIZE;
     stats->numPageFaults++;
-
+    DEBUG('w', "CHAU HANDLER PUTO\n");
+  //  mmu->PrintTLB();
 }
 
 static void

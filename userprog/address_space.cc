@@ -214,10 +214,16 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 /// Deallocate an address space.
 AddressSpace::~AddressSpace()
 {
-    for (unsigned i = 0; i < numPages; i++)
-        if (pageTable[i].valid)
+    for (unsigned i = 0; i < numPages; i++){
+        if (pageTable[i].valid){
+            #ifndef SWAP 
             bit_map->Clear(pageTable[i].physicalPage);
-
+            #else
+            DEBUG('w', "CHAU PUTO PUTOOOOOOO\n");
+            core_map->Clear(pageTable[i].physicalPage);
+            #endif
+        }
+    }
     #ifdef USE_DL
     delete exe_file;
     #endif
@@ -312,7 +318,7 @@ AddressSpace::Swapping(unsigned vpn)
 
 void 
 AddressSpace::GetSwap(unsigned vpn)
-{
+{ 
     DEBUG('w', "TE PIDO DE SWAP LA PAGINA: %u PUTO\n");
     char* mainMemory = machine->mainMemory;
     memset(&mainMemory[PHYSICAL_PAGE_ADDR(vpn)], 0, PAGE_SIZE);
@@ -330,8 +336,10 @@ AddressSpace::LetSwap(unsigned vpn)
 
     Thread* thread_to_fuck;
     thread_to_fuck = space_table->Get(pid_proc);
+    DEBUG('w', "thread_to_fuck: %p, pid: %d\n", thread_to_fuck, thread_to_fuck->GetPid());
     thread_to_fuck->space->Swapping(vpn_fuck);
     pageTable[vpn].physicalPage = to_be_fucked;
+    core_map->Mark(to_be_fucked, vpn, currentThread->GetPid());
     return;
 }
 #endif
@@ -348,7 +356,7 @@ void
 AddressSpace::RetrievePage(unsigned vpn)
 {
     char* mainMemory = machine->mainMemory;
-    DEBUG('y',"Invalid Page: %u, start loading process.\n", vpn);
+    DEBUG('y',"RetrievePage: Invalid Page: %u, start loading process.\n", vpn);
 
     // Direccion virtual del incio de la página
     unsigned pageDownAddress = vpn * PAGE_SIZE; 
@@ -398,7 +406,7 @@ AddressSpace::RetrievePage(unsigned vpn)
         //Escritura en la página física
         exe->ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(vpn) + offSet], bytesToWrite, fileOffSet);
     }
-
+    DEBUG('w', "CHAU RETRIEVE PAGE PUTO\n");
 }
 #endif 
 TranslationEntry 
@@ -425,7 +433,7 @@ AddressSpace::GetPage(unsigned vpn)
             pageTable[vpn].dirty = false;
         }
         else{
-            //DEBUG('w', "LA MIERDA DE VPN: %u NO ESTA EN SWAP PUTO\n", vpn);
+            DEBUG('w', "LA MIERDA DE VPN: %u NO ESTA EN SWAP PUTO\n", vpn);
             RetrievePage(vpn);    
         }
         #endif
@@ -433,5 +441,6 @@ AddressSpace::GetPage(unsigned vpn)
         pageTable[vpn].valid = true;
     }
     #endif
+    DEBUG('w', "PAGE TABLEE FISICA: %u\n", pageTable[vpn].physicalPage);
     return pageTable[vpn];
 }

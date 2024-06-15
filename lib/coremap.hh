@@ -26,7 +26,7 @@ public:
     ~CoreMap();
     
 /// Set the “nth” bit.
-    void Mark(unsigned which);
+    void Mark(unsigned which, unsigned vpn, int proc_id);
 
     /// Clear the “nth” bit.
     void Clear(unsigned which);

@@ -38,10 +38,12 @@ CoreMap::~CoreMap()
 ///
 /// * `which` is the number of the bit to be set.
 void
-CoreMap::Mark(unsigned which)
+CoreMap::Mark(unsigned which, unsigned vpn, int proc_id)
 {
     ASSERT(which < numBits);
     map[which].used = true;
+    map[which].vpn = vpn;
+    map[which].pid = proc_id;
 }
 
 /// Clear the “nth” bit in a coremap.
