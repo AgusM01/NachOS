@@ -89,8 +89,6 @@ private:
     #endif
 
     /// Assume linear page table translation for now!
-    
-    static uint32_t GetPyshicalPage(uint32_t virtualAddr);
 
     /// Number of pages in the virtual address space. -> Para no guerdar una tabla de paginacion enorme.
     /// Si un proceso quiere acceder a un valor superior al numPages dará una excepción.

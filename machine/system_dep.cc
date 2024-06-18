@@ -108,6 +108,7 @@ OpenForWrite(const char *name)
     ASSERT(name != nullptr);
     int fd = open(name, O_RDWR | O_CREAT | O_TRUNC, 0666);
     ASSERT(fd >= 0);
+    DEBUG('f', "CREO EL FD: %d\n", fd);
     return fd;
 }
 
@@ -122,6 +123,7 @@ OpenForReadWrite(const char *name, bool crashOnError)
     ASSERT(name != nullptr);
     int fd = open(name, O_RDWR, 0);
     ASSERT(!crashOnError || fd >= 0);
+    DEBUG('f', "ABRO EL FD: %d\n", fd);
     return fd;
 }
 

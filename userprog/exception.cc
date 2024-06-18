@@ -91,9 +91,10 @@ DefaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar
 #ifdef USE_TLB
 static void
 PageFaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar el PC. Cuestion es: de donde sacar la dirección => VPN que fallo? De un registro simulado machine->register[BadVAddr]
-{
+{   
     DEBUG('w', "HOLA HANDLER PUTO\n");
     unsigned vaddr  = machine->ReadRegister(BAD_VADDR_REG);
+    printf("VADDR: %u\n", vaddr);
     unsigned vpn = GetVPN(vaddr);
     MMU *mmu = machine->GetMMU();
     TranslationEntry to_be_rep = mmu->tlb[tlbIndexFIFO];
@@ -101,9 +102,9 @@ PageFaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No increment
     if(to_be_rep.valid)
         currentThread->space->CommitPage(to_be_rep);
     mmu->tlb[tlbIndexFIFO++] = currentThread->space->GetPage(vpn);
+    DEBUG('w', "CHAU HANDLER PUTO: %u\n", mmu->tlb[tlbIndexFIFO - 1].physicalPage);
     tlbIndexFIFO = tlbIndexFIFO % TLB_SIZE;
     stats->numPageFaults++;
-    DEBUG('w', "CHAU HANDLER PUTO\n");
   //  mmu->PrintTLB();
 }
 
@@ -516,10 +517,10 @@ SyscallHandler(ExceptionType _et)
             break;
         } 
         case SC_EXIT: {
+            DEBUG('w', "ESTOY HACIENDO EXIT PAAAAA %d\n", currentThread->GetPid()); 
 
             int ret = machine->ReadRegister(4);            
 
-            DEBUG('w', "ESTOY HACIENDO EXIT PAAAAA %d\n", currentThread->GetPid()); 
             //if (space_table->Get(0) == currentThread) //Main thread Exit
               //  interrupt->Halt();
 

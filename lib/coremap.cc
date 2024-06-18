@@ -53,6 +53,7 @@ void
 CoreMap::Clear(unsigned which)
 {
     ASSERT(which < numBits);
+    DEBUG('q', "CLEAR \n");
     map[which].used = false;
 }
 
@@ -110,7 +111,7 @@ CoreMap::Print() const
     printf("Bitmap bits set:\n");
     for (unsigned i = 0; i < numBits; i++) {
         if (Test(i)) {
-            printf("%u ", i);
+            printf("Marco %u\tvpn %u\tproc: %d\n ", i, map[i].vpn, map[i].pid);
         }
     }
     printf("\n");

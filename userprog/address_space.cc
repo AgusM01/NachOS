@@ -55,8 +55,15 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     char id[12] = {0};
     itoa(currentThread->GetPid(), id);
     swapname = concat("SWAP.", id);
+    DEBUG('f', "SE LLAMA %s\n", swapname);
     ASSERT(fileSystem->Create(swapname, size));
     swap_pid = fileSystem->Open(swapname);
+    //swap_pid->WriteAt("HOLA",4,0);
+    //char t[5];
+    //swap_pid->ReadAt(t, 4,0);
+    //t[4] = '\0';
+    //DEBUG('f', "t: %s\n",t);
+    DEBUG('f', "SWAP LEN: %d\n", swap_pid->Length());
     swap_map = new Bitmap(numPages); 
     #else 
     ASSERT(numPages <= bit_map->CountClear()); /// Calculamos la cantidad de espacio disponible según el bitmap      // Check we are not trying to run anything too big -- at least until we
@@ -227,7 +234,8 @@ AddressSpace::~AddressSpace()
     #ifdef USE_DL
     delete exe_file;
     #endif
-    #ifdef SWAP 
+    #ifdef SWAP
+    printf("HOLIS VOY A ELIMINAR\n");
     delete swap_pid;
     delete swap_map;
     free(swapname);
@@ -302,7 +310,7 @@ AddressSpace::RestoreState()
 void 
 AddressSpace::Swapping(unsigned vpn)
 {
-    DEBUG('w', "TE MANDE A SWAP PUTO PROCESO: %d \t PAGE %u\n", currentThread->GetPid(), vpn);
+    DEBUG('q', "TE MANDE A SWAP PUTO PROCESO: %d \t PAGE %u\n", currentThread->GetPid(), vpn);
     if(swap_map->Test(vpn) && !pageTable[vpn].dirty){
         pageTable[vpn].valid = false;
         return;
@@ -311,8 +319,12 @@ AddressSpace::Swapping(unsigned vpn)
     char* mainMemory = machine->mainMemory;
     char* to_write = &mainMemory[PHYSICAL_PAGE_ADDR(vpn)] ;
     ASSERT(swap_pid->WriteAt(to_write, PAGE_SIZE, vpn * PAGE_SIZE) == PAGE_SIZE);
+    DEBUG('f', "ESCRIBI ACA ADENTRO: %d\n", vpn*PAGE_SIZE);
+    DEBUG('f', "SWAPPING LEN: %d\n", swap_pid->Length());
+    //memset(&mainMemory[PHYSICAL_PAGE_ADDR(vpn)], 0, PAGE_SIZE);
     swap_map->Mark(vpn);
     pageTable[vpn].valid = false;
+    pageTable[vpn].dirty = false;
     return;
 }
 
@@ -321,7 +333,7 @@ AddressSpace::GetSwap(unsigned vpn)
 { 
     DEBUG('w', "TE PIDO DE SWAP LA PAGINA: %u PUTO\n");
     char* mainMemory = machine->mainMemory;
-    memset(&mainMemory[PHYSICAL_PAGE_ADDR(vpn)], 0, PAGE_SIZE);
+   // memset(&mainMemory[PHYSICAL_PAGE_ADDR(vpn)], 0, PAGE_SIZE);
 
     ASSERT(swap_pid->ReadAt(&mainMemory[PHYSICAL_PAGE_ADDR(vpn)], PAGE_SIZE, vpn * PAGE_SIZE) == PAGE_SIZE);
     return;
@@ -331,6 +343,7 @@ void
 AddressSpace::LetSwap(unsigned vpn)
 {
     int to_be_fucked = core_map->PickVictim();
+    DEBUG('w', "SE REEMPLAZA LA FISICA: %d\n", to_be_fucked);
     int pid_proc = core_map->GetPid(to_be_fucked);
     int vpn_fuck = core_map->GetVpn(to_be_fucked);
 
@@ -340,6 +353,7 @@ AddressSpace::LetSwap(unsigned vpn)
     thread_to_fuck->space->Swapping(vpn_fuck);
     pageTable[vpn].physicalPage = to_be_fucked;
     core_map->Mark(to_be_fucked, vpn, currentThread->GetPid());
+    DEBUG('w', "SE FUË LA FISICA: %d\n", to_be_fucked);
     return;
 }
 #endif
@@ -369,22 +383,28 @@ AddressSpace::RetrievePage(unsigned vpn)
     unsigned dataAddr = exe->GetInitDataAddr();      //Inicio segmento datos
     unsigned dataSize = exe->GetInitDataSize();      //Tamaño del segmento de datos
 
+    DEBUG('q', "CODE SIZE: %u\n", codeSize);
     DEBUG('y', "Write vp  %u, initAddr %u, size %u\n",
         vpn, PHYSICAL_PAGE_ADDR(vpn), PAGE_SIZE); 
 
     memset(&mainMemory[PHYSICAL_PAGE_ADDR(vpn)], 0, PAGE_SIZE);
 
     //Necesito escribir algo del segmento de código
-    if (codeSize > 0 && pageDownAddress < codeAddr + codeSize){ 
+    if (codeSize > 0 && codeAddr <= pageDownAddress && pageDownAddress < codeAddr + codeSize){ 
+        DEBUG('q', "LEYENDO CODE vpn %u, \n", vpn);
         //Parte de direcciones virtuales
         unsigned firstAddre = MAX(pageDownAddress, codeAddr); // En nachos podríamos dejar solo pageDownAddress
+        ASSERT(firstAddre == pageDownAddress);
         unsigned offSet = firstAddre % PAGE_SIZE;
+        ASSERT(offSet == 0);
         unsigned bytesToWrite = MIN(codeAddr + codeSize - firstAddre, pageUpAddress - firstAddre);
 
         //Si lo que escribimos en el segmento de código es un página entera,
         //entonces la página se puede marcar como read only
-        if (bytesToWrite == PAGE_SIZE)
+            DEBUG('q', "BYTESTOWRITE: %u\n", bytesToWrite);
+        if (bytesToWrite == PAGE_SIZE){
             pageTable[vpn].readOnly = true;
+        }
 
         //Parte el archivo del ejecutable
         unsigned fileOffSet = firstAddre - codeAddr;
@@ -395,6 +415,7 @@ AddressSpace::RetrievePage(unsigned vpn)
 
     //Necesito escribir algo del segmento de datos inicializados
     if (dataSize > 0 && dataAddr < pageUpAddress && pageDownAddress < dataAddr + dataSize){
+        DEBUG('w', "LEYENDO DATA vpn %u, \n", vpn);
         //Parte de direcciones virtuales
         unsigned firstAddre = MAX(pageDownAddress, dataAddr); //Acá es necesario el max
         unsigned offSet = firstAddre % PAGE_SIZE;
@@ -406,14 +427,14 @@ AddressSpace::RetrievePage(unsigned vpn)
         //Escritura en la página física
         exe->ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(vpn) + offSet], bytesToWrite, fileOffSet);
     }
-    DEBUG('w', "CHAU RETRIEVE PAGE PUTO\n");
+    DEBUG('q', "CHAU RETRIEVE PAGE: %d\n");
 }
 #endif 
 TranslationEntry 
 AddressSpace::GetPage(unsigned vpn)
 {
     
-    DEBUG('w', "PIDO LA PAGINA: %u PUTO\n", vpn);
+    DEBUG('w', "PIDO LA PAGINA VIRTUAL: %u PUTO\n", vpn);
     #ifdef USE_DL
     if (pageTable[vpn].valid == false){
         
@@ -430,7 +451,7 @@ AddressSpace::GetPage(unsigned vpn)
         if(swap_map->Test(vpn)){
             DEBUG('w', "LA MIERDA DE VPN: %u ESTA EN SWAP PUTO\n", vpn);
             GetSwap(vpn);
-            pageTable[vpn].dirty = false;
+            //pageTable[vpn].dirty = false;
         }
         else{
             DEBUG('w', "LA MIERDA DE VPN: %u NO ESTA EN SWAP PUTO\n", vpn);
@@ -441,6 +462,6 @@ AddressSpace::GetPage(unsigned vpn)
         pageTable[vpn].valid = true;
     }
     #endif
-    DEBUG('w', "PAGE TABLEE FISICA: %u\n", pageTable[vpn].physicalPage);
+    DEBUG('w', "PAGE TABLEE FISICA: %u VIRTUAL: %u\n", pageTable[vpn].physicalPage, vpn);
     return pageTable[vpn];
 }

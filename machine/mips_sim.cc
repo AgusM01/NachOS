@@ -63,7 +63,6 @@ bool
 Machine::FetchInstruction(Instruction *instr)
 {
     ASSERT(instr != nullptr);
-
     int raw;
     if (!ReadMem(registers[PC_REG], 4, &raw)) {
         return false;  // Exception occurred.
