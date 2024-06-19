@@ -17,7 +17,7 @@ compile_commands.json
 
 /**/*.o
 
-/**/SWAP.*
+##/**/SWAP.*
 
 /**/*.depends
 
