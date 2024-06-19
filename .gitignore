@@ -17,7 +17,7 @@ compile_commands.json
 
 /**/*.o
 
-##/**/SWAP.*
+/**/SWAP.*
 
 /**/*.depends
 
@@ -49,6 +49,8 @@ compile_commands.json
 
 !/userland/arrangement.ld
 
+# No ignorar el SWAP
+!/userland/SWAP.* 
 # Disco simulado de la máquina de Nachos
 
 /**/DISK
