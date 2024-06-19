@@ -39,7 +39,7 @@ main(void)
             }
         }
     }
-    Halt();
+//    Halt();
     // And then we are done.
     // char res[11] = {0};
     // itoa(C[DIM - 1][DIM - 1], res);

@@ -92,27 +92,26 @@ DefaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar
 static void
 PageFaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar el PC. Cuestion es: de donde sacar la dirección => VPN que fallo? De un registro simulado machine->register[BadVAddr]
 {   
-    DEBUG('w', "HOLA HANDLER PUTO\n");
     unsigned vaddr  = machine->ReadRegister(BAD_VADDR_REG);
     unsigned vpn = GetVPN(vaddr);
     //printf("VADDR: %u VPN: %u\n", vaddr, vpn);
     AddressSpace* space = currentThread->space;
+    //MMU* mmu = machine->GetMMU();
     TranslationEntry* tlb = machine->GetMMU()->tlb;
+
     DEBUG('y', "Page Fault vaddr %d vpn %d.\n", vaddr, vpn);
-    TranslationEntry* e = &tlb[tlbIndexFIFO];
+    //TranslationEntry* e = &(mmu->tlb[tlbIndexFIFO]);
 
-    if(e->valid)
-        space->CommitPage(e);
-
-    space->GetPage(vpn, e);
-    printf("VPN_new: %u\n", e->virtualPage);
+    if(tlb[tlbIndexFIFO].valid)
+        space->CommitPage(&(tlb[tlbIndexFIFO]));
+    
+    space->GetPage(vpn, &(tlb[tlbIndexFIFO]));
+    ASSERT(vpn == tlb[tlbIndexFIFO].virtualPage);
     space->SetIdxTLB(vpn,tlbIndexFIFO++);
-
-    DEBUG('w', "CHAU HANDLER PUTO: %u\n", tlb[tlbIndexFIFO - 1].physicalPage);
+    
     tlbIndexFIFO = tlbIndexFIFO % TLB_SIZE;
-    DEBUG('w', "tlbIndexFIFO %u\n",tlbIndexFIFO);
     stats->numPageFaults++;
-  //  mmu->PrintTLB();
+   // machine->GetMMU()->PrintTLB();
 }
 
 static void

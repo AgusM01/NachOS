@@ -53,7 +53,6 @@ void
 CoreMap::Clear(unsigned which)
 {
     ASSERT(which < numBits);
-    DEBUG('q', "CLEAR \n");
     map[which].used = false;
 }
 
