@@ -94,16 +94,23 @@ PageFaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No increment
 {   
     DEBUG('w', "HOLA HANDLER PUTO\n");
     unsigned vaddr  = machine->ReadRegister(BAD_VADDR_REG);
-    printf("VADDR: %u\n", vaddr);
     unsigned vpn = GetVPN(vaddr);
-    MMU *mmu = machine->GetMMU();
-    TranslationEntry to_be_rep = mmu->tlb[tlbIndexFIFO];
+    //printf("VADDR: %u VPN: %u\n", vaddr, vpn);
+    AddressSpace* space = currentThread->space;
+    TranslationEntry* tlb = machine->GetMMU()->tlb;
     DEBUG('y', "Page Fault vaddr %d vpn %d.\n", vaddr, vpn);
-    if(to_be_rep.valid)
-        currentThread->space->CommitPage(to_be_rep);
-    mmu->tlb[tlbIndexFIFO++] = currentThread->space->GetPage(vpn);
-    DEBUG('w', "CHAU HANDLER PUTO: %u\n", mmu->tlb[tlbIndexFIFO - 1].physicalPage);
+    TranslationEntry* e = &tlb[tlbIndexFIFO];
+
+    if(e->valid)
+        space->CommitPage(e);
+
+    space->GetPage(vpn, e);
+    printf("VPN_new: %u\n", e->virtualPage);
+    space->SetIdxTLB(vpn,tlbIndexFIFO++);
+
+    DEBUG('w', "CHAU HANDLER PUTO: %u\n", tlb[tlbIndexFIFO - 1].physicalPage);
     tlbIndexFIFO = tlbIndexFIFO % TLB_SIZE;
+    DEBUG('w', "tlbIndexFIFO %u\n",tlbIndexFIFO);
     stats->numPageFaults++;
   //  mmu->PrintTLB();
 }

@@ -24,8 +24,8 @@ CPPFLAGS   = $(INCLUDE_DIRS)
 #CPPFLAGS = -P $(INCLUDE_DIRS)
 
 
-CC  = $(GCC_PREFIX)gcc
-#CC  = $(GCC_PREFIX)gcc-10
+#CC  = $(GCC_PREFIX)gcc
+CC  = $(GCC_PREFIX)gcc-10
 AS  = $(GCC_PREFIX)as
 LD  = $(GCC_PREFIX)ld
 CPP = $(GCC_PREFIX)cpp
@@ -54,9 +54,9 @@ start.o: start.s ../userprog/syscall.h
 	@$(RM) strt.s
 
 
-# Las reglas genéricas que siguen sirven para compilar programas simples,
-# que consistan en un único archivo fuente. Si se quieren compilar programas
-# más complejos, se deben agregar reglas adecuadas.
+# Las reglas genï¿½ricas que siguen sirven para compilar programas simples,
+# que consistan en un ï¿½nico archivo fuente. Si se quieren compilar programas
+# mï¿½s complejos, se deben agregar reglas adecuadas.
 
 %.o: %.c
 	@echo ":: Compiling $$(tput bold)$@$$(tput sgr0)"

@@ -13,7 +13,6 @@
 #ifndef NACHOS_USERPROG_ADDRESSSPACE__HH
 #define NACHOS_USERPROG_ADDRESSSPACE__HH
 
-
 #include "filesys/file_system.hh"
 #include "machine/translation_entry.hh"
 #include "lib/table.hh"
@@ -57,9 +56,11 @@ public:
     
     void RestoreState();
 
-    TranslationEntry GetPage(unsigned vpn);
+    void GetPage(unsigned vpn, TranslationEntry* tlb_entry);
     
 #ifdef SWAP 
+    void SetIdxTLB(unsigned vpn, unsigned idx);
+
     void LetSwap(unsigned vpn);
     
     void GetSwap(unsigned ppn);
@@ -67,7 +68,7 @@ public:
     void Swapping(unsigned vpn);
 #endif 
 
-    void CommitPage(TranslationEntry newTransEntry); 
+    void CommitPage(TranslationEntry* newTransEntry); 
     
     void RetrievePage(unsigned vpn);
 
@@ -86,6 +87,7 @@ private:
     char* swapname;
     OpenFile *swap_pid;
     Bitmap* swap_map;
+    unsigned* idx_tlb;
     #endif
 
     /// Assume linear page table translation for now!

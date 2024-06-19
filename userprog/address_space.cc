@@ -52,6 +52,9 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     size = numPages * PAGE_SIZE; /// Recalcula el nuevo tamaño con las páginas de mas incluidas.
 
     #ifdef SWAP
+    idx_tlb = new unsigned[numPages];
+    for (unsigned i = 0; i < numPages; i++)
+        idx_tlb[i] = (unsigned)-1;
     char id[12] = {0};
     itoa(currentThread->GetPid(), id);
     swapname = concat("SWAP.", id);
@@ -279,11 +282,11 @@ void
 AddressSpace::SaveState()
 { 
     #ifdef USE_TLB
-    TranslationEntry to_cpy;
+    TranslationEntry* tlb = machine->GetMMU()->tlb;
     for(unsigned int i = 0; i < TLB_SIZE; i++){
-        to_cpy = machine->GetMMU()->tlb[i];
-        if (to_cpy.valid && !to_cpy.readOnly)
-            CommitPage(to_cpy);
+        TranslationEntry* e = &tlb[i];
+        if (e->valid && !e->readOnly)
+            CommitPage(e);
    }
     #endif
 }
@@ -311,6 +314,16 @@ void
 AddressSpace::Swapping(unsigned vpn)
 {
     DEBUG('q', "TE MANDE A SWAP PUTO PROCESO: %d \t PAGE %u\n", currentThread->GetPid(), vpn);
+
+    unsigned i = idx_tlb[vpn];
+    TranslationEntry* tlb = machine->GetMMU()->tlb;
+
+    if(i != (unsigned)-1) {
+        pageTable[vpn] = tlb[i];
+        tlb[i].valid = false;
+        idx_tlb[vpn] = (unsigned)-1;
+    }
+
     if(swap_map->Test(vpn) && !pageTable[vpn].dirty){
         pageTable[vpn].valid = false;
         return;
@@ -339,6 +352,12 @@ AddressSpace::GetSwap(unsigned vpn)
     return;
 }
 
+void 
+AddressSpace::SetIdxTLB(unsigned vpn, unsigned idx)
+{
+    idx_tlb[vpn] = idx;
+}
+
 void
 AddressSpace::LetSwap(unsigned vpn)
 {
@@ -359,9 +378,11 @@ AddressSpace::LetSwap(unsigned vpn)
 #endif
 
 void
-AddressSpace::CommitPage(TranslationEntry newTransEntry)
+AddressSpace::CommitPage(TranslationEntry* newTransEntry)
 {
-    pageTable[newTransEntry.virtualPage] = newTransEntry;
+    unsigned vpn = newTransEntry->virtualPage;
+    pageTable[vpn].use = newTransEntry->use;
+    pageTable[vpn].dirty = newTransEntry->dirty;
     return;
 }
 
@@ -430,17 +451,17 @@ AddressSpace::RetrievePage(unsigned vpn)
     DEBUG('q', "CHAU RETRIEVE PAGE: %d\n");
 }
 #endif 
-TranslationEntry 
-AddressSpace::GetPage(unsigned vpn)
+void 
+AddressSpace::GetPage(unsigned vpn, TranslationEntry* tlb_entry)
 {
     
     DEBUG('w', "PIDO LA PAGINA VIRTUAL: %u PUTO\n", vpn);
-    #ifdef USE_DL
+
+    #ifdef USE_DL 
     if (pageTable[vpn].valid == false){
         
         #ifndef SWAP /// Bit de swap <- si ya se swapeó antes o no
         pageTable[vpn].physicalPage = bit_map->Find();
-        RetrievePage(vpn);    
         #else
         int is_phys = core_map->Find(vpn, currentThread->GetPid());
         if(is_phys == -1)
@@ -458,10 +479,16 @@ AddressSpace::GetPage(unsigned vpn)
             RetrievePage(vpn);    
         }
         #endif
-
         pageTable[vpn].valid = true;
+
+        tlb_entry->virtualPage = vpn;
+        tlb_entry->physicalPage = pageTable[vpn].physicalPage;
+        tlb_entry->readOnly = pageTable[vpn].readOnly;
+        tlb_entry->valid = true;
+        tlb_entry->use = false;
+        tlb_entry->dirty = false;
     }
     #endif
     DEBUG('w', "PAGE TABLEE FISICA: %u VIRTUAL: %u\n", pageTable[vpn].physicalPage, vpn);
-    return pageTable[vpn];
+    return;
 }
