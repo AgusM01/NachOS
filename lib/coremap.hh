@@ -7,6 +7,9 @@
 #include "utility.hh"
 #include "filesys/open_file.hh"
 
+#include "lib/list.hh"
+
+
 struct corestruct {
     unsigned pid; // Espacio de direcciones.
     unsigned vpn; // Pagina alojada.
@@ -15,6 +18,9 @@ struct corestruct {
 
 typedef struct corestruct CoreStruct;
 
+#ifdef PRPOLICY_CLOCK
+
+#endif
 class CoreMap{
 
 public:
@@ -76,6 +82,10 @@ private:
 
     /// Bit storage.
     CoreStruct* map;
+    
+    #ifdef PRPOLICY_FIFO
+        List<unsigned> *fifo_list;    
+    #endif
 
 };
 

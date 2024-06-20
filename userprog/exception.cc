@@ -111,7 +111,7 @@ PageFaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No increment
     
     tlbIndexFIFO = tlbIndexFIFO % TLB_SIZE;
     stats->numPageFaults++;
-   // machine->GetMMU()->PrintTLB();
+    machine->GetMMU()->PrintTLB();
 }
 
 static void

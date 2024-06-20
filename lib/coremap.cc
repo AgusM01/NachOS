@@ -20,6 +20,10 @@
 CoreMap::CoreMap(unsigned nitems)
 {
     ASSERT(nitems > 0);
+   
+    #ifdef PRPOLICY_FIFO
+        fifo_list = new List<unsigned>;
+    #endif
 
     numBits = nitems;
     map = new CoreStruct [numBits]; /// Crea un array con la cantidad de enteros que le dió 
@@ -44,6 +48,12 @@ CoreMap::Mark(unsigned which, unsigned vpn, int proc_id)
     map[which].used = true;
     map[which].vpn = vpn;
     map[which].pid = proc_id;
+    
+
+    #ifdef PRPOLICY_FIFO
+        printf("MARK: agrego: %u\n", which);
+        fifo_list->Append(which);
+    #endif
 }
 
 /// Clear the “nth” bit in a coremap.
@@ -54,6 +64,10 @@ CoreMap::Clear(unsigned which)
 {
     ASSERT(which < numBits);
     map[which].used = false;
+    #ifdef PRPOLICY_FIFO
+        printf("borro: %u\n", which);
+        fifo_list->Remove(which);
+    #endif
 }
 
 /// Return true if the “nth” bit is set.
@@ -79,6 +93,10 @@ CoreMap::Find(unsigned vpn, int proc_id)
             map[i].used = true;
             map[i].pid = proc_id;
             map[i].vpn = vpn;
+            #ifdef PRPOLICY_FIFO
+                printf("FIND: agrego: %u\n", i);
+                fifo_list->Append(i);
+            #endif 
             return i;
         }
     }
@@ -119,7 +137,17 @@ CoreMap::Print() const
 int
 CoreMap::PickVictim()
 {
-   return SystemDep::Random() % numBits; 
+    
+    #ifdef PRPOLICY_FIFO
+        ASSERT(!fifo_list->IsEmpty());
+        unsigned victim = fifo_list->Pop();
+        //printf("popeo: %u\n", victim);
+        return victim;
+    #else 
+        return SystemDep::Random()%numBits;     
+    #endif
+
+
 }
 
 unsigned

@@ -84,11 +84,8 @@ Thread::~Thread()
     delete waitToChild;
     free(chName);
 
-
-#ifdef USER_PROGRAM
-    delete fileTableIds;
-    if (space != nullptr)
-        delete space;
+    #ifdef USER_PROGRAM
+        delete fileTableIds;
     #endif
 
     ASSERT(this != currentThread);
@@ -198,6 +195,11 @@ Thread::Finish(int returnStatus)
    
     /// Lo saco de la space_table
     #ifdef USER_PROGRAM
+
+    if (space != nullptr)
+        delete space;
+    currentThread->space = nullptr;
+    
     ASSERT(currentThread == space_table->Remove(currentThread->proc_id));
     if (space_table->IsEmpty()){
         DEBUG('w', "HOLANDA.\n");

@@ -9,6 +9,7 @@
 #include "translation_entry.hh"
 #include <complex.h>
 #include <cstdint>
+#include <experimental/filesystem>
 #define MIN(a,b) a < b ? a : b
 #define MAX(a,b) a > b ? a : b
 #define PHYSICAL_PAGE_ADDR(virtualPage) pageTable[virtualPage].physicalPage * PAGE_SIZE 
@@ -219,6 +220,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 /// Deallocate an address space.
 AddressSpace::~AddressSpace()
 {
+    printf("BORRO MI ESPACIO, SOY: %d\n", currentThread->GetPid());
     for (unsigned i = 0; i < numPages; i++){
         if (pageTable[i].valid){
             #ifndef SWAP 
@@ -306,7 +308,7 @@ AddressSpace::RestoreState()
 void 
 AddressSpace::Swapping(unsigned vpn)
 {
-    DEBUG('w', "TE MANDE A SWAP PUTO PROCESO: %d \t PAGE %u\n", currentThread->GetPid(), vpn);
+    DEBUG('w', "TE MANDE A SWAP PROCESO: %d \t PAGE %u\n", currentThread->GetPid(), vpn);
 
     unsigned i = idx_tlb[vpn];
     TranslationEntry* tlb = machine->GetMMU()->tlb;
@@ -329,13 +331,14 @@ AddressSpace::Swapping(unsigned vpn)
     swap_map->Mark(vpn);
     pageTable[vpn].valid = false;
     pageTable[vpn].dirty = false;
+    pageTable[vpn].use = false;
     return;
 }
 
 void 
 AddressSpace::GetSwap(unsigned vpn)
 { 
-    DEBUG('w', "TE PIDO DE SWAP LA PAGINA: %u PUTO\n", vpn);
+    DEBUG('w', "TE PIDO DE SWAP LA PAGINA: %u\n", vpn);
     char* mainMemory = machine->mainMemory;
     memset(&mainMemory[PHYSICAL_PAGE_ADDR(vpn)], 0, PAGE_SIZE);
 
@@ -352,17 +355,19 @@ AddressSpace::SetIdxTLB(unsigned vpn, unsigned idx)
 void
 AddressSpace::LetSwap(unsigned vpn)
 {
-    int to_be_fucked = core_map->PickVictim();
-    DEBUG('w', "SE REEMPLAZA LA FISICA: %d\n", to_be_fucked);
-    int pid_proc = core_map->GetPid(to_be_fucked);
-    int vpn_fuck = core_map->GetVpn(to_be_fucked);
+    int victim = core_map->PickVictim();
+    DEBUG('w', "SE REEMPLAZA LA FISICA: %d\n", victim);
+    int pid_proc = core_map->GetPid(victim);
+    int vpn_swap = core_map->GetVpn(victim);
 
-    Thread* thread_to_fuck;
-    thread_to_fuck = space_table->Get(pid_proc);
-    thread_to_fuck->space->Swapping(vpn_fuck);
-    pageTable[vpn].physicalPage = to_be_fucked;
-    core_map->Mark(to_be_fucked, vpn, currentThread->GetPid());
-    DEBUG('w', "SE FUE LA FISICA: %d\n", to_be_fucked);
+    Thread* thread_swap;
+    thread_swap = space_table->Get(pid_proc);
+    //printf("PID %d\n", pid_proc);
+    ASSERT(thread_swap != nullptr);
+    thread_swap->space->Swapping(vpn_swap);
+    pageTable[vpn].physicalPage = victim;
+    core_map->Mark(victim, vpn, currentThread->GetPid());
+    DEBUG('w', "SE FUE LA FISICA: %d\n", victim);
     return;
 }
 #endif
@@ -440,7 +445,7 @@ void
 AddressSpace::GetPage(unsigned vpn, TranslationEntry* tlb_entry)
 {
     
-    DEBUG('w', "PIDO LA PAGINA VIRTUAL: %u PUTO\n", vpn);
+    DEBUG('w', "PIDO LA PAGINA VIRTUAL: %u\n", vpn);
 
     #ifdef USE_DL 
     if (pageTable[vpn].valid == false){
@@ -477,7 +482,7 @@ AddressSpace::GetPage(unsigned vpn, TranslationEntry* tlb_entry)
         tlb_entry->physicalPage = pageTable[vpn].physicalPage;
         tlb_entry->readOnly = pageTable[vpn].readOnly;
         tlb_entry->valid = true;
-        tlb_entry->use = false;
-        tlb_entry->dirty = false;
+        tlb_entry->use = pageTable[vpn].use;
+        tlb_entry->dirty = pageTable[vpn].dirty;
     return;
 }
