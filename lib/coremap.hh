@@ -84,7 +84,7 @@ private:
     CoreStruct* map;
     
     #ifdef PRPOLICY_FIFO
-        List<unsigned> *fifo_list;    
+        unsigned fifo_ind;
     #endif
 
 };

@@ -22,7 +22,7 @@ CoreMap::CoreMap(unsigned nitems)
     ASSERT(nitems > 0);
    
     #ifdef PRPOLICY_FIFO
-        fifo_list = new List<unsigned>;
+        fifo_ind = 0;
     #endif
 
     numBits = nitems;
@@ -51,8 +51,6 @@ CoreMap::Mark(unsigned which, unsigned vpn, int proc_id)
     
 
     #ifdef PRPOLICY_FIFO
-        printf("MARK: agrego: %u\n", which);
-        fifo_list->Append(which);
     #endif
 }
 
@@ -65,8 +63,7 @@ CoreMap::Clear(unsigned which)
     ASSERT(which < numBits);
     map[which].used = false;
     #ifdef PRPOLICY_FIFO
-        printf("borro: %u\n", which);
-        fifo_list->Remove(which);
+        
     #endif
 }
 
@@ -93,10 +90,6 @@ CoreMap::Find(unsigned vpn, int proc_id)
             map[i].used = true;
             map[i].pid = proc_id;
             map[i].vpn = vpn;
-            #ifdef PRPOLICY_FIFO
-                printf("FIND: agrego: %u\n", i);
-                fifo_list->Append(i);
-            #endif 
             return i;
         }
     }
@@ -139,10 +132,9 @@ CoreMap::PickVictim()
 {
     
     #ifdef PRPOLICY_FIFO
-        ASSERT(!fifo_list->IsEmpty());
-        unsigned victim = fifo_list->Pop();
-        //printf("popeo: %u\n", victim);
-        return victim;
+       fifo_ind++;
+       fifo_ind = fifo_ind % numBits;
+       return fifo_ind;
     #else 
         return SystemDep::Random()%numBits;     
     #endif

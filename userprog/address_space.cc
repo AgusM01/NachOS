@@ -220,7 +220,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 /// Deallocate an address space.
 AddressSpace::~AddressSpace()
 {
-    printf("BORRO MI ESPACIO, SOY: %d\n", currentThread->GetPid());
+    printf("BORRO MI ESPACIO, SOY: %s\n", currentThread->GetName());
     for (unsigned i = 0; i < numPages; i++){
         if (pageTable[i].valid){
             #ifndef SWAP 
@@ -276,6 +276,7 @@ AddressSpace::InitRegisters()
 void
 AddressSpace::SaveState()
 { 
+    printf("SALVO ESTADO, SOY %s\n", currentThread->GetName());
     #ifdef USE_TLB
     TranslationEntry* tlb = machine->GetMMU()->tlb;
     for(unsigned int i = 0; i < TLB_SIZE; i++){
@@ -309,13 +310,13 @@ void
 AddressSpace::Swapping(unsigned vpn)
 {
     DEBUG('w', "TE MANDE A SWAP PROCESO: %d \t PAGE %u\n", currentThread->GetPid(), vpn);
-
+    
     unsigned i = idx_tlb[vpn];
     TranslationEntry* tlb = machine->GetMMU()->tlb;
 
     if(i != (unsigned)-1) {
         //pageTable[vpn] = tlb[i];
-        CommitPage(&tlb[i]);
+       // CommitPage(&tlb[i]);
         tlb[i].valid = false;
         idx_tlb[vpn] = (unsigned)-1;
     }
@@ -378,6 +379,10 @@ AddressSpace::CommitPage(TranslationEntry* newTransEntry)
     unsigned vpn = newTransEntry->virtualPage;
     pageTable[vpn].use = newTransEntry->use;
     pageTable[vpn].dirty = newTransEntry->dirty;
+    //pageTable[vpn].physicalPage = newTransEntry->physicalPage;
+    //pageTable[vpn].valid = newTransEntry->valid;
+    //ageTable[vpn].readOnly = newTransEntry->readOnly;
+    //pageTable[vpn].virtualPage = vpn;
     return;
 }
 
@@ -449,7 +454,6 @@ AddressSpace::GetPage(unsigned vpn, TranslationEntry* tlb_entry)
 
     #ifdef USE_DL 
     if (pageTable[vpn].valid == false){
-        
         DEBUG('v', "VPN inicio: %u\n", vpn);
         DEBUG('v', "tlb_vpn inicio: %u\n", tlb_entry->virtualPage);
         #ifndef SWAP /// Bit de swap <- si ya se swapeó antes o no
@@ -478,6 +482,7 @@ AddressSpace::GetPage(unsigned vpn, TranslationEntry* tlb_entry)
         pageTable[vpn].valid = true;
     }
     #endif
+        DEBUG('w', "Le doy la pag: %u\n", pageTable[vpn].physicalPage);
         tlb_entry->virtualPage = vpn;
         tlb_entry->physicalPage = pageTable[vpn].physicalPage;
         tlb_entry->readOnly = pageTable[vpn].readOnly;
