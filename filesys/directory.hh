@@ -64,12 +64,18 @@ public:
     /// NOTE: this should only be used by routines that operating on the file
     /// system at a low level.
     const RawDirectory *GetRaw() const;
+    
+    int GetGlobTableInd();
+
+    void SetGlobTableInd(int ind);
 
 private:
     /// Find the index into the directory table corresponding to `name`.
     int FindIndex(const char *name);
 
     RawDirectory raw;
+    
+    int GlobTableInd;
 };
 
 

@@ -42,6 +42,7 @@ Directory::Directory(unsigned size)
     for (unsigned i = 0; i < raw.tableSize; i++) {
         raw.table[i].inUse = false;
     }
+    GlobTableInd = -1;
 }
 
 /// De-allocate directory data structure.
@@ -187,4 +188,15 @@ const RawDirectory *
 Directory::GetRaw() const
 {
     return &raw;
+}
+
+int
+GetGlobTableInd(){
+    return GlobTableInd;
+}
+
+void 
+SetGlobTableInd(int ind){
+    GlobTableInd = ind;
+    return;
 }

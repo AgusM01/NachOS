@@ -94,7 +94,10 @@ public:
 
 #include "directory_entry.hh"
 #include "machine/disk.hh"
-
+#include "threads/lock.hh"
+#include "threads/semaphore.hh"
+#include "lib/table.hh"
+#include "lib/hash_table.hh"
 
 /// Initial file sizes for the bitmap and directory; until the file system
 /// supports extensible files, the directory size sets the maximum number of
@@ -104,6 +107,18 @@ static const unsigned NUM_DIR_ENTRIES = 10;
 static const unsigned DIRECTORY_FILE_SIZE
   = sizeof (DirectoryEntry) * NUM_DIR_ENTRIES;
 
+// Estructuras que se utilizaran para manejar los archivos abiertos en cada directorio.
+typedef struct controlNode {
+    bool write;
+    bool remove;
+    Lock *w_lock;
+    Lock *r_lock;
+    Semaphore *r_sem;
+    int t_using;
+    char* name;
+} ControlNode;
+
+typedef HashTable<ControlNode*> DirControlTable;
 
 class FileSystem {
 public:
@@ -140,6 +155,10 @@ private:
                             ///< file.
     OpenFile *directoryFile;  ///< “Root” directory -- list of file names,
                               ///< represented as a file.
+    Lock *fs_op;
+    
+    // Tabla global de DirControlTables. Cada directorio tiene su propia tabla de archivos abiertos.
+    Table <DirControlTable*>  *GlobControlTable;
 };
 
 #endif

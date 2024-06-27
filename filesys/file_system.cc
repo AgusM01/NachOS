@@ -45,6 +45,7 @@
 #include "file_system.hh"
 #include "directory.hh"
 #include "file_header.hh"
+#include "filesys/directory_entry.hh"
 #include "lib/bitmap.hh"
 
 #include <stdio.h>
@@ -69,6 +70,8 @@ static const unsigned DIRECTORY_SECTOR = 1;
 FileSystem::FileSystem(bool format)
 {
     DEBUG('f', "Initializing the file system.\n");
+    GlobControlTable = new Table <DirControlTable*>;
+
     if (format) {
         Bitmap     *freeMap = new Bitmap(NUM_SECTORS);
         Directory  *dir     = new Directory(NUM_DIR_ENTRIES);
