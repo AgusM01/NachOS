@@ -105,7 +105,7 @@ public:
 static const unsigned FREE_MAP_FILE_SIZE = NUM_SECTORS / BITS_IN_BYTE;
 static const unsigned NUM_DIR_ENTRIES = 10;
 static const unsigned DIRECTORY_FILE_SIZE
-  = sizeof (DirectoryEntry) * NUM_DIR_ENTRIES;
+  = sizeof (DirectoryEntry) * NUM_DIR_ENTRIES + 20 /*20 es el maximo tamaño de nombre de directorio*/;
 
 // Estructuras que se utilizaran para manejar los archivos abiertos en cada directorio.
 typedef struct controlNode {

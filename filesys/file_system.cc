@@ -77,9 +77,11 @@ FileSystem::FileSystem(bool format)
         Directory  *dir     = new Directory(NUM_DIR_ENTRIES);
         FileHeader *mapH    = new FileHeader;
         FileHeader *dirH    = new FileHeader;
-
+        
+        
         DEBUG('f', "Formatting the file system.\n");
 
+        // Al inicio nachos carga estos dos (~ 256 el dirH carga 200)
         // First, allocate space for FileHeaders for the directory and bitmap
         // (make sure no one else grabs these!)
         freeMap->Mark(FREE_MAP_SECTOR);
@@ -87,15 +89,16 @@ FileSystem::FileSystem(bool format)
 
         // Second, allocate space for the data blocks containing the contents
         // of the directory and bitmap files.  There better be enough space!
-
-        ASSERT(mapH->Allocate(freeMap, FREE_MAP_FILE_SIZE));
-        ASSERT(dirH->Allocate(freeMap, DIRECTORY_FILE_SIZE));
+        // Asigna lugar para la data.
+        char rootName[2] = ".";
+        ASSERT(mapH->Allocate(freeMap, FREE_MAP_FILE_SIZE, nullptr));
+        ASSERT(dirH->Allocate(freeMap, DIRECTORY_FILE_SIZE, rootName));
 
         // Flush the bitmap and directory `FileHeader`s back to disk.
         // We need to do this before we can `Open` the file, since open reads
         // the file header off of disk (and currently the disk has garbage on
         // it!).
-
+        
         DEBUG('f', "Writing headers back to disk.\n");
         mapH->WriteBack(FREE_MAP_SECTOR);
         dirH->WriteBack(DIRECTORY_SECTOR);

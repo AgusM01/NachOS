@@ -36,7 +36,7 @@ public:
 
     /// Initialize a file header, including allocating space on disk for the
     /// file data.
-    bool Allocate(Bitmap *bitMap, unsigned fileSize);
+    bool Allocate(Bitmap *bitMap, unsigned fileSize, char* name);
 
     /// De-allocate this file's data blocks.
     void Deallocate(Bitmap *bitMap);

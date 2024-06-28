@@ -26,6 +26,7 @@
 #include "file_header.hh"
 #include "threads/system.hh"
 
+#include <cstring>
 #include <ctype.h>
 #include <stdio.h>
 
@@ -37,10 +38,10 @@
 /// * `freeMap` is the bit map of free disk sectors.
 /// * `fileSize` is the bit map of free disk sectors.
 bool
-FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize)
+FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize, char* dirName)
 {
     ASSERT(freeMap != nullptr);
-
+    
     if (fileSize > MAX_FILE_SIZE) {
         return false;
     }
@@ -54,6 +55,16 @@ FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize)
     for (unsigned i = 0; i < raw.numSectors; i++) {
         raw.dataSectors[i] = freeMap->Find();
     }
+    
+    // Guardamos el nombre del directorio.
+    if(dirName != nullptr){
+         int len = strlen(dirName);
+         this->raw.dirName = new char[len + 1];
+         memcpy(this->raw.dirName, dirName, len + 1);
+    }
+    else 
+        this->raw.dirName = nullptr;
+
     return true;
 }
 
@@ -69,6 +80,10 @@ FileHeader::Deallocate(Bitmap *freeMap)
         ASSERT(freeMap->Test(raw.dataSectors[i]));  // ought to be marked!
         freeMap->Clear(raw.dataSectors[i]);
     }
+    
+    /// Borramos el nombre del directorio
+    if (raw.dirName != nullptr)
+        delete raw.dirName;
 }
 
 /// Fetch contents of file header from disk.
