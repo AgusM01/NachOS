@@ -38,7 +38,7 @@
 /// * `freeMap` is the bit map of free disk sectors.
 /// * `fileSize` is the bit map of free disk sectors.
 bool
-FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize, char* dirName)
+FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize, char* dirName, unsigned sector)
 {
     ASSERT(freeMap != nullptr);
     
@@ -64,7 +64,8 @@ FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize, char* dirName)
     }
     else 
         this->raw.dirName = nullptr;
-
+    
+    raw.sector = sector;
     return true;
 }
 
@@ -98,6 +99,7 @@ FileHeader::FetchFrom(unsigned sector)
 /// Write the modified contents of the file header back to disk.
 ///
 /// * `sector` is the disk sector to contain the file header.
+/// Confiamos que escribe el nombre del dir. bien.
 void
 FileHeader::WriteBack(unsigned sector)
 {

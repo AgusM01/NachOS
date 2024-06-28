@@ -5,16 +5,21 @@ typedef struct controlNode ControlNode;
 
 typedef struct node {
     node* next;  
-    ControlNode* data;
+    void* data;
 } Node;
 
+typedef    void(*FuncionDestructora)(void *dato);
+typedef    int(*FuncionComparadora)(void* dato1, void* dato2);
+typedef    unsigned (*FuncionHash)(void* dato);
+typedef    void(*FuncionVisitante)(void *dato);
 
 template <class H>
 class HashTable{
     
 public:
 
-    HashTable();
+    HashTable(FuncionDestructora destroyFunc, FuncionComparadora compFunc, FuncionHash hashFunc, FuncionVisitante visitFunc);
+ 
     
     ~HashTable();
 
@@ -27,11 +32,17 @@ public:
 private:
     Node** tabla;
 
-    unsigned HashFunc(char* name);
-
     int Tcount;
 
     int Tcapacity;
+    
+    FuncionDestructora destroyFunc;
+    
+    FuncionComparadora compFunc;
+
+    FuncionHash hashFunc; 
+
+    FuncionVisitante visitFunc;
 
     //void ReHash(); <- Ejercicio para el lector.
 };

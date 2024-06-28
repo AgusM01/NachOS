@@ -20,6 +20,7 @@ struct RawFileHeader {
     unsigned dataSectors[NUM_DIRECT];  ///< Disk sector numbers for each data
                                        ///< block in the file.
     char* dirName; ///< Nombre del directorio. 
+    unsigned sector; ///< Sector donde esta guardado el Header.
 };
 
 

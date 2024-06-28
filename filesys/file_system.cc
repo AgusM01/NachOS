@@ -70,7 +70,7 @@ static const unsigned DIRECTORY_SECTOR = 1;
 FileSystem::FileSystem(bool format)
 {
     DEBUG('f', "Initializing the file system.\n");
-    GlobControlTable = new Table <DirControlTable*>;
+    GlobControlTable = new HashTable(/*ponerle las boludeces*/) <FileControlTable*>;
 
     if (format) {
         Bitmap     *freeMap = new Bitmap(NUM_SECTORS);
@@ -91,8 +91,8 @@ FileSystem::FileSystem(bool format)
         // of the directory and bitmap files.  There better be enough space!
         // Asigna lugar para la data.
         char rootName[2] = ".";
-        ASSERT(mapH->Allocate(freeMap, FREE_MAP_FILE_SIZE, nullptr));
-        ASSERT(dirH->Allocate(freeMap, DIRECTORY_FILE_SIZE, rootName));
+        ASSERT(mapH->Allocate(freeMap, FREE_MAP_FILE_SIZE, nullptr, FREE_MAP_SECTOR));
+        ASSERT(dirH->Allocate(freeMap, DIRECTORY_FILE_SIZE, rootName, DIRECTORY_SECTOR));
 
         // Flush the bitmap and directory `FileHeader`s back to disk.
         // We need to do this before we can `Open` the file, since open reads
@@ -195,7 +195,7 @@ FileSystem::Create(const char *name, unsigned initialSize)
             success = false;  // No space in directory.
         } else {
             FileHeader *h = new FileHeader;
-            success = h->Allocate(freeMap, initialSize);
+            success = h->Allocate(freeMap, initialSize, nullptr);
               // Fails if no space on disk for data.
             if (success) {
                 // Everything worked, flush all changes back to disk.

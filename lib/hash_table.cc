@@ -6,7 +6,7 @@
 #define SIZE 10;
 
 template <class H>
-HashTable<H>::HashTable(){
+HashTable<H>::HashTable(FuncionDestructora destroyFunc, FuncionComparadora compFunc, FuncionHash hashFunc, FuncionVisitante visitFunc){
    
     Tcapacity = SIZE;
     tabla = new Node*[Tcapacity]; 
@@ -16,6 +16,12 @@ HashTable<H>::HashTable(){
         tabla[i]->next = nullptr;
         tabla[i]->data = nullptr;
     }
+
+    this->destroyFunc = destroyFunc;
+    this->compFunc = compFunc;
+    this->hashFunc = hashFunc;
+    this->visitFunc = visitFunc;
+
     return;
 }
 
@@ -24,7 +30,7 @@ HashTable<H>::~HashTable(){
 
     for (int i = 0; i < Tcapacity; i++)
         for(Node* temp = tabla[i]; temp != nullptr; temp = temp->next){
-            delete temp->data;
+            destroyFunc(temp->data);
             delete temp;
         }
 
@@ -49,9 +55,9 @@ HashTable<H>::H_Add(H item){
 template <class H>
 H 
 HashTable<H>::H_Get(char* Iname){
-    unsigned pos = HashFunc(Iname) % Tcapacity;
+    unsigned pos = hashFunc(Iname) % Tcapacity;
     for(Node* temp = tabla[pos]; temp != nullptr; temp = temp->next){
-        if(temp->data->name == Iname)
+        if(compFunc(temp->data, (void*)Iname))
             return temp->data;
     }
     return nullptr;
@@ -61,15 +67,15 @@ template <class H>
 bool
 HashTable<H>::H_Delete(char* Iname){
     
-    unsigned pos = HashFunc(Iname) % Tcapacity;
+    unsigned pos = hashFunc(Iname) % Tcapacity;
     
     if(tabla[pos] == nullptr)
         return false;
 
-    if(tabla[pos]->data->name == Iname){
+    if(compFunc(tabla[pos]->data, (void*)Iname)){
         Node* to_delete = tabla[pos];
         tabla[pos] = to_delete->next;
-        delete to_delete->data;
+        destroyFunc(to_delete->data);
         delete to_delete;
         return true;
     }
@@ -79,10 +85,10 @@ HashTable<H>::H_Delete(char* Iname){
             if(temp->next == nullptr)
                 return false;
 
-            if(temp->next->data->name == Iname){
+            if(compFunc(temp->next->data,(void*)Iname)){
                 Node* to_delete = temp->next;
                 temp->next = to_delete->next;
-                delete to_delete->data;
+                destroyFunc(to_delete->data);
                 delete to_delete;
                 return true;
             }
@@ -92,7 +98,7 @@ HashTable<H>::H_Delete(char* Iname){
     return false;
 }
 
-template <class H>
+/*template <class H>
 unsigned
 HashTable<H>::HashFunc(char* Iname){
 
@@ -106,4 +112,4 @@ HashTable<H>::HashFunc(char* Iname){
         hash = ((hash << 5) + hash) +c;
 
     return hash;
-}
+}*/

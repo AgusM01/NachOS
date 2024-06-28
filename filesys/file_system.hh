@@ -102,13 +102,13 @@ public:
 /// Initial file sizes for the bitmap and directory; until the file system
 /// supports extensible files, the directory size sets the maximum number of
 /// files that can be loaded onto the disk.
-static const unsigned FREE_MAP_FILE_SIZE = NUM_SECTORS / BITS_IN_BYTE;
+static const unsigned FREE_MAP_FILE_SIZE = NUM_SECTORS / BITS_IN_BYTE + sizeof(unsigned) /*unsigned es el numero de sector*/;
 static const unsigned NUM_DIR_ENTRIES = 10;
 static const unsigned DIRECTORY_FILE_SIZE
-  = sizeof (DirectoryEntry) * NUM_DIR_ENTRIES + 20 /*20 es el maximo tamaño de nombre de directorio*/;
+  = sizeof (DirectoryEntry) * NUM_DIR_ENTRIES + 20 + sizeof(unsigned) /*20 es el maximo tamaño de nombre de directorio. unsigned es el numero de sector*/;
 
 // Estructuras que se utilizaran para manejar los archivos abiertos en cada directorio.
-typedef struct controlNode {
+typedef struct fileControl {
     bool write;
     bool remove;
     Lock *w_lock;
@@ -116,9 +116,9 @@ typedef struct controlNode {
     Semaphore *r_sem;
     int t_using;
     char* name;
-} ControlNode;
+} FileControl;
 
-typedef HashTable<ControlNode*> DirControlTable;
+typedef HashTable<FileControl*> FileControlTable;
 
 class FileSystem {
 public:
@@ -158,7 +158,7 @@ private:
     Lock *fs_op;
     
     // Tabla global de DirControlTables. Cada directorio tiene su propia tabla de archivos abiertos.
-    Table <DirControlTable*>  *GlobControlTable;
+    HashTable <FileControlTable*>  *GlobControlTable;
 };
 
 #endif
