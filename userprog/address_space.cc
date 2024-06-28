@@ -32,7 +32,7 @@
 /// First, set up the translation from program memory to physical memory.
 /// For now, this is really simple (1:1), since we are only uniprogramming,
 /// and we have a single unsegmented page table.
-AddressSpace::AddressSpace(OpenFile *executable_file)
+AddressSpace::AddressSpace(OpenFile *executable_file, int pid)
 {
     ASSERT(executable_file != nullptr);
     
@@ -57,7 +57,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     for (unsigned i = 0; i < numPages; i++)
         idx_tlb[i] = (unsigned)-1;
     char id[12] = {0};
-    itoa(currentThread->GetPid(), id);
+    itoa(pid, id);
     swapname = concat("SWAP.", id);
     DEBUG('f', "SE LLAMA %s\n", swapname);
     ASSERT(fileSystem->Create(swapname, size));

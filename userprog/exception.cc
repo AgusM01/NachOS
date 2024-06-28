@@ -431,8 +431,11 @@ SyscallHandler(ExceptionType _et)
                 delete executable;
                 status = -1; 
             }
-
-            if (!status &&  !(space = new AddressSpace(executable))){
+            
+            if (!status)
+                status = space_table->Add(newThread);
+            
+            if (!status &&  !(space = new AddressSpace(executable, status))){
                 DEBUG('e', "Error: Unable to create the address space \n");
                 delete executable;
                 delete newThread;
@@ -444,11 +447,8 @@ SyscallHandler(ExceptionType _et)
                 delete executable;
                 #endif
                 newThread->space = space;
-                status = space_table->Add(newThread);
-                if (status != -1){
-                    newThread->SetPid(status);
-                    newThread->Fork(ProcessInit, nullptr);
-                }
+                newThread->SetPid(status);
+                newThread->Fork(ProcessInit, nullptr);
             }
 
             machine->WriteRegister(2, status);
@@ -500,7 +500,10 @@ SyscallHandler(ExceptionType _et)
                 status = -1; 
             }
 
-            if (!status &&  !(space = new AddressSpace(executable))){
+            if (!status)
+                status = space_table->Add(newThread);
+            
+            if (!status &&  !(space = new AddressSpace(executable, status))){
                 DEBUG('e', "Error: Unable to create the address space \n");
                 delete executable;
                 delete newThread;
@@ -512,11 +515,8 @@ SyscallHandler(ExceptionType _et)
                 delete executable;
                 #endif
                 newThread->space = space;
-                status = space_table->Add(newThread);
-                if (status != -1){
-                    newThread->SetPid(status);
-                    newThread->Fork(ProcessInitArgs, (void*)argv);
-                }
+                newThread->SetPid(status);
+                newThread->Fork(ProcessInit, nullptr);
             }
 
             machine->WriteRegister(2, status);

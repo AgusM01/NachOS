@@ -29,16 +29,17 @@ StartProcess(const char *filename)
         printf("Unable to open file %s\n", filename);
         return;
     }
-
-    AddressSpace *space = new AddressSpace(executable);
-    currentThread->space = space;
-
+    
     DEBUG('z', "SP: currentThread: %p\n", currentThread);
     
     currentThread->SetPid(space_table->Add(currentThread));
     
     DEBUG('z', "SP: proc_id: %d\n", currentThread->GetPid());
     DEBUG('z', "SP: thread tabla: %p\n", space_table->Get(currentThread->GetPid()));
+
+    AddressSpace *space = new AddressSpace(executable, currentThread->GetPid());
+    currentThread->space = space;
+
 
     #ifndef USE_DL
     delete executable;
