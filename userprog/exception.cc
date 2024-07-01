@@ -40,8 +40,6 @@
 
 #define GetVPN(address) (address / PAGE_SIZE)
 
-static char nameThread[9] = "cuquita4";
-
 static void
 IncrementPC()
 {
@@ -157,9 +155,10 @@ ProcessInitArgs(void* arg)
 void
 ProcessInit(void* arg)
 {
+    printf("POR RUN, SOY THREAD: %d\n", currentThread->GetPid());
     currentThread->space->InitRegisters();  // Set the initial register values.
     currentThread->space->RestoreState();   // Load page table register.
-
+    
     machine->Run();  // Jump to the user progam.
     ASSERT(false);   // `machine->Run` never returns; the address space
                      // exits by doing the system call `Exit`.
@@ -402,6 +401,7 @@ SyscallHandler(ExceptionType _et)
             int filenameAddr = machine->ReadRegister(4); 
             int join = machine->ReadRegister(5); 
             int status = 0;
+            int c_pid;
             OpenFile *executable;
             Thread* newThread;            
             AddressSpace *space; 
@@ -424,33 +424,36 @@ SyscallHandler(ExceptionType _et)
                 status = -1;
             }
 
-            nameThread[7]++;
-
-            if (!status &&  !(newThread = new Thread(nameThread ,join ? true : false))){
+            if (!status &&  !(newThread = new Thread("EXEC-THREAD" ,join ? true : false))){
                 DEBUG('e', "Error: Unable to create a thread %s\n", filename);
                 delete executable;
                 status = -1; 
             }
             
-            if (!status)
-                status = space_table->Add(newThread);
+            if (status != -1)
+                c_pid = space_table->Add(newThread);
             
-            if (!status &&  !(space = new AddressSpace(executable, status))){
+            if (!status &&  !(space = new AddressSpace(executable, c_pid))){
                 DEBUG('e', "Error: Unable to create the address space \n");
                 delete executable;
+                if (status != -1)
+                    space_table->Remove(c_pid); 
                 delete newThread;
                 status = -1;
             }
 
-            if (!status){
+            if (status != -1){
                 #ifndef USE_DL
                 delete executable;
                 #endif
                 newThread->space = space;
-                newThread->SetPid(status);
+                if(newThread->space != nullptr)
+                    printf("AAAA\n");
+                newThread->SetPid(c_pid);
                 newThread->Fork(ProcessInit, nullptr);
+                status = c_pid;
             }
-
+                 
             machine->WriteRegister(2, status);
             break;
         } 
@@ -465,7 +468,7 @@ SyscallHandler(ExceptionType _et)
             char** argv;
             AddressSpace *space; 
             char filename[FILE_NAME_MAX_LEN + 1];
-
+            
             if (filenameAddr == 0){
                 DEBUG('e', "Error: address to filename string is null. \n");
                 status = -1;
@@ -500,17 +503,17 @@ SyscallHandler(ExceptionType _et)
                 status = -1; 
             }
 
-            if (!status)
+            if (status != -1)
                 status = space_table->Add(newThread);
             
-            if (!status &&  !(space = new AddressSpace(executable, status))){
+            if (status == -1 &&  !(space = new AddressSpace(executable, status))){
                 DEBUG('e', "Error: Unable to create the address space \n");
                 delete executable;
                 delete newThread;
                 status = -1;
             }
 
-            if (!status){
+            if (status != -1){
                 #ifndef USE_DL
                 delete executable;
                 #endif
@@ -534,8 +537,10 @@ SyscallHandler(ExceptionType _et)
             break;
         }
         case SC_JOIN: {
-
-            SpaceId childId = machine->ReadRegister(4); 
+            
+            printf("Hago join soy: %d\n", currentThread->GetPid());
+            SpaceId childId = machine->ReadRegister(4);
+            printf("childId: %d\n", childId);
             int status = 0;
             Thread *child;
             if (!(child = space_table->Get(childId))){
@@ -543,6 +548,7 @@ SyscallHandler(ExceptionType _et)
                 status = -1;
             }
             if (!status){
+                printf("Es el thread: %s\n", currentThread->GetName());
                 //space_table->Remove(childId);
                 status = child->Join();
             }

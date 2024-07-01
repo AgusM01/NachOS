@@ -135,6 +135,9 @@ public:
 
     //JOIN IMPLEMENTATION
     int Join();
+    
+    // Join para main
+    void SetJoin();
 
     // Scheduler Implementation
     int GetPriority() const;

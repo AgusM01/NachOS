@@ -363,7 +363,7 @@ Thread::RestoreUserState()
 // --------------- JOIN IMPLEMENTATION --------------------
 int
 Thread::Join() {
-
+    
     ASSERT(join);
     int ret;
 

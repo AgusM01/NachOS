@@ -32,7 +32,7 @@
 /// First, set up the translation from program memory to physical memory.
 /// For now, this is really simple (1:1), since we are only uniprogramming,
 /// and we have a single unsegmented page table.
-AddressSpace::AddressSpace(OpenFile *executable_file, int pid)
+AddressSpace::AddressSpace(OpenFile *executable_file, int thread_pid)
 {
     ASSERT(executable_file != nullptr);
     
@@ -57,7 +57,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file, int pid)
     for (unsigned i = 0; i < numPages; i++)
         idx_tlb[i] = (unsigned)-1;
     char id[12] = {0};
-    itoa(pid, id);
+    itoa(thread_pid, id);
     swapname = concat("SWAP.", id);
     DEBUG('f', "SE LLAMA %s\n", swapname);
     ASSERT(fileSystem->Create(swapname, size));
@@ -74,6 +74,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file, int pid)
 
     // First, set up the translation.
     
+    printf("Inicio la pageTable soy: %d\n", currentThread->GetPid());
     // Al momento de usar páginas, marcarlas como usada. Cuando se terminan de usar, marcarlas como libre.
     pageTable = new TranslationEntry[numPages]; /// Crea la tabla de paginacion
     for (unsigned int i = 0; i < numPages; i++) { /// Asigna 1:1 las páginas con la memoria fisica. -> Cambiar
@@ -294,10 +295,12 @@ AddressSpace::SaveState()
 void
 AddressSpace::RestoreState()
 {
+    printf("RESTAURO ESTADO\n");
     #ifdef USE_TLB
     //Invalidar la TLB
     for (unsigned i = 0; i < TLB_SIZE; i++){
         machine->GetMMU()->tlb[i].valid = false;
+        SetIdxTLB(i, unsigned(-1));
     }
     #else
     machine->GetMMU()->pageTable     = pageTable;
@@ -310,22 +313,11 @@ void
 AddressSpace::Swapping(unsigned vpn)
 {
     DEBUG('w', "TE MANDE A SWAP PROCESO: %d \t PAGE %u\n", currentThread->GetPid(), vpn);
-    
-    unsigned i = idx_tlb[vpn];
-    TranslationEntry* tlb = machine->GetMMU()->tlb;
-
-    if(i != (unsigned)-1) {
-        //pageTable[vpn] = tlb[i];
-       // CommitPage(&tlb[i]);
-        tlb[i].valid = false;
-        idx_tlb[vpn] = (unsigned)-1;
-    }
-
     if(swap_map->Test(vpn) && !pageTable[vpn].dirty){
-        pageTable[vpn].valid = false;
+        printf("ACA APAREZCO\n");
         return;
     }
-    
+    printf("ESCRIBO EN SWAP: %s\n", swapname);
     char* mainMemory = machine->mainMemory;
     char* to_write = &mainMemory[PHYSICAL_PAGE_ADDR(vpn)] ;
     ASSERT(swap_pid->WriteAt(to_write, PAGE_SIZE, vpn * PAGE_SIZE) == PAGE_SIZE);
@@ -363,10 +355,26 @@ AddressSpace::LetSwap(unsigned vpn)
 
     Thread* thread_swap;
     thread_swap = space_table->Get(pid_proc);
-    //printf("PID %d\n", pid_proc);
     ASSERT(thread_swap != nullptr);
+
+    DEBUG('w', "THREAD: %d\n", thread_swap->GetPid());
+    if (thread_swap == currentThread){
+        printf("ENTRO\n");
+        unsigned i = idx_tlb[vpn];
+        TranslationEntry* tlb = machine->GetMMU()->tlb;
+
+        if(i != (unsigned)-1) {
+            tlb[i].valid = false;
+            CommitPage(&tlb[i]);
+            idx_tlb[vpn] = (unsigned)-1;
+        }    
+    }
+
     thread_swap->space->Swapping(vpn_swap);
     pageTable[vpn].physicalPage = victim;
+    pageTable[vpn].virtualPage = vpn;
+    pageTable[vpn].use = true;
+    pageTable[vpn].dirty = false;
     core_map->Mark(victim, vpn, currentThread->GetPid());
     DEBUG('w', "SE FUE LA FISICA: %d\n", victim);
     return;
@@ -379,10 +387,10 @@ AddressSpace::CommitPage(TranslationEntry* newTransEntry)
     unsigned vpn = newTransEntry->virtualPage;
     pageTable[vpn].use = newTransEntry->use;
     pageTable[vpn].dirty = newTransEntry->dirty;
-    //pageTable[vpn].physicalPage = newTransEntry->physicalPage;
-    //pageTable[vpn].valid = newTransEntry->valid;
-    //ageTable[vpn].readOnly = newTransEntry->readOnly;
-    //pageTable[vpn].virtualPage = vpn;
+    pageTable[vpn].physicalPage = newTransEntry->physicalPage;
+    pageTable[vpn].valid = newTransEntry->valid;
+    pageTable[vpn].readOnly = newTransEntry->readOnly;
+    pageTable[vpn].virtualPage = vpn;
     return;
 }
 
@@ -456,12 +464,11 @@ AddressSpace::GetPage(unsigned vpn, TranslationEntry* tlb_entry)
     if (pageTable[vpn].valid == false){
         DEBUG('v', "VPN inicio: %u\n", vpn);
         DEBUG('v', "tlb_vpn inicio: %u\n", tlb_entry->virtualPage);
-        #ifndef SWAP /// Bit de swap <- si ya se swapeó antes o no
+        #ifndef SWAP 
         pageTable[vpn].physicalPage = bit_map->Find();
         #else
         int is_phys = core_map->Find(vpn, currentThread->GetPid());
         DEBUG('w', "EL COREMAP DA: %d\n", is_phys);
-        //core_map->Print();
         if(is_phys == -1)
             LetSwap(vpn); /// Marcarla como invalid y mandarla a swap
         else
@@ -482,6 +489,7 @@ AddressSpace::GetPage(unsigned vpn, TranslationEntry* tlb_entry)
         pageTable[vpn].valid = true;
     }
     #endif
+         
         DEBUG('w', "Le doy la pag: %u\n", pageTable[vpn].physicalPage);
         tlb_entry->virtualPage = vpn;
         tlb_entry->physicalPage = pageTable[vpn].physicalPage;
