@@ -7,6 +7,7 @@
 #define NACHOS_FILESYS_RAWFILEHEADER__HH
 
 
+#include "filesys/directory_entry.hh"
 #include "machine/disk.hh"
 
 
@@ -19,7 +20,7 @@ struct RawFileHeader {
     unsigned numSectors;  ///< Number of data sectors in the file.
     unsigned dataSectors[NUM_DIRECT];  ///< Disk sector numbers for each data
                                        ///< block in the file.
-    char* dirName; ///< Nombre del directorio. 
+    char dirName[FILE_NAME_MAX_LEN]; ///< Nombre del directorio. 
     unsigned sector; ///< Sector donde esta guardado el Header.
 };
 

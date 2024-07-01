@@ -108,17 +108,26 @@ static const unsigned DIRECTORY_FILE_SIZE
   = sizeof (DirectoryEntry) * NUM_DIR_ENTRIES + 20 + sizeof(unsigned) /*20 es el maximo tamaño de nombre de directorio. unsigned es el numero de sector*/;
 
 // Estructuras que se utilizaran para manejar los archivos abiertos en cada directorio.
+
 typedef struct fileControl {
-    bool write;
-    bool remove;
-    Lock *w_lock;
-    Lock *r_lock;
-    Semaphore *r_sem;
-    int t_using;
-    char* name;
+    bool write; // Si estas escribiendo en el archivo. -> R/W Lock 
+    bool remove; // Si el archivo fué eliminado por un thread.
+    Lock *w_lock; // Lock de escritura
+    Lock *r_lock; // Lock de lectura
+    Semaphore *r_sem; // Molinete
+    int t_using; // Cuantos threads tienen abierto el archivo.
+    char* name; // Nombre del archivo.
 } FileControl;
 
 typedef HashTable<FileControl*> FileControlTable;
+
+typedef struct dirControl{
+    Lock *mutex;
+    char* name;
+    unsigned sector;
+    dirControl* father;
+    FileControlTable* files; 
+} DirControl;
 
 class FileSystem {
 public:
@@ -158,7 +167,7 @@ private:
     Lock *fs_op;
     
     // Tabla global de DirControlTables. Cada directorio tiene su propia tabla de archivos abiertos.
-    HashTable <FileControlTable*>  *GlobControlTable;
+    HashTable <DirControl*>  *GlobControlTable;
 };
 
 #endif

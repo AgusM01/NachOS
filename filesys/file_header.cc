@@ -57,13 +57,8 @@ FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize, char* dirName, unsigned
     }
     
     // Guardamos el nombre del directorio.
-    if(dirName != nullptr){
-         int len = strlen(dirName);
-         this->raw.dirName = new char[len + 1];
-         memcpy(this->raw.dirName, dirName, len + 1);
-    }
-    else 
-        this->raw.dirName = nullptr;
+    int len = strlen(dirName);
+    memcpy(this->raw.dirName, dirName, len + 1);
     
     raw.sector = sector;
     return true;
@@ -82,9 +77,6 @@ FileHeader::Deallocate(Bitmap *freeMap)
         freeMap->Clear(raw.dataSectors[i]);
     }
     
-    /// Borramos el nombre del directorio
-    if (raw.dirName != nullptr)
-        delete raw.dirName;
 }
 
 /// Fetch contents of file header from disk.

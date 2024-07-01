@@ -12,6 +12,7 @@ typedef    void(*FuncionDestructora)(void *dato);
 typedef    int(*FuncionComparadora)(void* dato1, void* dato2);
 typedef    unsigned (*FuncionHash)(void* dato);
 typedef    void(*FuncionVisitante)(void *dato);
+//typedef    void*(*FuncionCopiadora)(void *dato);
 
 template <class H>
 class HashTable{
@@ -30,12 +31,13 @@ public:
     bool H_Delete(char* name);
 
 private:
+
     Node** tabla;
 
     int Tcount;
 
     int Tcapacity;
-    
+     
     FuncionDestructora destroyFunc;
     
     FuncionComparadora compFunc;
@@ -44,6 +46,7 @@ private:
 
     FuncionVisitante visitFunc;
 
+    //FuncionCopiadora copyFunc;
     //void ReHash(); <- Ejercicio para el lector.
 };
 

@@ -47,10 +47,15 @@
 #include "file_header.hh"
 #include "filesys/directory_entry.hh"
 #include "lib/bitmap.hh"
+#include "lib/hash_table.hh"
 
 #include <stdio.h>
 #include <string.h>
 
+static void hashDirDestr(DirControl* dir);
+static int hashDirComp(DirControl* dir1, DirControl* dir2);
+static unsigned hashDirHash(DirControl* dir);
+static void hashDirVisit(DirControl* dir); 
 
 /// Sectors containing the file headers for the bitmap of free sectors, and
 /// the directory of files.  These file headers are placed in well-known
@@ -70,7 +75,12 @@ static const unsigned DIRECTORY_SECTOR = 1;
 FileSystem::FileSystem(bool format)
 {
     DEBUG('f', "Initializing the file system.\n");
-    GlobControlTable = new HashTable(/*ponerle las boludeces*/) <FileControlTable*>;
+    GlobControlTable = new HashTable <DirControl*> (
+            (FuncionDestructora)hashDirDestr, 
+            (FuncionComparadora)hashDirComp, 
+            (FuncionHash)hashDirHash, 
+            (FuncionVisitante)hashDirVisit
+            );
 
     if (format) {
         Bitmap     *freeMap = new Bitmap(NUM_SECTORS);
@@ -110,6 +120,12 @@ FileSystem::FileSystem(bool format)
         freeMapFile   = new OpenFile(FREE_MAP_SECTOR);
         directoryFile = new OpenFile(DIRECTORY_SECTOR);
 
+        DirControl* root = new DirControl;
+        root->name = new char[2];
+        memcpy(root->name, dirH->GetRaw()->dirName, 2);
+        root->sector = dirH->GetRaw()->sector;
+        // Seguir definiendo la estructura p la tabla.
+        
         // Once we have the files “open”, we can write the initial version of
         // each file back to disk.  The directory at this point is completely
         // empty; but the bitmap has been changed to reflect the fact that
@@ -500,3 +516,94 @@ FileSystem::Print()
     delete freeMap;
     delete dir;
 }
+
+void 
+hashFileDestr(FileControl* file)
+{
+    delete file->w_lock;
+    delete file->r_lock;
+    delete file->r_sem;
+    delete file->name;
+    return;
+}
+
+int
+hashFileComp(FileControl* file1, FileControl* file2)
+{
+    return strcmp(file1->name, file2->name);
+}
+
+unsigned
+hashFileHash(FileControl* file)
+{
+   unsigned hash = 5381;
+    
+    int c;
+
+    char* str = file->name;
+    
+    while((c = *str++))
+        hash = ((hash << 5) + hash) +c;
+
+    return hash; 
+}
+
+void 
+hashFileVisit(FileControl* file)
+{
+    printf(
+        "FILE: %s\tOPENS: %d\tWRITING: %d\tREMOVE: %d\n", 
+        file->name,
+        file->t_using,
+        file->write,
+        file->remove
+    );
+}
+
+// No hay funcion copiadora para files.
+
+static
+void 
+hashDirDestr(DirControl* dir)
+{
+    delete dir->mutex;
+    delete dir->name;
+    delete dir->files;
+    return;
+
+}
+
+// Devuelve 0 si son iguales
+static
+int 
+hashDirComp(DirControl* dir1, DirControl* dir2)
+{ 
+    return dir1->sector - dir2->sector;
+}
+
+static 
+unsigned
+hashDirHash(DirControl* dir)
+{
+   unsigned hash = 5381;
+    
+    int c;
+
+    char* str = dir->name;
+    
+    while((c = *str++))
+        hash = ((hash << 5) + hash) +c;
+    
+    hash += dir->sector;
+    return hash; 
+}
+
+static
+void
+hashDirVisit(DirControl* dir)
+{
+    printf("NAME: %s\tSECTOR: %u\n", dir->name, dir->sector);
+    return;
+}
+
+// No hay funcion copia para directorios.
