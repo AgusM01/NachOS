@@ -6,11 +6,12 @@ typedef struct controlNode ControlNode;
 typedef struct node {
     node* next;  
     void* data;
+    char* name;
 } Node;
 
 typedef    void(*FuncionDestructora)(void *dato);
-typedef    int(*FuncionComparadora)(void* dato1, void* dato2);
-typedef    unsigned (*FuncionHash)(void* dato);
+typedef    int(*FuncionComparadora)(const char* name1, const char* name2);
+typedef    unsigned (*FuncionHash)(const char* dato);
 typedef    void(*FuncionVisitante)(void *dato);
 //typedef    void*(*FuncionCopiadora)(void *dato);
 
@@ -24,11 +25,11 @@ public:
     
     ~HashTable();
 
-    void H_Add(H item);
+    void H_Add(H item, const char* name);
 
-    H H_Get(char* name);
+    H H_Get(const char* name);
 
-    bool H_Delete(char* name);
+    bool H_Delete(const char* name);
 
 private:
 

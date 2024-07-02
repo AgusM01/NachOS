@@ -12,7 +12,7 @@
 
 
 static const unsigned NUM_DIRECT
-  = (SECTOR_SIZE - 2 * sizeof (int)) / sizeof (int);
+  = (SECTOR_SIZE - 2 * sizeof (int)) / sizeof (int); // -> 30 con un sector_size = 128
 const unsigned MAX_FILE_SIZE = NUM_DIRECT * SECTOR_SIZE;
 
 struct RawFileHeader {

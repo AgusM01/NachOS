@@ -20,6 +20,7 @@
 #define NACHOS_FILESYS_OPENFILE__HH
 
 
+#include "filesys/file_system.hh"
 #include "lib/utility.hh"
 
 
@@ -85,6 +86,7 @@ private:
 };
 
 #else // FILESYS
+
 class FileHeader;
 
 class OpenFile {
@@ -113,7 +115,7 @@ public:
     // Return the number of bytes in the file (this interface is simpler than
     // the UNIX idiom -- `lseek` to end of file, `tell`, `lseek` back).
     unsigned Length() const;
-
+    
   private:
     FileHeader *hdr;  ///< Header for this file.
     unsigned seekPosition;  ///< Current position within the file.

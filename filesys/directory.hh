@@ -17,7 +17,7 @@
 
 #include "raw_directory.hh"
 #include "open_file.hh"
-
+#include "file_system.hh"
 
 /// The following class defines a UNIX-like “directory”.  Each entry in the
 /// directory describes a file, and where to find it on disk.
@@ -69,6 +69,7 @@ public:
 
     void SetGlobTableInd(int ind);
 
+    DirControl* dir_control;
 private:
     /// Find the index into the directory table corresponding to `name`.
     int FindIndex(const char *name);

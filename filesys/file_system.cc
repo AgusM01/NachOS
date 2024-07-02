@@ -48,6 +48,8 @@
 #include "filesys/directory_entry.hh"
 #include "lib/bitmap.hh"
 #include "lib/hash_table.hh"
+#include "threads/lock.hh"
+#include "threads/semaphore.hh"
 
 #include <stdio.h>
 #include <string.h>
@@ -57,6 +59,11 @@ static int hashDirComp(DirControl* dir1, DirControl* dir2);
 static unsigned hashDirHash(DirControl* dir);
 static void hashDirVisit(DirControl* dir); 
 
+static void hashFileDestr(FileControl* file);
+static void hashFileVisit(FileControl* file);
+
+static int hashFuncComp(char* name1, char* name2);
+static unsigned hashFuncHash(char* file);
 /// Sectors containing the file headers for the bitmap of free sectors, and
 /// the directory of files.  These file headers are placed in well-known
 /// sectors, so that they can be located on boot-up.
@@ -124,7 +131,16 @@ FileSystem::FileSystem(bool format)
         root->name = new char[2];
         memcpy(root->name, dirH->GetRaw()->dirName, 2);
         root->sector = dirH->GetRaw()->sector;
-        // Seguir definiendo la estructura p la tabla.
+        root->father = nullptr;
+        root->mutex = new Lock("Root Lock");
+        root->files =  new HashTable <FileControl*> (
+            (FuncionDestructora)hashFileDestr, 
+            (FuncionComparadora)hashFuncComp, 
+            (FuncionHash)hashFuncHash, 
+            (FuncionVisitante)hashFileVisit
+            );
+
+        GlobControlTable->H_Add(root, root->name);
         
         // Once we have the files “open”, we can write the initial version of
         // each file back to disk.  The directory at this point is completely
@@ -246,7 +262,29 @@ FileSystem::Open(const char *name)
     dir->FetchFrom(directoryFile);
     int sector = dir->Find(name);
     if (sector >= 0) {
-        openFile = new OpenFile(sector);  // `name` was found in directory.
+        // Asumimos que el name del directorio ya viene con todo el path.
+        // Ver cuando se haga mkdir o múltiples directorios.
+        DirControl* dir_node = GlobControlTable->H_Get(dir->dir_control->name);
+        FileControl* file_node = dir_node->files->H_Get(name);
+
+        if(file_node == nullptr){ // El archivo esta siendo abierto por primera vez.
+        
+            openFile = new OpenFile(sector);  // `name` was found in directory.
+            FileControl* new_file_node = new FileControl;
+            int name_len = strlen(name);
+            new_file_node->name = new char[name_len + 1];
+            memcpy(new_file_node->name, name, name_len + 1);
+            new_file_node->r_sem = new Semaphore(name, 0);
+            new_file_node->write = false; // Ver esto
+            new_file_node->r_lock = new Lock("File Read Lock");
+            new_file_node->w_lock = new Lock("File Write Lock");
+            new_file_node->remove = false;
+            new_file_node->t_using = 1;
+            dir_node->files->H_Add(new_file_node, new_file_node->name);
+        }
+        else{
+            file_node->t_using++;
+        }
     }
     delete dir;
     return openFile;  // Return null if not found.
@@ -527,26 +565,7 @@ hashFileDestr(FileControl* file)
     return;
 }
 
-int
-hashFileComp(FileControl* file1, FileControl* file2)
-{
-    return strcmp(file1->name, file2->name);
-}
 
-unsigned
-hashFileHash(FileControl* file)
-{
-   unsigned hash = 5381;
-    
-    int c;
-
-    char* str = file->name;
-    
-    while((c = *str++))
-        hash = ((hash << 5) + hash) +c;
-
-    return hash; 
-}
 
 void 
 hashFileVisit(FileControl* file)
@@ -574,29 +593,29 @@ hashDirDestr(DirControl* dir)
 }
 
 // Devuelve 0 si son iguales
-static
-int 
-hashDirComp(DirControl* dir1, DirControl* dir2)
-{ 
-    return dir1->sector - dir2->sector;
-}
-
-static 
-unsigned
-hashDirHash(DirControl* dir)
-{
-   unsigned hash = 5381;
-    
-    int c;
-
-    char* str = dir->name;
-    
-    while((c = *str++))
-        hash = ((hash << 5) + hash) +c;
-    
-    hash += dir->sector;
-    return hash; 
-}
+//static
+//int 
+//hashDirComp(DirControl* dir1, DirControl* dir2)
+//{ 
+//    return dir1->sector - dir2->sector;
+//}
+//
+//static 
+//unsigned
+//hashDirHash(DirControl* dir)
+//{
+//   unsigned hash = 5381;
+//    
+//    int c;
+//
+//    char* str = dir->name;
+//    
+//    while((c = *str++))
+//        hash = ((hash << 5) + hash) +c;
+//    
+//    hash += dir->sector;
+//    return hash; 
+//}
 
 static
 void
@@ -606,4 +625,19 @@ hashDirVisit(DirControl* dir)
     return;
 }
 
-// No hay funcion copia para directorios.
+int
+hashFuncComp(const char* name1, const char* name2)
+{
+    return strcmp(name1, name2);
+}
+
+unsigned
+hashFuncHash(const char* name)
+{
+   unsigned hash = 5381;
+    
+    for (int i = 0; name[i] != '\0'; i++)
+        hash = ((hash << 5) + hash) +name[i];
+
+    return hash; 
+}
