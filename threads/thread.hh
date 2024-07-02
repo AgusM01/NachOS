@@ -151,6 +151,11 @@ public:
 
     // Valor de retorno del hijo en join (exec)
     int resp;
+    
+    #ifdef FILESYS
+       OpenFile* currentDir;
+       char* nameCurrentDir;
+    #endif
 
 private:
     // Some of the private data for this class is listed above.

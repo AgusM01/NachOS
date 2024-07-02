@@ -314,6 +314,11 @@ FileSystem::Remove(const char *name)
        delete dir;
        return false;  // file not found
     }
+
+    // Lo sacamos de la tabla
+   // DirControl dir_node = GlobControlTable->H_Get(dir->)
+   // ASSERT(dir->dir_control->files->H_Delete(name));
+
     FileHeader *fileH = new FileHeader;
     fileH->FetchFrom(sector);
 
