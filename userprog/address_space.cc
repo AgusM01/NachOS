@@ -314,7 +314,7 @@ AddressSpace::Swapping(unsigned vpn)
 {
     DEBUG('w', "TE MANDE A SWAP PROCESO: %d \t PAGE %u\n", currentThread->GetPid(), vpn);
     if(swap_map->Test(vpn) && !pageTable[vpn].dirty){
-        printf("ACA APAREZCO\n");
+       //printf("ACA APAREZCO\n");
         return;
     }
     printf("ESCRIBO EN SWAP: %s\n", swapname);
@@ -322,7 +322,7 @@ AddressSpace::Swapping(unsigned vpn)
     char* to_write = &mainMemory[PHYSICAL_PAGE_ADDR(vpn)] ;
     ASSERT(swap_pid->WriteAt(to_write, PAGE_SIZE, vpn * PAGE_SIZE) == PAGE_SIZE);
     swap_map->Mark(vpn);
-    pageTable[vpn].valid = false;
+    //pageTable[vpn].valid = false;
     pageTable[vpn].dirty = false;
     pageTable[vpn].use = false;
     return;
@@ -362,10 +362,19 @@ AddressSpace::LetSwap(unsigned vpn)
         printf("ENTRO\n");
         unsigned i = idx_tlb[vpn];
         TranslationEntry* tlb = machine->GetMMU()->tlb;
-
+        printf("i: %d\n", i);
+       
+        // for(unsigned int i = 0; i < TLB_SIZE; i++){
+        //     if(tlb[i].virtualPage == vpn){
+        //         tlb[i].valid = false;
+        //         CommitPage(&tlb[i]);    
+        //     }
+        // }
+        
         if(i != (unsigned)-1) {
+            printf("COMMITEO PAGINA TLB\n");
+            CommitPage(&tlb[i]); 
             tlb[i].valid = false;
-            CommitPage(&tlb[i]);
             idx_tlb[vpn] = (unsigned)-1;
         }    
     }
@@ -383,14 +392,15 @@ AddressSpace::LetSwap(unsigned vpn)
 
 void
 AddressSpace::CommitPage(TranslationEntry* newTransEntry)
-{
+{ 
+    ASSERT(newTransEntry->valid);
     unsigned vpn = newTransEntry->virtualPage;
     pageTable[vpn].use = newTransEntry->use;
     pageTable[vpn].dirty = newTransEntry->dirty;
-    pageTable[vpn].physicalPage = newTransEntry->physicalPage;
-    pageTable[vpn].valid = newTransEntry->valid;
-    pageTable[vpn].readOnly = newTransEntry->readOnly;
-    pageTable[vpn].virtualPage = vpn;
+   // pageTable[vpn].physicalPage = newTransEntry->physicalPage;
+   // pageTable[vpn].valid = newTransEntry->valid;
+   // pageTable[vpn].readOnly = newTransEntry->readOnly;
+   // pageTable[vpn].virtualPage = vpn;
     return;
 }
 
