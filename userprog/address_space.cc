@@ -313,10 +313,9 @@ void
 AddressSpace::Swapping(unsigned vpn)
 {
     DEBUG('w', "TE MANDE A SWAP PROCESO: %d \t PAGE %u\n", currentThread->GetPid(), vpn);
-    if(swap_map->Test(vpn) && !pageTable[vpn].dirty){
-       //printf("ACA APAREZCO\n");
+    if(swap_map->Test(vpn) && !pageTable[vpn].dirty)
         return;
-    }
+    
     printf("ESCRIBO EN SWAP: %s\n", swapname);
     char* mainMemory = machine->mainMemory;
     char* to_write = &mainMemory[PHYSICAL_PAGE_ADDR(vpn)] ;
