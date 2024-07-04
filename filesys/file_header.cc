@@ -38,7 +38,7 @@
 /// * `freeMap` is the bit map of free disk sectors.
 /// * `fileSize` is the bit map of free disk sectors.
 bool
-FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize, char* dirName, unsigned sector)
+FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize, const char* dirName, unsigned sector)
 {
     ASSERT(freeMap != nullptr);
     

@@ -46,6 +46,7 @@
 #include "directory.hh"
 #include "file_header.hh"
 #include "filesys/directory_entry.hh"
+#include "filesys/open_file.hh"
 #include "lib/bitmap.hh"
 #include "lib/hash_table.hh"
 #include "threads/lock.hh"
@@ -124,6 +125,7 @@ FileSystem::FileSystem(bool format)
         // The file system operations assume these two files are left open
         // while Nachos is running.
 
+        //VER QUE ONDA ACA
         freeMapFile   = new OpenFile(FREE_MAP_SECTOR);
         directoryFile = new OpenFile(DIRECTORY_SECTOR);
 
@@ -208,7 +210,8 @@ FileSystem::Create(const char *name, unsigned initialSize)
     ASSERT(initialSize < MAX_FILE_SIZE);
 
     DEBUG('f', "Creating file %s, size %u\n", name, initialSize);
-
+    
+    directoryFile->mutexAcq();
     Directory *dir = new Directory(NUM_DIR_ENTRIES);
     dir->FetchFrom(directoryFile);
 
@@ -227,7 +230,7 @@ FileSystem::Create(const char *name, unsigned initialSize)
             success = false;  // No space in directory.
         } else {
             FileHeader *h = new FileHeader;
-            success = h->Allocate(freeMap, initialSize, nullptr);
+            success = h->Allocate(freeMap, initialSize, name, sector);
               // Fails if no space on disk for data.
             if (success) {
                 // Everything worked, flush all changes back to disk.
@@ -239,6 +242,7 @@ FileSystem::Create(const char *name, unsigned initialSize)
         }
         delete freeMap;
     }
+    directoryFile->mutexRel();
     delete dir;
     return success;
 }
@@ -259,6 +263,7 @@ FileSystem::Open(const char *name)
     OpenFile  *openFile = nullptr;
 
     DEBUG('f', "Opening file %s\n", name);
+    directoryFile->mutexAcq(); //currentThread->currentDir->mutex->Acquire();
     dir->FetchFrom(directoryFile);
     int sector = dir->Find(name);
     if (sector >= 0) {
@@ -269,7 +274,6 @@ FileSystem::Open(const char *name)
 
         if(file_node == nullptr){ // El archivo esta siendo abierto por primera vez.
         
-            openFile = new OpenFile(sector);  // `name` was found in directory.
             FileControl* new_file_node = new FileControl;
             int name_len = strlen(name);
             new_file_node->name = new char[name_len + 1];
@@ -280,12 +284,22 @@ FileSystem::Open(const char *name)
             new_file_node->w_lock = new Lock("File Write Lock");
             new_file_node->remove = false;
             new_file_node->t_using = 1;
+            FileHeader* hdr = new FileHeader;
+            hdr->FetchFrom(sector);
+            new_file_node->header = hdr;
             dir_node->files->H_Add(new_file_node, new_file_node->name);
+            openFile = new OpenFile(sector,new_file_node->w_lock, hdr);  // `name` was found in directory.
         }
         else{
+            if (file_node->remove){
+                DEBUG('e', "Open de archivo eliminado\n");
+                return nullptr;
+            } // Si fue removido, no se puede abrir.
+            openFile = new OpenFile(sector, file_node->w_lock, file_node->header);
             file_node->t_using++;
         }
     }
+    directoryFile->mutexRel();
     delete dir;
     return openFile;  // Return null if not found.
 }
@@ -303,11 +317,12 @@ FileSystem::Open(const char *name)
 ///
 /// * `name` is the text name of the file to be removed.
 bool
-FileSystem::Remove(const char *name)
+FileSystem::RemoveAux(const char *name)
 {
     ASSERT(name != nullptr);
 
     Directory *dir = new Directory(NUM_DIR_ENTRIES);
+    directoryFile->mutexAcq();
     dir->FetchFrom(directoryFile);
     int sector = dir->Find(name);
     if (sector == -1) {
@@ -315,7 +330,7 @@ FileSystem::Remove(const char *name)
        return false;  // file not found
     }
 
-    // Lo sacamos de la tabla
+   // Lo sacamos de la tabla
    // DirControl dir_node = GlobControlTable->H_Get(dir->)
    // ASSERT(dir->dir_control->files->H_Delete(name));
 
@@ -331,12 +346,25 @@ FileSystem::Remove(const char *name)
 
     freeMap->WriteBack(freeMapFile);  // Flush to disk.
     dir->WriteBack(directoryFile);    // Flush to disk.
+    directoryFile->mutexRel();
     delete fileH;
     delete dir;
     delete freeMap;
     return true;
 }
 
+bool
+FileSystem::Remove(const char *name)
+{
+    
+}
+
+bool 
+FileSystem::Close(OpenFile* file)
+{
+        
+
+}
 /// List all the files in the file system directory.
 void
 FileSystem::List()
@@ -567,6 +595,7 @@ hashFileDestr(FileControl* file)
     delete file->r_lock;
     delete file->r_sem;
     delete file->name;
+    delete file->header;
     return;
 }
 

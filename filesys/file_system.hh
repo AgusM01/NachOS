@@ -117,6 +117,7 @@ typedef struct fileControl {
     Semaphore *r_sem; // Molinete
     int t_using; // Cuantos threads tienen abierto el archivo.
     char* name; // Nombre del archivo.
+    FileHeader* header;
 } FileControl;
 
 typedef HashTable<FileControl*> FileControlTable;
@@ -126,7 +127,8 @@ typedef struct dirControl{
     char* name;
     unsigned sector;
     dirControl* father;
-    FileControlTable* files; 
+    FileControlTable* files;
+    FileHeader* header;
 } DirControl;
 
 class FileSystem {
@@ -149,6 +151,9 @@ public:
 
     /// Delete a file (UNIX `unlink`).
     bool Remove(const char *name);
+
+    /// Close a file
+    bool Close(OpenFile* file);
 
     /// List all the files in the file system.
     void List();

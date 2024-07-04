@@ -20,9 +20,10 @@
 #define NACHOS_FILESYS_OPENFILE__HH
 
 
+//#include "filesys/file_system.hh"
 #include "filesys/file_system.hh"
 #include "lib/utility.hh"
-
+#include "threads/lock.hh"
 
 #ifdef FILESYS_STUB  // Temporarily implement calls to Nachos file system as
                      // calls to UNIX!  See definitions listed under `#else`.
@@ -93,7 +94,7 @@ class OpenFile {
 public:
 
     /// Open a file whose header is located at `sector` on the disk.
-    OpenFile(int sector);
+    OpenFile(int sector, bool is_file, void* node_control);
 
     /// Close the file.
     ~OpenFile();
@@ -116,9 +117,18 @@ public:
     // the UNIX idiom -- `lseek` to end of file, `tell`, `lseek` back).
     unsigned Length() const;
     
+    void mutexAcq();
+
+    void mutexRel();
+    
+    void* node_control;
+    
+    bool is_file;
+
   private:
     FileHeader *hdr;  ///< Header for this file.
     unsigned seekPosition;  ///< Current position within the file.
+    Lock *mutex; ///< Lock pasado por parámetro de cada archivo/directorio.
 };
 
 #endif

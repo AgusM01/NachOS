@@ -13,6 +13,7 @@
 
 #include "open_file.hh"
 #include "file_header.hh"
+#include "filesys/file_system.hh"
 #include "threads/system.hh"
 
 #include <string.h>
@@ -22,17 +23,24 @@
 /// memory while the file is open.
 ///
 /// * `sector` is the location on disk of the file header for this file.
-OpenFile::OpenFile(int sector)
+OpenFile::OpenFile(int sector, bool is_file, void* node_control)
 {
-    hdr = new FileHeader;
-    hdr->FetchFrom(sector);
+    if(is_file){
+        this->mutex = ((FileControl*)node_control)->w_lock;
+        hdr = ((FileControl*)node_control)->header;
+    }
+    else{
+        this->mutex = ((DirControl*)node_control)->mutex;
+        hdr = ((DirControl*)node_control)->header;
+    }
+    this->is_file = is_file;
     seekPosition = 0;
 }
 
 /// Close a Nachos file, de-allocating any in-memory data structures.
 OpenFile::~OpenFile()
 {
-    delete hdr;
+    //delete hdr;
 }
 
 /// Change the current location within the open file -- the point at which
@@ -62,8 +70,9 @@ OpenFile::Read(char *into, unsigned numBytes)
 {
     ASSERT(into != nullptr);
     ASSERT(numBytes > 0);
-
+    mutexAcq();
     int result = ReadAt(into, numBytes, seekPosition);
+    mutexRel();
     seekPosition += result;
     return result;
 }
@@ -72,9 +81,10 @@ int
 OpenFile::Write(const char *into, unsigned numBytes)
 {
     ASSERT(into != nullptr);
-    ASSERT(numBytes > 0);
-
+    ASSERT(numBytes > 0);    
+    mutexAcq();
     int result = WriteAt(into, numBytes, seekPosition);
+    mutexRel();
     seekPosition += result;
     return result;
 }
@@ -196,3 +206,16 @@ OpenFile::Length() const
 {
     return hdr->FileLength();
 }
+
+void
+OpenFile::mutexAcq()
+{
+    mutex->Acquire();
+}
+
+void
+OpenFile::mutexRel()
+{
+    mutex->Release();
+}
+
