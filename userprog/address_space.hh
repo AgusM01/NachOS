@@ -65,7 +65,7 @@ public:
     
     void GetSwap(unsigned ppn);
     
-    void Swapping(unsigned vpn);
+    void Swapping(unsigned vpn, bool ct);
 #endif 
 
     void CommitPage(TranslationEntry* newTransEntry); 
@@ -87,7 +87,6 @@ private:
     char* swapname;
     OpenFile *swap_pid;
     Bitmap* swap_map;
-    unsigned* idx_tlb;
     #endif
 
     /// Assume linear page table translation for now!

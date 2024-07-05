@@ -8,7 +8,7 @@ int main(){
     
     for(int i = 0; i < 2; i++){
         Join(pids[i]);
-        puts("termine\n");
+        //puts("holanda\n");
     }
 
     puts("chau\n");

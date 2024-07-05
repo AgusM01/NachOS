@@ -53,9 +53,6 @@ AddressSpace::AddressSpace(OpenFile *executable_file, int thread_pid)
     size = numPages * PAGE_SIZE; /// Recalcula el nuevo tamaño con las páginas de mas incluidas.
 
     #ifdef SWAP
-    idx_tlb = new unsigned[numPages];
-    for (unsigned i = 0; i < numPages; i++)
-        idx_tlb[i] = (unsigned)-1;
     char id[12] = {0};
     itoa(thread_pid, id);
     swapname = concat("SWAP.", id);
@@ -277,7 +274,7 @@ AddressSpace::InitRegisters()
 void
 AddressSpace::SaveState()
 { 
-    printf("SALVO ESTADO, SOY %s\n", currentThread->GetName());
+    //printf("SALVO ESTADO, SOY %s\n", currentThread->GetName());
     #ifdef USE_TLB
     TranslationEntry* tlb = machine->GetMMU()->tlb;
     for(unsigned int i = 0; i < TLB_SIZE; i++){
@@ -300,7 +297,6 @@ AddressSpace::RestoreState()
     //Invalidar la TLB
     for (unsigned i = 0; i < TLB_SIZE; i++){
         machine->GetMMU()->tlb[i].valid = false;
-        SetIdxTLB(i, unsigned(-1));
     }
     #else
     machine->GetMMU()->pageTable     = pageTable;
@@ -310,38 +306,39 @@ AddressSpace::RestoreState()
 
 #ifdef SWAP 
 void 
-AddressSpace::Swapping(unsigned vpn)
+AddressSpace::Swapping(unsigned vpn, bool ct)
 {
     DEBUG('w', "TE MANDE A SWAP PROCESO: %d \t PAGE %u\n", currentThread->GetPid(), vpn);
+    printf("SWAPEO LA PAG: %u\n", vpn);
     if(swap_map->Test(vpn) && !pageTable[vpn].dirty)
         return;
     
-    printf("ESCRIBO EN SWAP: %s\n", swapname);
+    //printf("ESCRIBO EN SWAP: %s\n", swapname);
     char* mainMemory = machine->mainMemory;
     char* to_write = &mainMemory[PHYSICAL_PAGE_ADDR(vpn)] ;
     ASSERT(swap_pid->WriteAt(to_write, PAGE_SIZE, vpn * PAGE_SIZE) == PAGE_SIZE);
     swap_map->Mark(vpn);
-    //pageTable[vpn].valid = false;
-    pageTable[vpn].dirty = false;
-    pageTable[vpn].use = false;
+    if(ct){
+        pageTable[vpn].valid = false;
+        pageTable[vpn].dirty = false;
+        pageTable[vpn].use = false;
+    } 
     return;
 }
 
 void 
 AddressSpace::GetSwap(unsigned vpn)
-{ 
+{
+    printf("SOY THREAD: %d\n", currentThread->GetPid());
+    printf("TRAIGO DE %s: %u\n",swapname ,vpn);
     DEBUG('w', "TE PIDO DE SWAP LA PAGINA: %u\n", vpn);
     char* mainMemory = machine->mainMemory;
     memset(&mainMemory[PHYSICAL_PAGE_ADDR(vpn)], 0, PAGE_SIZE);
 
     ASSERT(swap_pid->ReadAt(&mainMemory[PHYSICAL_PAGE_ADDR(vpn)], PAGE_SIZE, vpn * PAGE_SIZE) == PAGE_SIZE);
+    pageTable[vpn].dirty = false;
+    pageTable[vpn].virtualPage = vpn;
     return;
-}
-
-void 
-AddressSpace::SetIdxTLB(unsigned vpn, unsigned idx)
-{
-    idx_tlb[vpn] = idx;
 }
 
 void
@@ -350,35 +347,42 @@ AddressSpace::LetSwap(unsigned vpn)
     int victim = core_map->PickVictim();
     DEBUG('w', "SE REEMPLAZA LA FISICA: %d\n", victim);
     int pid_proc = core_map->GetPid(victim);
-    int vpn_swap = core_map->GetVpn(victim);
-
+    unsigned vpn_swap = core_map->GetVpn(victim);
+    printf("PID DEL PROC A SWAP: %d\n", pid_proc);
     Thread* thread_swap;
     thread_swap = space_table->Get(pid_proc);
-    ASSERT(thread_swap != nullptr);
 
-    DEBUG('w', "THREAD: %d\n", thread_swap->GetPid());
-    if (thread_swap == currentThread){
-        printf("ENTRO\n");
-        unsigned i = idx_tlb[vpn];
-        TranslationEntry* tlb = machine->GetMMU()->tlb;
-        printf("i: %d\n", i);
-       
-        // for(unsigned int i = 0; i < TLB_SIZE; i++){
-        //     if(tlb[i].virtualPage == vpn){
-        //         tlb[i].valid = false;
-        //         CommitPage(&tlb[i]);    
-        //     }
-        // }
-        
-        if(i != (unsigned)-1) {
-            printf("COMMITEO PAGINA TLB\n");
-            CommitPage(&tlb[i]); 
-            tlb[i].valid = false;
-            idx_tlb[vpn] = (unsigned)-1;
-        }    
+    if(thread_swap == nullptr){
+        pageTable[vpn].physicalPage = victim;
+        pageTable[vpn].virtualPage = vpn;
+        pageTable[vpn].use = true;
+        pageTable[vpn].dirty = false;
+        core_map->Mark(victim, vpn, currentThread->GetPid());
+        return;
     }
 
-    thread_swap->space->Swapping(vpn_swap);
+    //ASSERT(thread_swap != nullptr);
+
+    DEBUG('w', "THREAD: %d\n", thread_swap->GetPid());
+    bool ct = true;
+    if (thread_swap == currentThread){
+        TranslationEntry* tlb = machine->GetMMU()->tlb;
+       
+        for(unsigned int i = 0; i < TLB_SIZE; i++){
+            if(tlb[i].virtualPage == vpn_swap && tlb[i].valid){
+          //      printf("POR COMMITEAR: %u, i: %u\n", vpn_swap, i);
+                CommitPage(&tlb[i]);
+                tlb[i].valid = false;
+      //          printf("PAG: %d\tVALID: %d\tDIRTY: %d\tUSE: %d\n", vpn,
+      //                  pageTable[vpn_swap].valid,
+      //                  pageTable[vpn_swap].dirty,
+      //                  pageTable[vpn_swap].use);
+                ct = false;
+            }
+        }
+    }
+
+    thread_swap->space->Swapping(vpn_swap, ct);
     pageTable[vpn].physicalPage = victim;
     pageTable[vpn].virtualPage = vpn;
     pageTable[vpn].use = true;
@@ -392,10 +396,12 @@ AddressSpace::LetSwap(unsigned vpn)
 void
 AddressSpace::CommitPage(TranslationEntry* newTransEntry)
 { 
+    //printf("COMMITEO: %u\n", newTransEntry->virtualPage);
     ASSERT(newTransEntry->valid);
     unsigned vpn = newTransEntry->virtualPage;
     pageTable[vpn].use = newTransEntry->use;
     pageTable[vpn].dirty = newTransEntry->dirty;
+    pageTable[vpn].valid = false;
    // pageTable[vpn].physicalPage = newTransEntry->physicalPage;
    // pageTable[vpn].valid = newTransEntry->valid;
    // pageTable[vpn].readOnly = newTransEntry->readOnly;
@@ -468,7 +474,7 @@ AddressSpace::GetPage(unsigned vpn, TranslationEntry* tlb_entry)
 {
     
     DEBUG('w', "PIDO LA PAGINA VIRTUAL: %u\n", vpn);
-
+    printf("PIDO LA %u SOY %d\n", vpn, currentThread->GetPid());
     #ifdef USE_DL 
     if (pageTable[vpn].valid == false){
         DEBUG('v', "VPN inicio: %u\n", vpn);

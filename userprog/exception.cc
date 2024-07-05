@@ -105,11 +105,11 @@ PageFaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No increment
     
     space->GetPage(vpn, &(tlb[tlbIndexFIFO]));
     ASSERT(vpn == tlb[tlbIndexFIFO].virtualPage);
-    space->SetIdxTLB(vpn,tlbIndexFIFO++);
-    
+//    space->SetIdxTLB(vpn,tlbIndexFIFO++);
+    tlbIndexFIFO++;  
     tlbIndexFIFO = tlbIndexFIFO % TLB_SIZE;
     stats->numPageFaults++;
-//    machine->GetMMU()->PrintTLB();
+    machine->GetMMU()->PrintTLB();
 }
 
 static void
@@ -447,12 +447,11 @@ SyscallHandler(ExceptionType _et)
                 delete executable;
                 #endif
                 newThread->space = space;
-                if(newThread->space != nullptr)
-                    printf("AAAA\n");
                 newThread->SetPid(c_pid);
                 newThread->Fork(ProcessInit, nullptr);
                 status = c_pid;
             }
+            printf("EXECPID: %d\n", status);
                  
             machine->WriteRegister(2, status);
             break;
