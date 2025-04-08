@@ -186,6 +186,9 @@ Initialize(int argc, char **argv)
     // We did not explicitly allocate the current thread we are running in.
     // But if it ever tries to give up the CPU, we better have a `Thread`
     // object to save its state.
+    // Creo una instancia de un thread para representar el hilo de ejecución actual.
+    // Esto es ya que en caso de un yield (aleatorio, quizás) se pueda guardar el estado y no falle NachOS.
+    // En un SO real ya viene un hilo dado por defecto desde la CPU que es donde corre el kernel.
     currentThread = new Thread("main", false);
     currentThread->SetStatus(RUNNING);
 

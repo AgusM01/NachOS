@@ -8,7 +8,7 @@
 #ifndef NACHOS_MACHINE_SYNCHCONSOLE__HH
 #define NACHOS_MACHINE_SYNCHCONSOLE__HH
 
-#include "console.hh"
+#include "machine/console.hh"
 #include "threads/lock.hh"
 #include "threads/semaphore.hh"
 

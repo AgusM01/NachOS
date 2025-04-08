@@ -10,7 +10,6 @@
 
 
 #include "address_space.hh"
-#include "machine/synch_console.hh"
 #include "threads/semaphore.hh"
 #include "threads/system.hh"
 
@@ -41,6 +40,8 @@ StartProcess(const char *filename)
     space->InitRegisters();  // Set the initial register values.
     space->RestoreState();   // Load page table register.
 
+    // Hace machine->Run() sobre el hilo main para cuestiones de simplificación.
+    // En un SO real, el SO crea un proceso y manda a este a correr el programa dado.
     machine->Run();  // Jump to the user progam.
     ASSERT(false);   // `machine->Run` never returns; the address space
                      // exits by doing the system call `Exit`.

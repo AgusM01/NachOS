@@ -21,6 +21,8 @@
 extern void Initialize(int argc, char **argv);
 
 // Cleanup, called when Nachos is done.
+// Libera todas las estructuras y hace un exit(0).
+// Para que el SO (el de mi pc) pare el programa.
 extern void Cleanup();
 
 
@@ -32,7 +34,7 @@ extern Statistics *stats;            ///< Performance metrics.
 extern Timer *timer;                 ///< The hardware alarm clock.
 
 #ifdef USER_PROGRAM
-#include "machine/synch_console.hh"
+#include "userprog/synch_console.hh"
 #include "machine/machine.hh"
 #include "lib/bitmap.hh"
 extern Machine *machine;  // User program memory and registers.

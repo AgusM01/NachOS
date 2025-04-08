@@ -24,7 +24,6 @@
 
 #include "filesys/file_system.hh"
 #include "filesys/open_file.hh"
-#include "synch_console.hh"
 #include "transfer.hh"
 #include "syscall.h"
 #include "filesys/directory_entry.hh"
@@ -129,6 +128,7 @@ SyscallHandler(ExceptionType _et)
     switch (scid) {
 
         case SC_HALT:
+            printf("HALT: %s\n", currentThread->GetName());
             DEBUG('e', "Shutdown, initiated by user program.\n");
             interrupt->Halt();
             break;
@@ -155,7 +155,7 @@ SyscallHandler(ExceptionType _et)
             DEBUG('e', "`Create` requested for file `%s`.\n", filename);
             
             unsigned initialSize = machine->ReadRegister(5);
-            fileSystem->Create(filename, initialSize);
+            status = fileSystem->Create(filename, initialSize) ? 0 : -1;
             }
             
             machine->WriteRegister(2, status);
@@ -181,12 +181,15 @@ SyscallHandler(ExceptionType _et)
                 status = -1;
             }
         
-            if (!status){
-                DEBUG('e', "`Open` requested for file `%s`.\n", filename);
-                newFile = fileSystem->Open(filename);
-                status = currentThread->space->fileTableIds->Add(newFile);
+            if (!status && !(newFile = fileSystem->Open(filename))){
+                DEBUG('e', "Cannot open file %s.\n", filename);
+                status = -1; 
             }
 
+            if (!status){
+                DEBUG('e', "`Open` requested for file `%s`.\n", filename);
+                status = currentThread->fileTableIds->Add(newFile);
+            }
             machine->WriteRegister(2, status);
             break;
         } 
@@ -194,13 +197,28 @@ SyscallHandler(ExceptionType _et)
         case SC_CLOSE: {
             
             OpenFileId fid = machine->ReadRegister(4);
+            OpenFile *file;
+            int status = 0;
             DEBUG('e', "`Close` requested for id %u.\n", fid);
+
+            if (fid == 0 || fid == 1){
+                DEBUG('e', "Cannot close console fd id %u.\n", fid);
+                status = -1;
+            }
             
-            // Buscar en tabla
-            OpenFile *file = currentThread->space->fileTableIds->Remove(fid);
-            
+            if (!status && fid < 0){
+                DEBUG('e', "Bad fd id %u.\n", fid);
+                status = -1;
+            }
             // Sacarlo de la tabla
-            delete file;
+            if (!status && !(file = currentThread->fileTableIds->Remove(fid))){
+                DEBUG('e', "Cannot found fd id %u in table.\n", fid);
+                status = -1;
+            }
+            
+            // Sacarlo de memoria 
+            if (!status)
+                delete file;
 
             machine->WriteRegister(2, 0);
             break;
@@ -225,7 +243,7 @@ SyscallHandler(ExceptionType _et)
             }
 
             if (!status)
-                fileSystem->Remove(filename);
+                status = fileSystem->Remove(filename) ? 0 : -1;
 
             machine->WriteRegister(2, status);
             break;
@@ -255,7 +273,7 @@ SyscallHandler(ExceptionType _et)
                 status = -1;
             }
             
-            if(!status && id != 0 && !(file = currentThread->space->fileTableIds->Get(id))) {
+            if(!status && id != 0 && !(file = currentThread->fileTableIds->Get(id))) {
                 DEBUG('e', "Error: File not found. \n");
                 status = -1;
             }
@@ -300,7 +318,7 @@ SyscallHandler(ExceptionType _et)
             }
             
             //Buscar id
-            if(!status && id != 1 && !(file = currentThread->space->fileTableIds->Get(id))) {
+            if(!status && id != 1 && !(file = currentThread->fileTableIds->Get(id))) {
                 DEBUG('e', "Error: File not found. \n");
                 status = -1;
             }

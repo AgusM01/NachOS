@@ -49,6 +49,12 @@ Thread::Thread(const char *threadName, bool isJoin, int threadPriority)
     status   = JUST_CREATED;
 #ifdef USER_PROGRAM
     space    = nullptr;
+    
+    fileTableIds = new Table <OpenFile*>;
+    OpenFile* in = nullptr;
+    OpenFile* out = nullptr;
+    fileTableIds->Add(in);
+    fileTableIds->Add(out);
 #endif
 
     // JOIN IMPLEMENTATION
@@ -75,6 +81,11 @@ Thread::~Thread()
 
     delete waitToChild;
     free(chName);
+
+
+#ifdef USER_PROGRAM
+    delete fileTableIds;
+#endif
 
     ASSERT(this != currentThread);
     if (stack != nullptr) {

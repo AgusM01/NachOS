@@ -24,12 +24,6 @@
 AddressSpace::AddressSpace(OpenFile *executable_file)
 {
     ASSERT(executable_file != nullptr);
-    
-    fileTableIds = new Table <OpenFile*>;
-    OpenFile* in = nullptr;
-    OpenFile* out = nullptr;
-    fileTableIds->Add(in);
-    fileTableIds->Add(out);
 
     /// Creo el ejecutable
     Executable exe (executable_file);
@@ -53,7 +47,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     
     // Al momento de usar páginas, marcarlas como usada. Cuando se terminan de usar, marcarlas como libre.
     pageTable = new TranslationEntry[numPages]; /// Crea la tabla de paginacion
-    for (unsigned i = 0; i < numPages; i++) { /// Asigna 1:1 las páginas con la memoria fisica. -> Cambiar
+    for (unsigned i = 0; i < numPages; i++) { /// Asigna 1:1 las páginas con la memoria fisica. 
         pageTable[i].virtualPage  = i;
           /// Devolvemos el primer lugar de la memoria física libre. 
         pageTable[i].physicalPage = bit_map->Find();
@@ -67,9 +61,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 
     char *mainMemory = machine->mainMemory; /// mainMemory es un arreglo de bytes.
 
-    // Zero out the entire address space, to zero the unitialized data
-    // segment and the stack segment.
-
+    // Seteo en 0 los marcos que le pertenecen al proceso.
     DEBUG('a', "Seteando en 0 la memoria de las páginas.\n");
     for (unsigned i = 0; i < numPages; i++)
         memset(&mainMemory[PYSHICAL_ADDR(i)], 0, PAGE_SIZE);
@@ -77,12 +69,14 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     // Then, copy in the code and data segments into memory.
     uint32_t codeSize = exe.GetCodeSize();
     if (codeSize > 0) {
+        // virtualAddr es la direccion generada por el proceso.
+        // Por arquitectura MIPSEL, siempre es 0.
         uint32_t virtualAddr = exe.GetCodeAddr();
         DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
               virtualAddr, codeSize);
-        uint32_t offsetPage = virtualAddr % PAGE_SIZE;
-        uint32_t offsetFile = 0;
-        unsigned virtualPage = virtualAddr / PAGE_SIZE;
+        uint32_t offsetPage = virtualAddr % PAGE_SIZE; // Desplazamiento dentro de la página.
+        uint32_t offsetFile = 0; // Estoy al inicio del archivo.
+        unsigned virtualPage = virtualAddr / PAGE_SIZE; // Da el numero de página. Es división entera. 
         uint32_t firstPageWriteSize = min(PAGE_SIZE - offsetPage, codeSize);
         uint32_t remainingToWrite = codeSize - firstPageWriteSize;
 
@@ -120,12 +114,14 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
                 // La página es solo del segmento del código, marcamos como solo lectura.
                 pageTable[virtualPage].readOnly = true; 
 
-                // Avanzamos a la página siguiente
+                // Avanzamos a la página siguiente.
+                // Sabes que es todo contiguo por ser memoria virtual.
                 virtualPage++;
             }
 
                 DEBUG('a', "Last Write at 0x%X, size %u\n",
                     PYSHICAL_ADDR(virtualPage), remainingToWrite);
+
             // Ultima escritura, ya que remainingToWrite <= PAGE_SIZE
             exe.ReadCodeBlock(&mainMemory[PYSHICAL_ADDR(virtualPage)], remainingToWrite, offsetFile);
             pageTable[virtualPage].use = true;
@@ -136,7 +132,8 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         }
 
     }
-
+    
+    // Exactamente lo mismo pero con el data segment.
     uint32_t initDataSize = exe.GetInitDataSize();
 
     if (initDataSize > 0) {
@@ -194,7 +191,6 @@ AddressSpace::~AddressSpace()
         bit_map->Clear(pageTable[i].physicalPage);
 
     delete [] pageTable;
-    delete fileTableIds;
 }
 
 /// Set the initial values for the user-level register set.
