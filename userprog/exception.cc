@@ -73,6 +73,7 @@ PageFaultHandler(ExceptionType et)
     IndexTLB = (IndexTLB + 1) % TLB_SIZE;
 }
 #endif
+
 /// Run a user program.
 ///
 /// Open the executable, load it into memory, and jump to it.
@@ -497,7 +498,11 @@ SetExceptionHandlers()
 {
     machine->SetHandler(NO_EXCEPTION,            &DefaultHandler);
     machine->SetHandler(SYSCALL_EXCEPTION,       &SyscallHandler);
+    #ifdef USE_TLB
     machine->SetHandler(PAGE_FAULT_EXCEPTION,    &PageFaultHandler); /// Cambiar el manejador por PageFaultHandler
+    #else
+    machine->SetHandler(PAGE_FAULT_EXCEPTION,    &DefaultHandler); /// Cambiar el manejador por PageFaultHandler
+    #endif
     machine->SetHandler(READ_ONLY_EXCEPTION,     &DefaultHandler);
     machine->SetHandler(BUS_ERROR_EXCEPTION,     &DefaultHandler);
     machine->SetHandler(ADDRESS_ERROR_EXCEPTION, &DefaultHandler);

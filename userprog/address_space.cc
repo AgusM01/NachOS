@@ -230,10 +230,11 @@ AddressSpace::SaveState()
 {
     #ifdef USE_TLB
     TranslationEntry* tlb = machine->GetMMU()->tlb;
-    for (unsigned i = 0; i < TLB_SIZE ; i++)
+    for (unsigned int i = 0; i < TLB_SIZE ; i++)
     {
         if(tlb[i].valid) 
         {
+            printf("%d\n",tlb[i].virtualPage);
             pageTable[tlb[i].virtualPage].use = tlb[i].use;
             pageTable[tlb[i].virtualPage].dirty = tlb[i].dirty;
         }

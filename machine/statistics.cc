@@ -20,7 +20,7 @@ Statistics::Statistics()
     totalTicks = idleTicks = systemTicks = userTicks = 0;
     numDiskReads = numDiskWrites = 0;
     numConsoleCharsRead = numConsoleCharsWritten = 0;
-    numPageFaults = 0;
+    numPageFaults = numPageHits = 0;
 #ifdef DFS_TICKS_FIX
     tickResets = 0;
 #endif
@@ -43,5 +43,5 @@ Statistics::Print()
     printf("Disk I/O: reads %lu, writes %lu\n", numDiskReads, numDiskWrites);
     printf("Console I/O: reads %lu, writes %lu\n",
            numConsoleCharsRead, numConsoleCharsWritten);
-    printf("Paging: faults %lu\n", numPageFaults);
+    printf("Paging: faults %lu, hits %lu\n", numPageFaults, numPageHits-numPageFaults);
 }
