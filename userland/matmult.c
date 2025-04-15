@@ -7,10 +7,10 @@
 
 
 #include "syscall.h"
-
+#include "./lib.c"
 
 /// Sum total of the arrays does not fit in physical memory.
-#define DIM  20
+#define DIM  100
 
 static int A[DIM][DIM];
 static int B[DIM][DIM];
@@ -38,7 +38,7 @@ main(void)
             }
         }
     }
-
+    puts("Termino\n");
     // And then we are done.
     return C[DIM - 1][DIM - 1];
 }

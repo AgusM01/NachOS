@@ -236,14 +236,41 @@ AddressSpace::SaveState()
 void
 AddressSpace::RestoreState()
 {
+    #ifdef USE_TLB
+    //Invalidar la TLB
+    for (int i = 0; i < TLB_SIZE; i++)
+        machine->GetMMU()->tlb[i].valid=0;
+    #else
     /// Comentar estas dos
     machine->GetMMU()->pageTable     = pageTable;
     machine->GetMMU()->pageTableSize = numPages;
-    
-    //Invalidar la TLB
-    // for (int i = 0; i < TLB_SIZE; i++){
-    //  machine->GetMMU()->tlb[i].valid=0;
-    //
-    // }
+    #endif
+}
 
+void 
+AddressSpace::UpdateTLB(unsigned indexTlb, unsigned badVAddr) 
+{
+    
+    unsigned pageNumber = badVAddr / PAGE_SIZE;
+    unsigned physicalPage = currentThread->space->pageTable[pageNumber].physicalPage;
+    MMU* MMU = machine->GetMMU(); 
+    if (MMU->tlb[indexTlb].valid) 
+    {
+        unsigned pageNumber = MMU->tlb[indexTlb].virtualPage;
+        unsigned pagePhisical = MMU->tlb[indexTlb].physicalPage;
+        bool valid = MMU->tlb[indexTlb].valid;
+        bool use = MMU->tlb[indexTlb].use;
+        bool dirty = MMU->tlb[indexTlb].dirty;
+        bool readOnly = MMU->tlb[indexTlb].readOnly;    
+        currentThread->space->pageTable[pageNumber].valid = valid;
+        currentThread->space->pageTable[pageNumber].use = use;
+        currentThread->space->pageTable[pageNumber].dirty = dirty;
+        currentThread->space->pageTable[pageNumber].readOnly = readOnly;
+    }
+    MMU->tlb[indexTlb].virtualPage = pageNumber;
+    MMU->tlb[indexTlb].physicalPage = physicalPage;
+    MMU->tlb[indexTlb].valid = currentThread->space->pageTable[pageNumber].valid;
+    MMU->tlb[indexTlb].use = currentThread->space->pageTable[pageNumber].use;
+    MMU->tlb[indexTlb].dirty = currentThread->space->pageTable[pageNumber].dirty;
+    MMU->tlb[indexTlb].readOnly = currentThread->space->pageTable[pageNumber].readOnly;
 }

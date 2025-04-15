@@ -49,6 +49,8 @@ public:
     void SaveState();
     void RestoreState();
 
+    /// Update Tlb
+    void UpdateTLB(unsigned indexTlb, unsigned badVAddr);
 private:
 
     /// Assume linear page table translation for now!
