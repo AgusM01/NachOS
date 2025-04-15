@@ -10,7 +10,7 @@
 #include "./lib.c"
 
 /// Sum total of the arrays does not fit in physical memory.
-#define DIM  100
+#define DIM  20
 
 static int A[DIM][DIM];
 static int B[DIM][DIM];

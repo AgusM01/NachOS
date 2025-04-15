@@ -227,7 +227,20 @@ AddressSpace::InitRegisters()
 /// For now, nothing!
 void
 AddressSpace::SaveState()
-{}
+{
+    #ifdef USE_TLB
+    TranslationEntry* tlb = machine->GetMMU()->tlb;
+    for (unsigned i = 0; i < TLB_SIZE ; i++)
+    {
+        if(tlb[i].valid) 
+        {
+            pageTable[tlb[i].virtualPage].use = tlb[i].use;
+            pageTable[tlb[i].virtualPage].dirty = tlb[i].dirty;
+        }
+    }
+    
+    #endif
+}
 
 /// On a context switch, restore the machine state so that this address space
 /// can run.

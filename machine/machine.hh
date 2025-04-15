@@ -78,7 +78,7 @@ public:
 
     const int *GetRegisters() const;
 
-    MMU *GetMMU();
+    MMU *GetMMU();  
 
     /// Read the contents of a CPU register.
     int ReadRegister(unsigned num) const;

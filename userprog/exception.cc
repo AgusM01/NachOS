@@ -64,15 +64,15 @@ DefaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar
             ExceptionTypeToString(et), exceptionArg);
     ASSERT(false);
 }
-
+#ifdef USE_TLB
 static void
 PageFaultHandler(ExceptionType et) 
 {
-    int badVAddr = machine->ReadRegister(BAD_VADDR_REG);
+    unsigned badVAddr = machine->ReadRegister(BAD_VADDR_REG);
     currentThread->space->UpdateTLB(IndexTLB, badVAddr);
     IndexTLB = (IndexTLB + 1) % TLB_SIZE;
 }
-
+#endif
 /// Run a user program.
 ///
 /// Open the executable, load it into memory, and jump to it.
