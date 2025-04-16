@@ -85,6 +85,7 @@ Thread::~Thread()
 
 #ifdef USER_PROGRAM
     delete fileTableIds;
+    delete space;
 #endif
 
     ASSERT(this != currentThread);

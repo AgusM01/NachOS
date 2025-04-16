@@ -44,4 +44,5 @@ Statistics::Print()
     printf("Console I/O: reads %lu, writes %lu\n",
            numConsoleCharsRead, numConsoleCharsWritten);
     printf("Paging: faults %lu, hits %lu\n", numPageFaults, numPageHits-numPageFaults);
+    //printf("Hit TLB ratio: %.3lf%%\n", (numPageFaults/(numPageHits-numPageFaults))*100);
 }

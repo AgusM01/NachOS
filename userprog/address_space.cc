@@ -187,6 +187,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 /// Nothing for now!
 AddressSpace::~AddressSpace()
 {
+    //printf("Elimino pageTable, soy %s\n", currentThread->GetName());
     for (unsigned i = 0; i < numPages; i++)
         bit_map->Clear(pageTable[i].physicalPage);
 
@@ -228,15 +229,16 @@ AddressSpace::InitRegisters()
 void
 AddressSpace::SaveState()
 {
+    //printf("Guardo estado, soy %s\n", currentThread->GetName());
     #ifdef USE_TLB
     TranslationEntry* tlb = machine->GetMMU()->tlb;
     for (unsigned int i = 0; i < TLB_SIZE ; i++)
     {
         if(tlb[i].valid) 
         {
-            printf("%d\n",tlb[i].virtualPage);
-            pageTable[tlb[i].virtualPage].use = tlb[i].use;
-            pageTable[tlb[i].virtualPage].dirty = tlb[i].dirty;
+            //printf("%d\n",tlb[i].virtualPage);
+            currentThread->space->pageTable[tlb[i].virtualPage].use = tlb[i].use;
+            currentThread->space->pageTable[tlb[i].virtualPage].dirty = tlb[i].dirty;
         }
     }
     
@@ -253,7 +255,7 @@ AddressSpace::RestoreState()
     #ifdef USE_TLB
     //Invalidar la TLB
     for (int i = 0; i < TLB_SIZE; i++)
-        machine->GetMMU()->tlb[i].valid=0;
+        machine->GetMMU()->tlb[i].valid = false;
     #else
     /// Comentar estas dos
     machine->GetMMU()->pageTable     = pageTable;
@@ -265,13 +267,13 @@ void
 AddressSpace::UpdateTLB(unsigned indexTlb, unsigned badVAddr) 
 {
     
-    unsigned pageNumber = badVAddr / PAGE_SIZE;
-    unsigned physicalPage = currentThread->space->pageTable[pageNumber].physicalPage;
+    unsigned badPageNumber = badVAddr / PAGE_SIZE;
+    unsigned physicalPage = currentThread->space->pageTable[badPageNumber].physicalPage;
     MMU* MMU = machine->GetMMU(); 
     if (MMU->tlb[indexTlb].valid) 
     {
         unsigned pageNumber = MMU->tlb[indexTlb].virtualPage;
-        unsigned pagePhisical = MMU->tlb[indexTlb].physicalPage;
+        //unsigned pagePhisical = MMU->tlb[indexTlb].physicalPage;
         bool valid = MMU->tlb[indexTlb].valid;
         bool use = MMU->tlb[indexTlb].use;
         bool dirty = MMU->tlb[indexTlb].dirty;
@@ -281,10 +283,10 @@ AddressSpace::UpdateTLB(unsigned indexTlb, unsigned badVAddr)
         currentThread->space->pageTable[pageNumber].dirty = dirty;
         currentThread->space->pageTable[pageNumber].readOnly = readOnly;
     }
-    MMU->tlb[indexTlb].virtualPage = pageNumber;
+    MMU->tlb[indexTlb].virtualPage = badPageNumber;
     MMU->tlb[indexTlb].physicalPage = physicalPage;
-    MMU->tlb[indexTlb].valid = currentThread->space->pageTable[pageNumber].valid;
-    MMU->tlb[indexTlb].use = currentThread->space->pageTable[pageNumber].use;
-    MMU->tlb[indexTlb].dirty = currentThread->space->pageTable[pageNumber].dirty;
-    MMU->tlb[indexTlb].readOnly = currentThread->space->pageTable[pageNumber].readOnly;
+    MMU->tlb[indexTlb].valid = currentThread->space->pageTable[badPageNumber].valid;
+    MMU->tlb[indexTlb].use = currentThread->space->pageTable[badPageNumber].use;
+    MMU->tlb[indexTlb].dirty = currentThread->space->pageTable[badPageNumber].dirty;
+    MMU->tlb[indexTlb].readOnly = currentThread->space->pageTable[badPageNumber].readOnly;
 }

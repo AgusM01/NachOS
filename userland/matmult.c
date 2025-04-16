@@ -38,7 +38,7 @@ main(void)
             }
         }
     }
-    puts("Termino\n");
+   // puts("Termino\n");
     // And then we are done.
     return C[DIM - 1][DIM - 1];
 }

@@ -457,7 +457,7 @@ SyscallHandler(ExceptionType _et)
 
             int ret = machine->ReadRegister(4);            
 
-            delete currentThread->space;
+          //  delete currentThread->space;
 
 
             if (space_table->Get(0) == currentThread) // Main thread Exit
