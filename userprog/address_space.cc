@@ -28,17 +28,24 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     /// Creo el ejecutable
     Executable exe (executable_file);
     ASSERT(exe.CheckMagic());
+
+    ProgExe = &exe;
     
     /// Lo cargo en memoria
     // How big is address space?
-
     unsigned size = exe.GetSize() + USER_STACK_SIZE; /// Lo que ocupa el .text + el stack.
-      // We need to increase the size to leave room for the stack.
+   
+        // We need to increase the size to leave room for the stack.
     numPages = DivRoundUp(size, PAGE_SIZE);
     size = numPages * PAGE_SIZE; /// Recalcula el nuevo tamaño con las páginas de mas incluidas.
-
+    
+    // Al tener DL no se va a cargar todo el programa en memoria.
+    // Se irá cargando de a partes y quizás se va liberando la memoria
+    // Además quizás hay secciones del código que no se cargarán nunca y el programa entraria igual.
+    #ifndef DEMAND_LOADING
     ASSERT(numPages <= bit_map->CountClear()); /// Calculamos la cantidad de espacio disponible según el bitmap      // Check we are not trying to run anything too big -- at least until we
       // have virtual memory.
+    #endif
 
     DEBUG('a', "Initializing address space, num pages %u, size %u\n",
           numPages, size);
@@ -49,16 +56,28 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     pageTable = new TranslationEntry[numPages]; /// Crea la tabla de paginacion
     for (unsigned i = 0; i < numPages; i++) { /// Asigna 1:1 las páginas con la memoria fisica. 
         pageTable[i].virtualPage  = i;
-          /// Devolvemos el primer lugar de la memoria física libre. 
+        // Si estamos usando DL no es necesario buscar los marcos.
+        // Los vamos cargando a medida que el programa va pidiendo las secciones de memoria.
+        #ifdef DEMAND_LOADING
+        pageTable[i].physicalPage = -1;
+        pageTable[i].valid        = false;
+        #else 
+        /// Devolvemos el primer lugar de la memoria física libre. 
         pageTable[i].physicalPage = bit_map->Find();
-        pageTable[i].valid        = true;
+        pageTable[i].valid = true;
+        #endif
         pageTable[i].use          = false;
         pageTable[i].dirty        = false;
         pageTable[i].readOnly     = false;
           // If the code segment was entirely on a separate page, we could
           // set its pages to be read-only.
     }
-
+    
+    // Si hay DL no hacemos nada de esto.
+    #ifdef DEMAND_LOADING
+        return;
+    #endif 
+    
     char *mainMemory = machine->mainMemory; /// mainMemory es un arreglo de bytes.
 
     // Seteo en 0 los marcos que le pertenecen al proceso.
@@ -263,12 +282,150 @@ AddressSpace::RestoreState()
     #endif
 }
 
+#ifdef DEMAND_LOADING
+void 
+AddressSpace::LoadPage(unsigned badVAddr)  
+{
+    DEBUG('a',"Cargando página - DEMAND LOADING\n");
+    char *mainMemory = machine->mainMemory; /// mainMemory es un arreglo de bytes.
+    unsigned badPageNumber = badVAddr / PAGE_SIZE;
+    uint32_t offsetPage = badVAddr % PAGE_SIZE;
+    pageTable[badPageNumber].physicalPage = bit_map->Find();
+    ASSERT((int)pageTable[badPageNumber].physicalPage != -1);
+    
+    // Seteo en 0 el marco a utilizar.
+    memset(&mainMemory[PYSHICAL_ADDR(badPageNumber)], 0, PAGE_SIZE);
+    
+    // Son direcciones lógicas.
+    uint32_t codeSize = ProgExe->GetCodeSize();
+    uint32_t codeAddr = ProgExe->GetCodeAddr();
+    uint32_t endCodeAddr  = (codeAddr + codeSize); 
+
+    // Si la dirección que falló está entre el inicio de la direc. del codigo (0)
+    // y el final -> Tengo que cargar una página del código.
+    if (badVAddr >= codeAddr && badVAddr <= endCodeAddr)
+    {
+        uint32_t fstWrite = min(PAGE_SIZE - offsetPage, endCodeAddr - badVAddr);
+        uint32_t offsetFile = badVAddr - codeAddr;
+  
+        // Lo que voy a escribir.
+        int toWrite = min(PAGE_SIZE, endCodeAddr - badVAddr);
+        
+        // Hacemos la primera escritura.
+        ProgExe->ReadCodeBlock(
+            &mainMemory[PYSHICAL_ADDR(badPageNumber) + offsetPage],
+            fstWrite,
+            offsetFile
+        );
+        pageTable[badPageNumber].valid = true;
+        
+        // Si lo que escribí más el offset supera una página
+        // tengo que cambiar a la página siguiente.
+        // No estará utilizada ya que la memoria lógica es secuencial.
+        // Si todavía me queda por copiar, habrá una siguiente,
+        // debido a que previamente calculé la cantidad de páginas
+        // que requiere el proceso.
+        if ((fstWrite + offsetPage) > PAGE_SIZE){
+            badPageNumber++;
+            offsetPage = 0;
+
+            pageTable[badPageNumber].physicalPage = bit_map->Find();
+            ASSERT((int)pageTable[badPageNumber].physicalPage != -1);
+            memset(&mainMemory[PYSHICAL_ADDR(badPageNumber)], 0, PAGE_SIZE);
+        }
+        else
+            offsetPage += fstWrite;
+
+        toWrite -= fstWrite;
+
+        // Si queda algo por escribir (offsetPage /= 0)
+        if (toWrite > 0)
+        {
+           offsetFile += fstWrite;
+                       
+            ProgExe->ReadCodeBlock(
+                &mainMemory[PYSHICAL_ADDR(badPageNumber) + offsetPage],
+                toWrite,
+                offsetFile
+            );
+            pageTable[badPageNumber].valid = true;
+        }
+        return;
+    }
+
+    // Son direcciones lógicas.
+    uint32_t dataSize = ProgExe->GetInitDataSize();
+    uint32_t dataAddr = ProgExe->GetInitDataAddr();
+    uint32_t endDataAddr  = (dataAddr + dataSize);
+    
+    if (badVAddr >= dataAddr && badVAddr <= endDataAddr)
+    {
+        uint32_t fstWrite = min(PAGE_SIZE - offsetPage, endDataAddr - badVAddr);
+        uint32_t offsetFile = badVAddr - dataAddr;
+
+        // Lo que voy a escribir.
+        int toWrite = min(PAGE_SIZE, endDataAddr - badVAddr);
+
+        // Hacemos la primera escritura.
+        ProgExe->ReadDataBlock(
+            &mainMemory[PYSHICAL_ADDR(badPageNumber) + offsetPage],
+            fstWrite,
+            offsetFile
+        );
+        pageTable[badPageNumber].valid = true;
+
+        // Si lo que escribí más el offset supera una página
+        // tengo que cambiar a la página siguiente.
+        // No estará utilizada ya que la memoria lógica es secuencial.
+        // Si todavía me queda por copiar, habrá una siguiente,
+        // debido a que previamente calculé la cantidad de páginas
+        // que requiere el proceso.
+        if ((fstWrite + offsetPage) > PAGE_SIZE){
+            badPageNumber++;
+            offsetPage = 0;
+
+            pageTable[badPageNumber].physicalPage = bit_map->Find();
+            ASSERT((int)pageTable[badPageNumber].physicalPage != -1);
+            memset(&mainMemory[PYSHICAL_ADDR(badPageNumber)], 0, PAGE_SIZE);
+        }
+        else
+            offsetPage += fstWrite;
+
+        toWrite -= fstWrite;
+
+        // Si queda algo por escribir (offsetPage /= 0)
+        if (toWrite > 0)
+        {
+           offsetFile += fstWrite;
+                       
+            ProgExe->ReadDataBlock(
+                &mainMemory[PYSHICAL_ADDR(badPageNumber) + offsetPage],
+                toWrite,
+                offsetFile
+            );
+            pageTable[badPageNumber].valid = true;
+        }
+        return;
+    }
+    // Si llega acá la dirección no pertenecía a ningún lado.
+    ASSERT(false);
+    
+}
+#endif
+
 void 
 AddressSpace::UpdateTLB(unsigned indexTlb, unsigned badVAddr) 
 {
     
     unsigned badPageNumber = badVAddr / PAGE_SIZE;
     unsigned physicalPage = currentThread->space->pageTable[badPageNumber].physicalPage;
+    
+    // Es el primer acceso y hay que cargar la página, esto es por DL.
+    #ifdef DEMAND_LOADING
+    if ((int)physicalPage == -1) 
+        LoadPage(badVAddr);
+    #endif
+
     MMU* MMU = machine->GetMMU(); 
     if (MMU->tlb[indexTlb].valid) 
     {

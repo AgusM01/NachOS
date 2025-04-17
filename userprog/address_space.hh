@@ -17,6 +17,7 @@
 #include "filesys/file_system.hh"
 #include "machine/translation_entry.hh"
 #include "lib/table.hh"
+#include "userprog/executable.hh"
 #include <cstdint>
 
 
@@ -51,6 +52,12 @@ public:
 
     /// Update Tlb
     void UpdateTLB(unsigned indexTlb, unsigned badVAddr);
+
+    #ifdef DEMAND_LOADING
+    // Using for DL
+    void LoadPage(unsigned badVAddr);
+    #endif
+    
 private:
 
     /// Assume linear page table translation for now!
@@ -61,6 +68,8 @@ private:
     /// Number of pages in the virtual address space. -> Para no guerdar una tabla de paginacion enorme.
     /// Si un proceso quiere acceder a un valor superior al numPages dará una excepción.
     unsigned numPages;
+
+    Executable *ProgExe; 
 };
 
 // Cada vez que se crea un proceso nuevo se crean 3/4 paginas para text/data y resto para stack.
