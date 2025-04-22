@@ -288,15 +288,21 @@ AddressSpace::RestoreState()
 void 
 AddressSpace::LoadPage(unsigned badVAddr)  
 {
+    // Dada una dirección fallida, tengo que cargar toda la página 
+    // que dió el error.
+
+
     DEBUG('a',"Cargando página - DEMAND LOADING\n");
     
     char *mainMemory = machine->mainMemory; /// mainMemory es un arreglo de bytes.
     
-    // División entera -> Me va a dar el inicio de la página
+    // División entera -> Me va a dar el inicio de la página.
     int badPageNumber = badVAddr / PAGE_SIZE;
     uint32_t offsetPage = badVAddr % PAGE_SIZE;
 
-    
+    // Esta es la dirección del inicio de la página que falló.
+    int badPageBot = pageTable[badPageNumber].virtualPage * PAGE_SIZE;
+
     // Busco un lugar en la memoria libre.
     pageTable[badPageNumber].physicalPage = bit_map->Find();
     ASSERT((int)pageTable[badPageNumber].physicalPage != -1);
@@ -315,7 +321,8 @@ AddressSpace::LoadPage(unsigned badVAddr)
     // y el final -> Tengo que cargar una página del código.
     if (codeSize > 0 && badVAddr >= codeAddr && badVAddr <= endCodeAddr)
     {
-        uint32_t fstWrite = MIN(PAGE_SIZE - offsetPage, endCodeAddr - badVAddr);
+
+        //uint32_t fstWrite = MIN(PAGE_SIZE - offsetPage, endCodeAddr - badVAddr);
         uint32_t offsetFile = badVAddr - codeAddr;
         
         printf("BADVADDR: %d\n", badVAddr);
@@ -325,7 +332,7 @@ AddressSpace::LoadPage(unsigned badVAddr)
         printf("BADPAGENUMBER: %d\n",badPageNumber);
         printf("OFFSETPAGE: %d\n", offsetPage);
         printf("OFFSETFILE: %d\n",offsetFile);
-        printf("FSTWRITE: %d\n",fstWrite);
+        //printf("FSTWRITE: %d\n",fstWrite);
         
         // Lo que voy a escribir.
         // En total.
@@ -334,45 +341,45 @@ AddressSpace::LoadPage(unsigned badVAddr)
         // Hacemos la primera escritura.
         ProgExe->ReadCodeBlock(
             &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber) + offsetPage],
-            fstWrite,
+            toWrite,
             offsetFile
         );
         pageTable[badPageNumber].valid = true;
         pageTable[badPageNumber].use = true;
         
-        // Si lo que escribí más el offset supera una página
+        // Si lo que escribí más el offset supera una pagina
         // tengo que cambiar a la página siguiente.
         // No estará utilizada ya que la memoria lógica es secuencial.
         // Si todavía me queda por copiar, habrá una siguiente,
         // debido a que previamente calculé la cantidad de páginas
         // que requiere el proceso.
-        if ((fstWrite + offsetPage) > PAGE_SIZE){
-            badPageNumber++;
-            offsetPage = 0;
-
-            pageTable[badPageNumber].physicalPage = bit_map->Find();
-            ASSERT((int)pageTable[badPageNumber].physicalPage != -1);
-            memset(&mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber)], 0, PAGE_SIZE);
-        }
-        else
-            offsetPage += fstWrite;
-
-        toWrite -= fstWrite;
-
-        // Si queda algo por escribir (offsetPage /= 0)
-        if (toWrite > 0)
-        {
-           offsetFile += fstWrite;
-                       
-            ProgExe->ReadCodeBlock(
-                &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber) + offsetPage],
-                toWrite,
-                offsetFile
-            );
-            pageTable[badPageNumber].valid = true;
-            pageTable[badPageNumber].use = true;
-
-        }
+        //if ((fstWrite + offsetPage) > PAGE_SIZE){
+        //    badPageNumber++;
+        //    offsetPage = 0;
+//
+        //    pageTable[badPageNumber].physicalPage = bit_map->Find();
+        //    ASSERT((int)pageTable[badPageNumber].physicalPage != -1);
+        //    memset(&mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber)], 0, PAGE_SIZE);
+        //}
+        //else
+        //    offsetPage += fstWrite;
+//
+        //toWrite -= fstWrite;
+//
+        //// Si queda algo por escribir (offsetPage /= 0)
+        //if (toWrite > 0)
+        //{
+        //   offsetFile += fstWrite;
+        //               
+        //    ProgExe->ReadCodeBlock(
+        //        &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber) + offsetPage],
+        //        toWrite,
+        //        offsetFile
+        //    );
+        //    pageTable[badPageNumber].valid = true;
+        //    pageTable[badPageNumber].use = true;
+//
+        //}
         return;
     }
 
@@ -383,16 +390,16 @@ AddressSpace::LoadPage(unsigned badVAddr)
     
     if (dataSize > 0 && badVAddr >= dataAddr && badVAddr <= endDataAddr)
     {
-        uint32_t fstWrite = MIN(PAGE_SIZE - offsetPage, endDataAddr - badVAddr);
+        //uint32_t fstWrite = MIN(PAGE_SIZE - offsetPage, endDataAddr - badVAddr);
         uint32_t offsetFile = badVAddr - dataAddr;
 
         // Lo que voy a escribir.
-        int toWrite = MIN(PAGE_SIZE, endDataAddr - badVAddr);
+        //int toWrite = MIN(PAGE_SIZE, endDataAddr - badVAddr);
 
         // Hacemos la primera escritura.
         ProgExe->ReadDataBlock(
-            &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber) + offsetPage],
-            fstWrite,
+            &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber)],
+            PAGE_SIZE,
             offsetFile
         );
         pageTable[badPageNumber].valid = true;
@@ -405,33 +412,33 @@ AddressSpace::LoadPage(unsigned badVAddr)
         // Si todavía me queda por copiar, habrá una siguiente,
         // debido a que previamente calculé la cantidad de páginas
         // que requiere el proceso.
-        if ((fstWrite + offsetPage) > PAGE_SIZE){
-            badPageNumber++;
-            offsetPage = 0;
-
-            pageTable[badPageNumber].physicalPage = bit_map->Find();
-            ASSERT((int)pageTable[badPageNumber].physicalPage != -1);
-            memset(&mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber)], 0, PAGE_SIZE);
-        }
-        else
-            offsetPage += fstWrite;
-
-        toWrite -= fstWrite;
-
-        // Si queda algo por escribir (offsetPage /= 0)
-        if (toWrite > 0)
-        {
-           offsetFile += fstWrite;
-                       
-            ProgExe->ReadDataBlock(
-                &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber) + offsetPage],
-                toWrite,
-                offsetFile
-            );
-            pageTable[badPageNumber].valid = true;
-            pageTable[badPageNumber].use = true;
-
-        }
+        //if ((fstWrite + offsetPage) > PAGE_SIZE){
+        //    badPageNumber++;
+        //    offsetPage = 0;
+//
+        //    pageTable[badPageNumber].physicalPage = bit_map->Find();
+        //    ASSERT((int)pageTable[badPageNumber].physicalPage != -1);
+        //    memset(&mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber)], 0, PAGE_SIZE);
+        //}
+        //else
+        //    offsetPage += fstWrite;
+//
+        //toWrite -= fstWrite;
+//
+        //// Si queda algo por escribir (offsetPage /= 0)
+        //if (toWrite > 0)
+        //{
+        //   offsetFile += fstWrite;
+        //               
+        //    ProgExe->ReadDataBlock(
+        //        &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber) + offsetPage],
+        //        toWrite,
+        //        offsetFile
+        //    );
+        //    pageTable[badPageNumber].valid = true;
+        //    pageTable[badPageNumber].use = true;
+//
+        //}
         return;
     }
     // Si llega acá la dirección no pertenecía a ningún lado.
