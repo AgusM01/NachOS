@@ -70,6 +70,11 @@ private:
     unsigned numPages;
 
     Executable *ProgExe; 
+
+    #ifdef DEMAND_LOADING
+    // Using for DL
+        uint32_t dlOffsetFile; 
+    #endif
 };
 
 // Cada vez que se crea un proceso nuevo se crean 3/4 paginas para text/data y resto para stack.
