@@ -83,6 +83,8 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     
     char *mainMemory = machine->mainMemory; /// mainMemory es un arreglo de bytes.
 
+    //printf("MEMORY: %p\n", &machine->mainMemory);
+
     // Seteo en 0 los marcos que le pertenecen al proceso.
     DEBUG('a', "Seteando en 0 la memoria de las páginas.\n");
     for (unsigned i = 0; i < numPages; i++)
@@ -106,7 +108,12 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         DEBUG('a', "Write at 0x%X, size %u\n",
               PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage, firstPageWriteSize);
 
-
+        
+        //printf("MEMORY: %p\n", &mainMemory[PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage]);
+        //printf("VIRTUALPAGE: %d\n", virtualPage);
+        //printf("OFFSETPAGE: %d\n", offsetPage);
+        //printf("A DONDE EN MEMORY: %d\n", PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage);
+        //printf("MEMORY: %p\n", mainMemory);
         exe->ReadCodeBlock(
             &mainMemory[PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage],
             firstPageWriteSize,
@@ -170,7 +177,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 
         DEBUG('a', "Write at 0x%X, size %u, offsetPage %u, remainingToWrite %u\n",
               PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage, firstPageWriteSize, offsetPage, remainingToWrite);
-
+        
         exe->ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage], firstPageWriteSize, offsetFile);
         pageTable[virtualPage].use = true;
         if (remainingToWrite > 0) {
@@ -292,6 +299,7 @@ AddressSpace::LoadPage(unsigned badVAddr)
     DEBUG('a',"Cargando página - DEMAND LOADING\n");
 
     char *mainMemory = machine->mainMemory;
+    //printf("MEMORY: %p\n", &machine->mainMemory);
 
     // Primero calculo que número de pagina falló.
     // Junto con su offset.
@@ -299,10 +307,6 @@ AddressSpace::LoadPage(unsigned badVAddr)
     unsigned offsetPage = badVAddr % PAGE_SIZE;
     uint32_t  botBadPage = badPageNumber * PAGE_SIZE;
     uint32_t  topBadPage = botBadPage + PAGE_SIZE;
-
-    // Busco un lugar en la memoria libre.
-    pageTable[badPageNumber].physicalPage = bit_map->Find();
-    ASSERT((int)pageTable[badPageNumber].physicalPage != -1);
 
     // Seteo en 0 el marco a utilizar.
     memset(&mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber)], 0, PAGE_SIZE);
@@ -331,6 +335,13 @@ AddressSpace::LoadPage(unsigned badVAddr)
         // En este caso el código ocupa toda la página.
         if (codeSize > 0 && codeAddr <= topBadPage && topBadPage <= endCodeAddr)
         {
+            //printf("VIRTUALPAGE: %d\n", badPageNumber);
+            //printf("OFFSETPAGE: %d\n", offsetPage);
+            //printf("PAGINAFISICA: %d\n", PHYSICAL_PAGE_ADDR(badPageNumber));
+            //printf("A DONDE EN MEMORY: %d\n", PHYSICAL_PAGE_ADDR(badPageNumber) + offsetPage);
+            //printf("MEMORY: %p\n", &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber) + offsetPage]);
+            //printf("MEMORY: %p\n", mainMemory);
+            
             ProgExe->ReadCodeBlock(
                 &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber) + offsetPage],
                 toWrite,
@@ -628,8 +639,14 @@ AddressSpace::UpdateTLB(unsigned indexTlb, unsigned badVAddr)
     
     // Es el primer acceso y hay que cargar la página, esto es por DL.
     #ifdef DEMAND_LOADING
-    if ((int)physicalPage == -1) 
+    if ((int)physicalPage == -1){
+        
+        // Busco un lugar en la memoria libre.
+        pageTable[badPageNumber].physicalPage = bit_map->Find();
+        ASSERT((int)pageTable[badPageNumber].physicalPage != -1);
+        
         LoadPage(badVAddr);
+    }
     #endif
 
     MMU* MMU = machine->GetMMU(); 
