@@ -26,11 +26,16 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 {
     ASSERT(executable_file != nullptr);
 
-    /// Creo el ejecutable
-    Executable*  exe = new Executable(executable_file);
-    ASSERT(exe->CheckMagic());
 
-    ProgExe = exe;
+    /// Creo el ejecutable
+    #ifndef DEMAND_LOADING
+    Executable *exe = new Executable(executable_file);
+    #else
+    exe_file = executable_file;
+    exe = new Executable(executable_file);
+    #endif
+
+    ASSERT(exe->CheckMagic());
 
     /// Lo cargo en memoria
     // How big is address space?
@@ -219,7 +224,11 @@ AddressSpace::~AddressSpace()
     //printf("Elimino pageTable, soy %s\n", currentThread->GetName());
     for (unsigned i = 0; i < numPages; i++)
         bit_map->Clear(pageTable[i].physicalPage);
-    delete ProgExe;
+    
+    // Ver.    
+    //#ifdef DEMAND_LOADING
+    //    delete exe_file;
+    //#endif
     delete [] pageTable;
 }
 
@@ -265,7 +274,6 @@ AddressSpace::SaveState()
     {
         if(tlb[i].valid) 
         {
-            //printf("%d\n",tlb[i].virtualPage);
             currentThread->space->pageTable[tlb[i].virtualPage].use = tlb[i].use;
             currentThread->space->pageTable[tlb[i].virtualPage].dirty = tlb[i].dirty;
         }
@@ -294,31 +302,64 @@ AddressSpace::RestoreState()
 
 #ifdef DEMAND_LOADING
 void
-AddressSpace::LoadPage(unsigned badVAddr)
+AddressSpace::LoadPage(unsigned badPageNumber)
 {
     DEBUG('a',"Cargando página - DEMAND LOADING\n");
 
     char *mainMemory = machine->mainMemory;
-    //printf("MEMORY: %p\n", &machine->mainMemory);
+    //printf("MEMORY: %p\n", mainMemory);
+    //printf("MEMORY 0: %p\n", &mainMemory[0]);
 
     // Primero calculo que número de pagina falló.
     // Junto con su offset.
-    unsigned badPageNumber = badVAddr / PAGE_SIZE;
+    unsigned badVAddr = badPageNumber * PAGE_SIZE;
     unsigned offsetPage = badVAddr % PAGE_SIZE;
-    uint32_t  botBadPage = badPageNumber * PAGE_SIZE;
-    uint32_t  topBadPage = botBadPage + PAGE_SIZE;
+    //uint32_t  botBadPage = badPageNumber * PAGE_SIZE;
+    //uint32_t  topBadPage = botBadPage + PAGE_SIZE;
 
     // Seteo en 0 el marco a utilizar.
     memset(&mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber)], 0, PAGE_SIZE);
 
     // Son direcciones lógicas.
-    uint32_t codeSize = ProgExe->GetCodeSize();
-    uint32_t codeAddr = ProgExe->GetCodeAddr();
+    uint32_t codeSize = exe->GetCodeSize();
+    uint32_t codeAddr = exe->GetCodeAddr();
     uint32_t endCodeAddr  = (codeAddr + codeSize);
-    uint32_t dataSize = ProgExe->GetInitDataSize();
-    uint32_t dataAddr = ProgExe->GetInitDataAddr();
+    uint32_t dataSize = exe->GetInitDataSize();
+    uint32_t dataAddr = exe->GetInitDataAddr();
     uint32_t endDataAddr  = (dataAddr + dataSize);
+    
+    // Es una dirección del stack. Relleno con 0 y listo.
+    if (badVAddr > codeSize + dataSize)
+        return;
 
+    if (codeSize > 0 && badVAddr >= codeAddr && badVAddr <= endCodeAddr)
+    {
+        exe->ReadCodeBlock(
+            &mainMemory[(pageTable[badPageNumber].physicalPage * PAGE_SIZE) + offsetPage],
+            PAGE_SIZE,
+            dlOffsetFile
+        );
+        dlOffsetFile += PAGE_SIZE;
+        pageTable[badPageNumber].valid = true;
+        pageTable[badPageNumber].use = true;
+        return;
+    }
+    if (dataSize > 0 && badVAddr >= dataAddr && badVAddr <= endDataAddr)
+    {
+        exe->ReadDataBlock(
+            &mainMemory[(pageTable[badPageNumber].physicalPage * PAGE_SIZE) + offsetPage],
+            PAGE_SIZE,
+            dlOffsetFile
+        );
+        dlOffsetFile += PAGE_SIZE;
+        pageTable[badPageNumber].valid = true;
+        pageTable[badPageNumber].use = true;
+        return;
+    }
+    ASSERT(false);
+}
+    
+    /*
     //Aca tengo 3 casos:
     //  *) Estoy al comienzo de todo.
     //  *) Estoy en el medio.
@@ -525,6 +566,7 @@ AddressSpace::LoadPage(unsigned badVAddr)
     // No habría programa a cargar.
     ASSERT(false);
 }
+*/
 
 //void 
 //AddressSpace::LoadPage(unsigned badVAddr)  
@@ -645,11 +687,14 @@ AddressSpace::UpdateTLB(unsigned indexTlb, unsigned badVAddr)
         pageTable[badPageNumber].physicalPage = bit_map->Find();
         ASSERT((int)pageTable[badPageNumber].physicalPage != -1);
         
-        LoadPage(badVAddr);
+        LoadPage(badPageNumber);
     }
     #endif
 
     MMU* MMU = machine->GetMMU(); 
+    MMU->tlb[indexTlb] = pageTable[badPageNumber]; 
+    return;
+    
     if (MMU->tlb[indexTlb].valid) 
     {
         unsigned pageNumber = MMU->tlb[indexTlb].virtualPage;

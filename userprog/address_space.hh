@@ -69,10 +69,11 @@ private:
     /// Si un proceso quiere acceder a un valor superior al numPages dará una excepción.
     unsigned numPages;
 
-    Executable *ProgExe; 
-
+    
     #ifdef DEMAND_LOADING
     // Using for DL
+        Executable *exe; 
+        OpenFile *exe_file;
         uint32_t dlOffsetFile; 
     #endif
 };
