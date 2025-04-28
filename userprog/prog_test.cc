@@ -34,7 +34,10 @@ StartProcess(const char *filename)
 
     space_table->Add(currentThread);
 
-    delete executable;
+    // No creo que tenga sentido borrar el ejecutable.
+    #ifndef DEMAND_LOADING
+    //delete executable;
+    #endif
 
     space->InitRegisters();  // Set the initial register values.
     space->RestoreState();   // Load page table register.

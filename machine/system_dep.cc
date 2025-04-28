@@ -166,7 +166,6 @@ void
 Lseek(int fd, int offset, int whence)
 {
     int retVal = lseek(fd, offset, whence);
-    perror("El error en lseek");
     ASSERT(retVal >= 0);
 }
 

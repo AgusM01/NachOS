@@ -58,12 +58,13 @@ IncrementPC()
 static void
 DefaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar el PC. Cuestion es: de donde sacar la dirección => VPN que fallo? De un registro simulado machine->register[BadVAddr]
 {
-    int exceptionArg = machine->ReadRegister(BAD_VADDR_REG);
+    int exceptionArg = machine->ReadRegister(2);
 
     fprintf(stderr, "Unexpected user mode exception: %s, arg %d.\n",
             ExceptionTypeToString(et), exceptionArg);
     ASSERT(false);
 }
+
 #ifdef USE_TLB
 static void
 PageFaultHandler(ExceptionType et) 
@@ -384,10 +385,17 @@ SyscallHandler(ExceptionType _et)
             }
 
             if (!status){
-                delete executable;
+                // No creo que tenga sentido borrar el ejecutable.
+                //delete executable;
                 newThread->space = space;
                 status = space_table->Add(newThread);
                 newThread->Fork(ProcessInit, nullptr);
+            }
+            else{
+                if (newThread != nullptr)
+                    delete newThread;
+                if (space != nullptr)
+                    delete space;
             }
 
             machine->WriteRegister(2, status);
@@ -444,10 +452,17 @@ SyscallHandler(ExceptionType _et)
             }
 
             if (!status){
-                delete executable;
+                // No creo que tenga sentido borrar el ejecutable.
+                //delete executable;
                 newThread->space = space;
                 status = space_table->Add(newThread);
                 newThread->Fork(ProcessInitArgs, (void*)argv);
+            }
+            else{
+                if (newThread != nullptr)
+                    delete newThread;
+                if (space != nullptr)
+                    delete space;
             }
 
             machine->WriteRegister(2, status);
