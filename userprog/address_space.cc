@@ -78,15 +78,13 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
           // If the code segment was entirely on a separate page, we could
           // set its pages to be read-only.
     }
-    
+   
+   // printf("numPages: %d\n", numPages);
     // Si hay DL no hacemos nada de esto.
     #ifdef DEMAND_LOADING
-        dlOffsetFile = 0;
         return;
     #endif 
     char *mainMemory = machine->mainMemory; /// mainMemory es un arreglo de bytes.
-
-    //printf("MEMORY: %p\n", &machine->mainMemory);
 
     // Seteo en 0 los marcos que le pertenecen al proceso.
     DEBUG('a', "Seteando en 0 la memoria de las páginas.\n");
@@ -95,6 +93,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 
     // Then, copy in the code and data segments into memory.
     uint32_t codeSize = exe->GetCodeSize();
+    //printf("codeSize: %d\n", codeSize);
     if (codeSize > 0) {
         // virtualAddr es la direccion generada por el proceso.
         // Por arquitectura MIPSEL, siempre es 0.
@@ -110,13 +109,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 
         DEBUG('a', "Write at 0x%X, size %u\n",
               PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage, firstPageWriteSize);
-
         
-        //printf("MEMORY: %p\n", &mainMemory[PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage]);
-        //printf("VIRTUALPAGE: %d\n", virtualPage);
-        //printf("OFFSETPAGE: %d\n", offsetPage);
-        //printf("A DONDE EN MEMORY: %d\n", PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage);
-        //printf("MEMORY: %p\n", mainMemory);
         exe->ReadCodeBlock(
             &mainMemory[PHYSICAL_PAGE_ADDR(virtualPage) + offsetPage],
             firstPageWriteSize,
@@ -167,7 +160,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     
     // Exactamente lo mismo pero con el data segment.
     uint32_t initDataSize = exe->GetInitDataSize();
-
+    //printf("initDataSize: %d\n", initDataSize);
     if (initDataSize > 0) {
         uint32_t virtualAddr = exe->GetInitDataAddr();
         DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
@@ -300,75 +293,16 @@ AddressSpace::RestoreState()
 }
 
 #ifdef DEMAND_LOADING
-//void 
-//AddressSpace::LoadPage(unsigned vpn)
-//{
-//char* mainMemory = machine->mainMemory;
-//    DEBUG('y',"RetrievePage: Invalid Page: %u, start loading process.\n", vpn);
-//
-//    // Direccion virtual del incio de la página
-//    unsigned pageDownAddress = vpn * PAGE_SIZE; 
-//
-//    // Direccion de la siguiente página (tope de la página actual)
-//    unsigned pageUpAddress = pageDownAddress + PAGE_SIZE;
-//
-//    unsigned codeAddr = exe->GetCodeAddr();          //Inicio segmento código
-//    unsigned codeSize = exe->GetCodeSize();          //Tamaño del segmento de código
-//    unsigned dataAddr = exe->GetInitDataAddr();      //Inicio segmento datos
-//    unsigned dataSize = exe->GetInitDataSize();      //Tamaño del segmento de datos
-//
-//    DEBUG('y', "Write vp  %u, initAddr %u, size %u\n",
-//        vpn, PHYSICAL_PAGE_ADDR(vpn), PAGE_SIZE); 
-//
-//    memset(&mainMemory[PHYSICAL_PAGE_ADDR(vpn)], 0, PAGE_SIZE);
-//
-//    //Necesito escribir algo del segmento de código
-//    if (codeSize > 0 && codeAddr <= pageDownAddress && pageDownAddress < codeAddr + codeSize){ 
-//        //Parte de direcciones virtuales
-//        unsigned firstAddre = MAX(pageDownAddress, codeAddr); // En nachos podríamos dejar solo pageDownAddress
-//        ASSERT(firstAddre == pageDownAddress);
-//        unsigned offSet = firstAddre % PAGE_SIZE;
-//        ASSERT(offSet == 0);
-//        unsigned bytesToWrite = MIN(codeAddr + codeSize - firstAddre, pageUpAddress - firstAddre);
-//
-//        //Si lo que escribimos en el segmento de código es un página entera,
-//        //entonces la página se puede marcar como read only
-//        if (bytesToWrite == PAGE_SIZE){
-//            pageTable[vpn].readOnly = true;
-//        }
-//
-//        //Parte el archivo del ejecutable
-//        unsigned fileOffSet = firstAddre - codeAddr;
-//
-//        //Escritura en la página física
-//        exe->ReadCodeBlock(&mainMemory[PHYSICAL_PAGE_ADDR(vpn) + offSet], bytesToWrite, fileOffSet);
-//    }
-//
-//    //Necesito escribir algo del segmento de datos inicializados
-//    if (dataSize > 0 && dataAddr < pageUpAddress && pageDownAddress < dataAddr + dataSize){
-//        //Parte de direcciones virtuales
-//        unsigned firstAddre = MAX(pageDownAddress, dataAddr); //Acá es necesario el max
-//        unsigned offSet = firstAddre % PAGE_SIZE;
-//        unsigned bytesToWrite = MIN(dataAddr + dataSize - firstAddre, pageUpAddress - firstAddre);
-//
-//        //Parte el archivo del ejecutable
-//        unsigned fileOffSet = firstAddre - dataAddr;
-//
-//        //Escritura en la página física
-//        exe->ReadDataBlock(&mainMemory[PHYSICAL_PAGE_ADDR(vpn) + offSet], bytesToWrite, fileOffSet);
-//    }
-//}
 void
 AddressSpace::LoadPage(unsigned badPageNumber)
 {
+
     DEBUG('a',"Cargando página - DEMAND LOADING\n");
 
     char *mainMemory = machine->mainMemory;
 
     // Primero calculo que número de pagina falló.
-    // Junto con su offset.
     uint32_t badVAddr = badPageNumber * PAGE_SIZE;
-    uint32_t offsetPage = badVAddr % PAGE_SIZE;
     uint32_t  botBadPage = badPageNumber * PAGE_SIZE;
     uint32_t  topBadPage = botBadPage + PAGE_SIZE;
 
@@ -382,227 +316,104 @@ AddressSpace::LoadPage(unsigned badPageNumber)
     uint32_t dataSize = exe->GetInitDataSize();
     uint32_t dataAddr = exe->GetInitDataAddr();
     uint32_t endDataAddr  = (dataAddr + dataSize);
+
+   // puts("----------------------------------------------------------");
+   // printf("codeAddr: %d\n", codeAddr);
+   // printf("codeSize: %d\n", codeSize);
+   // printf("endCodeAddr: %d\n", endCodeAddr);
+   // printf("dataAddr: %d\n", dataAddr);
+   // printf("dataSize: %d\n", dataSize);
+   // printf("endDataAddr: %d\n", endDataAddr);
+   // printf("badPageNumber: %d\n", badPageNumber);
+   // printf("badVAddr: %d\n", badVAddr);
+   // printf("botBadPage: %d\n", botBadPage);
+   // printf("topBadPage: %d\n", topBadPage);
+   // printf("offsetPage: %d\n", offsetPage);
+   // puts("----------------------------------------------------------");
     
     // Es una dirección del stack. Relleno con 0 y listo.
-    if (badVAddr > codeSize + dataSize)
-        return;
+    if (dataSize == 0){
+        if (badVAddr > endCodeAddr)
+        {
+            pageTable[badPageNumber].valid = true;
+            pageTable[badPageNumber].use = true;
+            return;
+        }
+    }
 
+    if (badVAddr > endDataAddr)
+    {
+        pageTable[badPageNumber].valid = true;
+        pageTable[badPageNumber].use = true;
+        return;
+    }
+    
     //Aca tengo 3 casos:
-    //  *) Estoy al comienzo de todo.
-    //  *) Estoy en el medio.
-    //  *) Estoy al final.
+    //  *) Toda la página es de código.
+    //  *) Toda la página es de datos.
+    //  *) Hay un poco y un poco.
 
-    // Lo que voy a buscar escribir.
-    int toWrite;
+    int fileOffset;
+    
 
-    // *) Estoy al comienzo.
-    if (badPageNumber == 0)
+    // Primer caso, toda la página es de código
+    if (codeSize > 0 && codeAddr <= botBadPage && (dataSize == 0 || topBadPage <= dataAddr))
     {
-        puts("-----------------------------------------------------------------------------");
-        puts("Estoy al comienzo.");
-        toWrite = PAGE_SIZE - offsetPage;
-
-        // En este caso el código ocupa toda la página.
-        if (codeSize > 0 && codeAddr <= topBadPage && topBadPage <= endCodeAddr)
-        {
-            puts("En este caso el código ocupa toda la página.");
-            exe->ReadCodeBlock(
-                &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber) + offsetPage],
-                toWrite,
-                dlOffsetFile
-            );
-            dlOffsetFile += toWrite;
-            pageTable[badPageNumber].valid = true;
-            pageTable[badPageNumber].use = true;
-            return;
-        }
-
-        // En este caso la cantidad de código no llega a ocupar enteramente la primer página.
-        if (codeSize > 0 && codeAddr <= topBadPage && topBadPage > endCodeAddr)
-        {
-            puts("En este caso la cantidad de código no llega a ocupar enteramente la primer página.");
-            exe->ReadCodeBlock(
-                &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber) + offsetPage],
-                codeSize,
-                dlOffsetFile
-            );
-            toWrite -= codeSize;
-            dlOffsetFile += codeSize;
-            offsetPage += codeSize;
-
-            // Cargamos el segmento de datos.
-            if (dataSize > 0 && dataAddr <= topBadPage && topBadPage <= endDataAddr)
-            {
-                puts("Cargamos el segmento de datos.");
-                exe->ReadDataBlock(
-                &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber) + offsetPage],
-                toWrite,
-                dlOffsetFile
-                );
-
-                dlOffsetFile += toWrite;
-                pageTable[badPageNumber].valid = true;
-                pageTable[badPageNumber].use = true;
-                return;
-            }
-
-            // El segmento de datos no llega a ocupar tampoco una página.
-            if (dataSize > 0 && dataAddr <= topBadPage && topBadPage > endDataAddr)
-            {
-                puts("El segmento de datos no llega a ocupar tampoco una página.");
-                exe->ReadDataBlock(
-                    &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber) + offsetPage],
-                    dataSize,
-                    dlOffsetFile
-                );
-                dlOffsetFile += dataSize;
-            }
-            
-            pageTable[badPageNumber].valid = true;
-            pageTable[badPageNumber].use = true;
-            return;
-        }
-
-        // No tenemos código.
-        // Cargamos el segmento de datos.
-        if (dataSize > 0 && dataAddr <= topBadPage && topBadPage <= endDataAddr)
-        {
-            puts("No tenemos código, cargamos el segmento de datos");
-            exe->ReadDataBlock(
-            &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber) + offsetPage],
-            toWrite,
-            dlOffsetFile
-            );
-
-            dlOffsetFile += toWrite;
-            pageTable[badPageNumber].valid = true;
-            pageTable[badPageNumber].use = true;
-            return;
-        }
-
-        // El segmento de datos no llega a ocupar tampoco una página.
-        // Este seria el caso en que haya una sola página.
-        if (dataSize > 0 && dataAddr <= topBadPage && topBadPage > endDataAddr)
-        {
-            puts("El segmento de datos no llega a ocupar tampoco una página. Este seria el caso en que haya solo una página.");
-            exe->ReadDataBlock(
-                &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber) + offsetPage],
-                dataSize,
-                dlOffsetFile
-            );
-            dlOffsetFile += dataSize;
-        }
-
-        pageTable[badPageNumber].valid = true;
-        pageTable[badPageNumber].use = true;
-        return;
-    }
-
-    // *) Estoy en el medio o al final.
-    puts("----------------------------------------------------------------------");
-    puts("Estoy en el medio o al final");
-    // Mejor caso posible, toda la página es de código.
-    if (codeSize > 0 && codeAddr <= botBadPage && topBadPage <= endCodeAddr)
-    {
-        puts("Mejor caso posible, toda la página es de código.");
+        fileOffset = badVAddr - codeAddr;
+        //puts("Toda la página es de código");
         exe->ReadCodeBlock(
-            &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber)],
-            PAGE_SIZE,
-            dlOffsetFile
+          &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber)],
+          PAGE_SIZE,
+          fileOffset
         );
-        dlOffsetFile += PAGE_SIZE;
         pageTable[badPageNumber].valid = true;
         pageTable[badPageNumber].use = true;
         return;
     }
 
-    // No toda la página es de código.
-    if (codeSize > 0 && codeAddr <= botBadPage && topBadPage > endCodeAddr)
+    // Segundo caso, toda la página es de datos.
+    if (dataSize > 0 && dataAddr <= botBadPage)
     {
-        puts("No toda la página es de código.");
+        fileOffset = badVAddr - dataAddr;
+        //puts("Toda la página es de datos");
+        exe->ReadDataBlock(
+          &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber)],
+          PAGE_SIZE,
+          fileOffset
+        );
+        pageTable[badPageNumber].valid = true;
+        pageTable[badPageNumber].use = true;
+        return;
+    }
 
-        // Cargo lo que hay de código.
-        puts("Cargo lo que hay de código.");
+    // Tercer caso, un poco y un poco.
+    if (codeSize > 0 && dataSize > 0 && codeAddr <= botBadPage && botBadPage < dataAddr)
+    {
+       // puts("Hay un poco y un poco");
+        int writeCode = endCodeAddr - botBadPage;
+        int writeData = PAGE_SIZE - writeCode;
+        
+        fileOffset = badVAddr - codeAddr;
         exe->ReadCodeBlock(
-            &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber)],
-            endCodeAddr - botBadPage,
-            dlOffsetFile
+          &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber)],
+          writeCode,
+          fileOffset
         );
-        dlOffsetFile += (endCodeAddr - botBadPage);
-        offsetPage = (endCodeAddr - botBadPage);
-
-        // Si el resto de la página es datos.
-        if (dataSize > 0 && dataAddr <= topBadPage && topBadPage <= endDataAddr)
-        {
-            puts("Si el resto de la página es datos.");
-            toWrite = PAGE_SIZE - (endCodeAddr - botBadPage);
-            exe->ReadDataBlock(
-                &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber) + offsetPage],
-                toWrite,
-                dlOffsetFile
-            );
-            dlOffsetFile += toWrite;
-            pageTable[badPageNumber].valid = true;
-            pageTable[badPageNumber].use = true;
-            return;
-        }
-
-        // Si es la ultima página y los datos ocupan menos.
-        // dataSize porque ya cargué código, entonces el segmento 
-        // de datos esta contenido enteramente en esta página.
-        if (dataSize > 0 && dataAddr <= topBadPage && topBadPage > endDataAddr)
-        {
-            puts("Si es la ultima pagina y los datos ocupan menos. Segmento de datos enteramente contenido en esta página.");
-            exe->ReadDataBlock(
-                &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber) + offsetPage],
-                dataSize,
-                dlOffsetFile
-            );
-            dlOffsetFile += dataSize;
-        }
-        pageTable[badPageNumber].valid = true;
-        pageTable[badPageNumber].use = true;
-        return;
-    }
-
-    // No tenemos código.
-    // Cargamos el segmento de datos.
-
-    puts("No tenemos código, cargamos el segmento de datos.");
-
-    // El segmento de datos ocupa toda la página.
-    if (dataSize > 0 && dataAddr <= botBadPage && topBadPage <= endDataAddr)
-    {
-        puts("El segmento de datos ocupa toda la página.");
+        
+        fileOffset = 0;
         exe->ReadDataBlock(
-        &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber)],
-        PAGE_SIZE,
-        dlOffsetFile
+          &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber) + writeCode],
+          writeData,
+          fileOffset
         );
-
-        dlOffsetFile += PAGE_SIZE;
+        
         pageTable[badPageNumber].valid = true;
         pageTable[badPageNumber].use = true;
+        
         return;
-    }
 
-    // Estariamos en la última página.
-    if (dataSize > 0 && dataAddr <= botBadPage && topBadPage > endDataAddr)
-    {
-        puts("Estaríamos en la última página.");
-        exe->ReadDataBlock(
-            &mainMemory[PHYSICAL_PAGE_ADDR(badPageNumber)],
-            endDataAddr - botBadPage,
-            dlOffsetFile
-        );
-        dlOffsetFile += endDataAddr - botBadPage;
-        pageTable[badPageNumber].valid = true;
-        pageTable[badPageNumber].use = true;
-        return;
     }
-
-    // Esta condición no se puede dar.
-    // No habría programa a cargar.
+    puts("No cargo nada");
     ASSERT(false);
 }
 #endif
@@ -610,18 +421,18 @@ AddressSpace::LoadPage(unsigned badPageNumber)
 void 
 AddressSpace::UpdateTLB(unsigned indexTlb, unsigned badVAddr) 
 {
-    
     unsigned badPageNumber = badVAddr / PAGE_SIZE;
     
     // Es el primer acceso y hay que cargar la página, esto es por DL.
     #ifdef DEMAND_LOADING
     if ((int)pageTable[badPageNumber].physicalPage == -1){
-        
+        //puts("Entro a DEMANDLOADING");    
+        //printf("ANTES: pageTable[badPageNumber].valid: %d\n", pageTable[badPageNumber].valid);
         // Busco un lugar en la memoria libre.
         pageTable[badPageNumber].physicalPage = bit_map->Find();
         ASSERT((int)pageTable[badPageNumber].physicalPage != -1);
-        
         LoadPage(badPageNumber);
+        //printf("DESPUES: pageTable[badPageNumber].valid: %d\n", pageTable[badPageNumber].valid);
     }
     #endif
 

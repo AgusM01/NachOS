@@ -4,12 +4,13 @@
 #define PROCS 9
 
 int main(){
+    puts("HOLA\n");
     int pids[PROCS];
     int res[PROCS];
     char ito[12] = {0};
 
     for(int i = 0; i < PROCS; i++){
-        // puts("Hola\n");
+         //puts("Hola\n");
         pids[i] = Exec("matmult", 1);
         // itoa(pids[i], ito);
         // puts(ito);

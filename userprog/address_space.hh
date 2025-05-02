@@ -74,7 +74,6 @@ private:
     // Using for DL
         Executable *exe; 
         OpenFile *exe_file;
-        uint32_t dlOffsetFile; 
     #endif
 };
 
