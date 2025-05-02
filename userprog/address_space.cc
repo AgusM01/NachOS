@@ -218,9 +218,9 @@ AddressSpace::~AddressSpace()
             bit_map->Clear(pageTable[i].physicalPage);
     
     // Ver.    
-    //#ifdef DEMAND_LOADING
-    //    delete exe_file;
-    //#endif
+    #ifdef DEMAND_LOADING
+        delete exe;
+    #endif
     delete [] pageTable;
 }
 
