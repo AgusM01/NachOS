@@ -47,9 +47,10 @@ Thread::Thread(const char *threadName, bool isJoin, int threadPriority)
     stackTop = nullptr;
     stack    = nullptr;
     status   = JUST_CREATED;
+    // El pid se establece cuando se va a correr un proceso.
+    pid = -1;
 #ifdef USER_PROGRAM
     space    = nullptr;
-    
     fileTableIds = new Table <OpenFile*>;
     OpenFile* in = nullptr;
     OpenFile* out = nullptr;
@@ -393,4 +394,21 @@ Thread::PrintStatus()
             return "4";
     }
     return "";
+}
+
+// --------------- PID----------------
+
+void
+Thread::SetPid(int new_pid)
+{
+    ASSERT(new_pid != -1);
+    pid = new_pid; 
+    return;
+}
+
+int 
+Thread::GetPid()
+{
+    ASSERT(pid != -1);
+    return pid;
 }

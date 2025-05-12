@@ -8,6 +8,10 @@
 
 #include "system.hh"
 
+#ifdef SWAP
+#include "lib/coremap.hh"
+#endif 
+
 #ifdef USER_PROGRAM
 #include "userprog/debugger.hh"
 #include "userprog/exception.hh"
@@ -15,7 +19,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-
+#include <stdio.h>
 
 /// This defines *all* of the global data structures used by Nachos.
 ///
@@ -42,8 +46,15 @@ SynchDisk *synchDisk;
 #ifdef USER_PROGRAM  // Requires either *FILESYS* or *FILESYS_STUB*.
 Machine *machine;  ///< User program memory and registers.
 SynchConsole *synch_console;
+
+#ifndef SWAP
 Bitmap *bit_map;
+#endif
+
 Table <Thread*> *space_table;
+#ifdef SWAP
+CoreMap *core_map;
+#endif
 #endif
 
 // External definition, to allow us to take a pointer to this function.
@@ -191,7 +202,7 @@ Initialize(int argc, char **argv)
     // En un SO real ya viene un hilo dado por defecto desde la CPU que es donde corre el kernel.
     currentThread = new Thread("main", false);
     currentThread->SetStatus(RUNNING);
-
+    
     interrupt->Enable();
     SystemDep::CallOnUserAbort(Cleanup);  // If user hits ctl-C...
 
@@ -202,11 +213,23 @@ Initialize(int argc, char **argv)
     machine = new Machine(d, numPhysicalPages);  // This must come first.
     
     synch_console = new SynchConsole(nullptr,nullptr);
-
+    
+    #ifndef SWAP
     bit_map = new Bitmap(numPhysicalPages);
+    #endif
     
     space_table = new Table <Thread*>;
-
+    
+    int newpid;
+    newpid = space_table->Add(currentThread);
+    currentThread->SetPid(newpid);
+    ASSERT(newpid != -1);
+    //printf("newpid de main: %d\n", newpid);
+    
+    #ifdef SWAP
+    core_map = new CoreMap(numPhysicalPages);
+    #endif
+    
     SetExceptionHandlers();
 #endif
 
@@ -229,8 +252,16 @@ Cleanup()
 #ifdef USER_PROGRAM
     delete machine;
     delete synch_console;
+    
+    #ifndef SWAP
     delete bit_map;
+    #endif
+    
     delete space_table;
+    
+    #ifdef SWAP 
+    delete core_map;
+    #endif
 #endif
 
 #ifdef FILESYS_NEEDED

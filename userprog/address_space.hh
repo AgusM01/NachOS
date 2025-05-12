@@ -37,7 +37,7 @@ public:
     /// Parameters:
     /// * `executable_file` is the open file that corresponds to the
     ///   program; it contains the object code to load into memory.
-    AddressSpace(OpenFile *executable_file);
+    AddressSpace(OpenFile *executable_file, int newThreadPid);
 
     /// De-allocate an address space.
     ~AddressSpace();
@@ -74,6 +74,11 @@ private:
     // Using for DL
         Executable *exe; 
         OpenFile *exe_file;
+    #endif
+
+    #ifdef SWAP
+        char* swapName;
+        OpenFile *swapFile;
     #endif
 };
 

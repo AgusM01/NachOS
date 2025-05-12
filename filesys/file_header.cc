@@ -30,6 +30,7 @@
 #include <stdio.h>
 
 
+#ifndef SWAP
 /// Initialize a fresh file header for a newly created file.  Allocate data
 /// blocks for the file out of the map of free disk blocks.  Return false if
 /// there are not enough free blocks to accomodate the new file.
@@ -70,6 +71,48 @@ FileHeader::Deallocate(Bitmap *freeMap)
         freeMap->Clear(raw.dataSectors[i]);
     }
 }
+#else
+/// Initialize a fresh file header for a newly created file.  Allocate data
+/// blocks for the file out of the map of free disk blocks.  Return false if
+/// there are not enough free blocks to accomodate the new file.
+///
+/// * `freeMap` is the bit map of free disk sectors.
+/// * `fileSize` is the bit map of free disk sectors.
+bool
+FileHeader::Allocate(CoreMap *freeMap, unsigned fileSize)
+{
+    ASSERT(freeMap != nullptr);
+
+    if (fileSize > MAX_FILE_SIZE) {
+        return false;
+    }
+
+    raw.numBytes = fileSize;
+    raw.numSectors = DivRoundUp(fileSize, SECTOR_SIZE);
+    if (freeMap->CountClear() < raw.numSectors) {
+        return false;  // Not enough space.
+    }
+
+    for (unsigned i = 0; i < raw.numSectors; i++) {
+        raw.dataSectors[i] = freeMap->Find();
+    }
+    return true;
+}
+
+/// De-allocate all the space allocated for data blocks for this file.
+///
+/// * `freeMap` is the bit map of free disk sectors.
+void
+FileHeader::Deallocate(CoreMap *freeMap)
+{
+    ASSERT(freeMap != nullptr);
+
+    for (unsigned i = 0; i < raw.numSectors; i++) {
+        ASSERT(freeMap->Test(raw.dataSectors[i]));  // ought to be marked!
+        freeMap->Clear(raw.dataSectors[i]);
+    }
+}
+#endif 
 
 /// Fetch contents of file header from disk.
 ///

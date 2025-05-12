@@ -13,6 +13,7 @@
 #define NACHOS_FILESYS_FILEHEADER__HH
 
 
+#include "lib/coremap.hh"
 #include "raw_file_header.hh"
 #include "lib/bitmap.hh"
 
@@ -34,12 +35,21 @@
 class FileHeader {
 public:
 
+#ifndef SWAP
     /// Initialize a file header, including allocating space on disk for the
     /// file data.
     bool Allocate(Bitmap *bitMap, unsigned fileSize);
 
     /// De-allocate this file's data blocks.
     void Deallocate(Bitmap *bitMap);
+#else
+    /// Initialize a file header, including allocating space on disk for the 
+    /// file data.
+    bool Allocate(CoreMap *coreMap; unsigned fileSize);
+    
+    /// De-allocate this file's data blocks.
+    /// void Deallocate(CoreMap *coreMap);
+#endif
 
     /// Initialize file header from disk.
     void FetchFrom(unsigned sectorNumber);

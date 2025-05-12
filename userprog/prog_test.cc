@@ -29,10 +29,14 @@ StartProcess(const char *filename)
         printf("Unable to open file %s\n", filename);
         return;
     }
-    AddressSpace *space = new AddressSpace(executable);
-    currentThread->space = space;
+    
 
-    space_table->Add(currentThread);
+    int newpid = -1;
+    newpid = space_table->Add(currentThread);
+    ASSERT(newpid != -1);
+
+    AddressSpace *space = new AddressSpace(executable, newpid);
+    currentThread->space = space;
 
     // No creo que tenga sentido borrar el ejecutable.
     #ifndef DEMAND_LOADING

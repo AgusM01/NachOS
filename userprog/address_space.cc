@@ -6,6 +6,8 @@
 /// limitation of liability and disclaimer of warranty provisions.
 
 #include <cstdint>
+#include <cstdlib>
+
 #define MIN(a,b) a < b ? a : b
 #define MAX(a,b) a > b ? a : b
 #define PHYSICAL_PAGE_ADDR(virtualPage) pageTable[virtualPage].physicalPage * PAGE_SIZE 
@@ -19,10 +21,14 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef SWAP
+#include "filesys/file_system.hh"
+#endif
+
 /// First, set up the translation from program memory to physical memory.
 /// For now, this is really simple (1:1), since we are only uniprogramming,
 /// and we have a single unsegmented page table.
-AddressSpace::AddressSpace(OpenFile *executable_file)
+AddressSpace::AddressSpace(OpenFile *executable_file, int newThreadPid)
 {
     ASSERT(executable_file != nullptr);
 
@@ -47,12 +53,23 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     // Al tener DL no se va a cargar todo el programa en memoria.
     // Se irá cargando de a partes y quizás se va liberando la memoria
     // Además quizás hay secciones del código que no se cargarán nunca y el programa entraria igual.
-    
-    //#ifndef DEMAND_LOADING
+
+    #ifndef SWAP    
     ASSERT(numPages <= bit_map->CountClear()); /// Calculamos la cantidad de espacio disponible según el bitmap      // Check we are not trying to run anything too big -- at least until we
       // have virtual memory.
-    //#endif
-
+    #else
+    ASSERT(numPages <= core_map->CountClear());
+    
+    // Creamos el archivo de SWAP
+    char id[12] = {0};
+    sprintf(id, "%d", newThreadPid);
+    swapName = concat("SWAP.", id);
+    //printf("%s\n", swapName);
+    ASSERT(fileSystem->Create(swapName, size)); 
+    swapFile = fileSystem->Open(swapName);
+    ASSERT(swapFile != nullptr);
+    #endif
+    
     DEBUG('a', "Initializing address space, num pages %u, size %u\n",
           numPages, size);
 
@@ -68,8 +85,15 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         pageTable[i].physicalPage = -1;
         pageTable[i].valid        = false;
         #else 
-        /// Devolvemos el primer lugar de la memoria física libre. 
+        
+        #ifndef SWAP
+        /// Devolvemos el primer lugar de la memoria física libre.
         pageTable[i].physicalPage = bit_map->Find();
+        #else
+        /// Devolvemos el primer lugar de la memoria física libre.
+        pageTable[i].physicalPage = core_map->Find(i,currentThread->GetPid());
+        #endif
+        
         pageTable[i].valid = true;
         #endif
         pageTable[i].use          = false;
@@ -214,9 +238,14 @@ AddressSpace::~AddressSpace()
 {
     //printf("Elimino pageTable, soy %s\n", currentThread->GetName());
     for (unsigned i = 0; i < numPages; i++)
-        if (((int)pageTable[i].physicalPage) != -1)
+        if (((int)pageTable[i].physicalPage) != -1){
+            #ifndef SWAP
             bit_map->Clear(pageTable[i].physicalPage);
-    
+            #else
+            core_map->Clear(pageTable[i].physicalPage);
+            #endif
+        }
+
     // Ver.    
     #ifdef DEMAND_LOADING
         delete exe;
@@ -426,13 +455,17 @@ AddressSpace::UpdateTLB(unsigned indexTlb, unsigned badVAddr)
     // Es el primer acceso y hay que cargar la página, esto es por DL.
     #ifdef DEMAND_LOADING
     if ((int)pageTable[badPageNumber].physicalPage == -1){
-        //puts("Entro a DEMANDLOADING");    
-        //printf("ANTES: pageTable[badPageNumber].valid: %d\n", pageTable[badPageNumber].valid);
+        
+        #ifndef SWAP
         // Busco un lugar en la memoria libre.
         pageTable[badPageNumber].physicalPage = bit_map->Find();
+        #else
+        // Busco un lugar en la memoria libre.
+        pageTable[badPageNumber].physicalPage = core_map->Find(badVAddr,currentThread->GetPid());
+        #endif
+        
         ASSERT((int)pageTable[badPageNumber].physicalPage != -1);
         LoadPage(badPageNumber);
-        //printf("DESPUES: pageTable[badPageNumber].valid: %d\n", pageTable[badPageNumber].valid);
     }
     #endif
 

@@ -82,6 +82,12 @@ void
 ProcessInitArgs(void* arg)
 {
     int sp;
+    
+    int newpid;
+    newpid = space_table->Add(currentThread);
+    currentThread->SetPid(newpid);
+    //printf("newpid en ProcessInitArgs: %d\n", newpid);
+    ASSERT(newpid != -1);
 
     currentThread->space->InitRegisters();  // Set the initial register values.
     currentThread->space->RestoreState();   // Load page table register.
@@ -107,6 +113,12 @@ ProcessInitArgs(void* arg)
 void
 ProcessInit(void* arg)
 {
+    int newpid;
+    newpid = space_table->Add(currentThread);
+    currentThread->SetPid(newpid);
+    //printf("newpid en ProcessInit: %d\n", newpid);
+    ASSERT(newpid != -1);
+    
     currentThread->space->InitRegisters();  // Set the initial register values.
     currentThread->space->RestoreState();   // Load page table register.
 
@@ -351,7 +363,7 @@ SyscallHandler(ExceptionType _et)
 
             int filenameAddr = machine->ReadRegister(4); 
             int join = machine->ReadRegister(5); 
-            int status = 0;
+            bool status = true;
             OpenFile *executable;
             Thread* newThread;            
             AddressSpace *space; 
@@ -359,36 +371,50 @@ SyscallHandler(ExceptionType _et)
 
             if (filenameAddr == 0){
                 DEBUG('e', "Error: address to filename string is null. \n");
-                status = -1;
+                status = false;
             }
 
-            if (!status && !ReadStringFromUser(filenameAddr, 
-                                    filename, sizeof filename)){
+            if (!ReadStringFromUser(filenameAddr, 
+                                    filename, sizeof filename) || !status){
                  DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
-                status = -1;
+                status = false;
             }
 
-            if (!status && !(executable = fileSystem->Open(filename))) {
+            if (!(executable = fileSystem->Open(filename)) || !status) {
                 DEBUG('e', "Error: Unable to open file %s\n", filename);
-                status = -1;
+                status = false;
             }
 
-            if (!status &&  !(newThread = new Thread(nullptr,join ? true : false))){
+            if (!(newThread = new Thread(nullptr,join ? true : false)) || !status){
                 DEBUG('e', "Error: Unable to create a thread %s\n", filename);
-                status = -1; 
+                status = false; 
+            }
+            
+            int newpid = -1;
+            if (status)
+                newpid = space_table->Add(newThread);
+            
+            if (newpid == -1 && status)
+            {
+                DEBUG('e', "Error: No se puede agregar el Thread a la space_table\n");
+                status = false;
             }
 
-            if (!status &&  !(space = new AddressSpace(executable))){
+            if (!(space = new AddressSpace(executable, newpid)) || !status){
                 DEBUG('e', "Error: Unable to create the address space \n");
-                status = -1;
+                status = false;
             }
 
-            if (!status){
+            // Caso en que falló la creación del AddressSpace pero el thread se agregó a la tabla.
+            if (newpid != -1 && !status)
+                space_table->Remove(newpid);
+
+            if (status){
                 // No creo que tenga sentido borrar el ejecutable.
                 //delete executable;
+                newThread->SetPid(newpid);
                 newThread->space = space;
-                status = space_table->Add(newThread);
                 newThread->Fork(ProcessInit, nullptr);
             }
             else{
@@ -398,7 +424,7 @@ SyscallHandler(ExceptionType _et)
                     delete space;
             }
 
-            machine->WriteRegister(2, status);
+            machine->WriteRegister(2, newpid);
             break;
         } 
         case SC_EXEC2:{
@@ -406,7 +432,7 @@ SyscallHandler(ExceptionType _et)
             int filenameAddr = machine->ReadRegister(4); 
             int argsVector = machine->ReadRegister(5);
             int join = machine->ReadRegister(6);
-            int status = 0;
+            bool status = true;
             OpenFile *executable;
             Thread* newThread;            
             char** argv;
@@ -415,47 +441,61 @@ SyscallHandler(ExceptionType _et)
 
             if (filenameAddr == 0){
                 DEBUG('e', "Error: address to filename string is null. \n");
-                status = -1;
+                status = false;
             }
 
-            if (!status && argsVector == 0){
+            if (!status || argsVector == 0){
                 DEBUG('e', "Error: address to argsVector is null. \n");
-                status = -1;
+                status = false;
             }
 
-            if (!status && !ReadStringFromUser(filenameAddr, 
-                                    filename, sizeof filename)){
+            if (!ReadStringFromUser(filenameAddr, 
+                                    filename, sizeof filename) || !status){
                  DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
-                status = -1;
+                status = false;
             }
 
-            if (!status && !(argv = SaveArgs(argsVector))){
+            if (!(argv = SaveArgs(argsVector)) || !status){
                  DEBUG('e', "Error: Unable to get User Args Vectors.\n",
                       FILE_NAME_MAX_LEN);
-                status = -1;
+                status = false;
             }
 
-            if (!status && !(executable = fileSystem->Open(filename))) {
+            if (!(executable = fileSystem->Open(filename)) || !status) {
                 DEBUG('e', "Error: Unable to open file %s\n", filename);
-                status = -1;
+                status = false;
             }
 
-            if (!status &&  !(newThread = new Thread(nullptr, join ? true : false))){
+            if (!(newThread = new Thread(nullptr, join ? true : false)) || !status){
                 DEBUG('e', "Error: Unable to create a thread %s\n", filename);
-                status = -1; 
+                status = false; 
             }
 
-            if (!status &&  !(space = new AddressSpace(executable))){
+            int newpid = -1;
+            if (status)
+                newpid = space_table->Add(newThread);
+            
+            if (newpid == -1 && status)
+            {
+                DEBUG('e', "Error: No se puede agregar el Thread a la space_table\n");
+                status = false;
+            }
+
+            if (!(space = new AddressSpace(executable, newpid)) || !status){
                 DEBUG('e', "Error: Unable to create the address space \n");
-                status = -1;
+                status = false;
             }
 
-            if (!status){
+            // Caso en que falló la creación del AddressSpace pero el thread se agregó a la tabla.
+            if (newpid != -1 && !status)
+                space_table->Remove(newpid);
+
+            if (status){
                 // No creo que tenga sentido borrar el ejecutable.
                 //delete executable;
+                newThread->SetPid(newpid);
                 newThread->space = space;
-                status = space_table->Add(newThread);
                 newThread->Fork(ProcessInitArgs, (void*)argv);
             }
             else{
@@ -465,7 +505,7 @@ SyscallHandler(ExceptionType _et)
                     delete space;
             }
 
-            machine->WriteRegister(2, status);
+            machine->WriteRegister(2, newpid);
             break;
         } 
         case SC_EXIT: {

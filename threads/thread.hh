@@ -142,6 +142,12 @@ public:
 
     const char *PrintStatus();
 
+    // Obtener el Pid (Posición en la space_table).
+    int GetPid();
+
+    // Setear el Pid (Posición en la space_table).
+    void SetPid(int newpid);
+
 private:
     // Some of the private data for this class is listed above.
 
@@ -169,6 +175,9 @@ private:
 
     //Scheduler implementation
     int priority;
+    
+    // Pid del proceso, solo en caso de que haya sido creado por EXEC.
+    int pid;
 
 #ifdef USER_PROGRAM
     /// User-level CPU register state.
