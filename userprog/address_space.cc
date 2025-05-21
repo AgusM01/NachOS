@@ -63,7 +63,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file, int newThreadPid)
     ASSERT(numPages <= bit_map->CountClear()); /// Calculamos la cantidad de espacio disponible según el bitmap      // Check we are not trying to run anything too big -- at least until we
       // have virtual memory.
     #else
-    ASSERT(numPages <= core_map->CountClear());
+    //ASSERT(numPages <= core_map->CountClear());
     
     // Creamos el archivo de SWAP
     char id[12] = {0};
@@ -90,6 +90,27 @@ AddressSpace::AddressSpace(OpenFile *executable_file, int newThreadPid)
     pageTable = new TranslationEntry[numPages]; /// Crea la tabla de paginacion
     for (unsigned i = 0; i < numPages; i++) { /// Asigna 1:1 las páginas con la memoria fisica. 
         pageTable[i].virtualPage  = i;
+        
+        #ifdef DEMAND_LOADING
+            pageTable[i].physicalPage = -1;
+            pageTable[i].valid = false;
+        #endif 
+
+        #if !defined(DEMAND_LOADING) && defined(SWAP)
+        /// Devolvemos el primer lugar de la memoria física libre.
+        pageTable[i].physicalPage = core_map->Find(i,currentThread->GetPid());
+        printf("i: %d\n", i);
+        // Si no encuentra lugar en la memoria y está activado swap, debemos swappear a un proceso.
+        if (pageTable[i].physicalPage == -1)
+            Swap(pageTable[i].virtualPage);
+        
+        ASSERT(pageTable[i] != -1);
+
+        // Cuando creo el archivo ninguna página está en swap.
+        swapMap[i] = false; 
+        #endif 
+
+
         // Si estamos usando DL no es necesario buscar los marcos.
         // Los vamos cargando a medida que el programa va pidiendo las secciones de memoria.
         #ifdef DEMAND_LOADING
@@ -103,6 +124,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file, int newThreadPid)
         #else
         /// Devolvemos el primer lugar de la memoria física libre.
         pageTable[i].physicalPage = core_map->Find(i,currentThread->GetPid());
+        printf("i: %d\n", i);
         // Si no encuentra lugar en la memoria y está activado swap, debemos swappear a un proceso.
         if (pageTable[i].physicalPage == -1)
             Swap(pageTable[i].virtualPage);
@@ -121,6 +143,11 @@ AddressSpace::AddressSpace(OpenFile *executable_file, int newThreadPid)
           // If the code segment was entirely on a separate page, we could
           // set its pages to be read-only.
     }
+
+#ifdef SWAP
+    puts("coremap creacion");
+    core_map->Print();
+#endif
    
    // printf("numPages: %d\n", numPages);
     // Si hay DL no hacemos nada de esto.
@@ -340,6 +367,56 @@ AddressSpace::RestoreState()
     #endif
 }
 
+void
+AddressSpace::ActPageTable(unsigned virtualPage, unsigned physicalPage, bool valid, 
+                      bool readOnly, bool use, bool dirty)
+{
+    pageTable[virtualPage].virtualPage = virtualPage;
+    pageTable[virtualPage].physicalPage = physicalPage;
+    pageTable[virtualPage].valid = valid;
+    pageTable[virtualPage].readOnly = readOnly;
+    pageTable[virtualPage].use = use;
+    pageTable[virtualPage].dirty = dirty;
+    return;
+
+}
+
+unsigned
+AddressSpace::GetPageVpn(unsigned vpn)
+{
+    return pageTable[vpn].virtualPage;
+}
+
+unsigned
+AddressSpace::GetPagePhysicalPage(unsigned vpn)
+{
+    return pageTable[vpn].physicalPage;
+}
+
+bool
+AddressSpace::GetPageValid(unsigned vpn)
+{
+    return pageTable[vpn].valid;
+}
+
+bool
+AddressSpace::GetPageReadOnly(unsigned vpn)
+{
+    return pageTable[vpn].readOnly;
+}
+
+bool
+AddressSpace::GetPageUse(unsigned vpn)
+{
+    return pageTable[vpn].use;
+}
+
+bool 
+AddressSpace::GetPageDirty(unsigned vpn)
+{
+    return pageTable[vpn].dirty;
+}
+
 #ifdef DEMAND_LOADING
 void
 AddressSpace::LoadPage(unsigned badPageNumber)
@@ -470,16 +547,50 @@ AddressSpace::TestSwapMap(int i)
 }
 
 void 
+AddressSpace::MarkSwapMap(unsigned vpn)
+{
+
+    ASSERT(vpn <= numPages);
+    swapMap[vpn] = true;
+    return;
+}
+void 
+AddressSpace::WriteSwapFile(unsigned vpn)
+{
+    swapFile->WriteAt(&machine->mainMemory[PHYSICAL_PAGE_ADDR(vpn)], 
+                      PAGE_SIZE, 
+                      vpn);
+    return;
+}
+
+void
+AddressSpace::ReadSwapFile(unsigned vpn)
+{
+
+    swapFile->ReadAt(&machine->mainMemory[PHYSICAL_PAGE_ADDR(vpn)], PAGE_SIZE, vpn);
+    return;
+}
+
+void 
 AddressSpace::Swap(unsigned vpn_to_store)
 {
+    puts("Hago swap");
+    core_map->Print();
+    ASSERT(vpn_to_store <= numPages);
     // Primero debo elegir una víctima.
     int victim = core_map->PickVictim();
     
+    printf("victim: %d\n", victim);
+
     // Obtengo el pid del thread al cual le pertenece la página.
     unsigned pid_victim = core_map->GetPid(victim);
+    
+    printf("pid_victim: %d\n", pid_victim);
 
     // Obtengo el número de página víctima.
     unsigned vpn = core_map->GetVpn(victim);
+    
+    ASSERT(vpn <= numPages);
 
     // Thread al cual voy a mandar su página a swap.
     Thread* t_victim = space_table->Get(pid_victim);
@@ -499,13 +610,10 @@ AddressSpace::Swap(unsigned vpn_to_store)
             {
                // Invalido la victima en la tlb.
                tlb[i].valid = false;
-
-               pageTable[vpn].virtualPage = tlb[i].virtualPage;
-               pageTable[vpn].physicalPage = tlb[i].physicalPage;
-               pageTable[vpn].valid = tlb[i].valid;
-               pageTable[vpn].readOnly = tlb[i].readOnly;
-               pageTable[vpn].use = tlb[i].use;
-               pageTable[vpn].dirty = tlb[i].dirty;
+                
+               // Actualizo la pageTable
+               ActPageTable(vpn, tlb[i].physicalPage, tlb[i].valid, tlb[i].readOnly, 
+                            tlb[i].use, tlb[i].dirty);
             }
         }
     }
@@ -514,7 +622,7 @@ AddressSpace::Swap(unsigned vpn_to_store)
     // debo checkear si la página está sucia.
     
     // Si no está sucia, no la escribo ya que no hubo ningún cambio / no se utilizó.
-   // if (!(t_victim->pageTable[vpn].dirty))
+   // if (!(t_victim->space->GetPageDirty(vpn)))
    // {
    //     core_map->Mark(victim, vpn_to_store, currentThread->GetPid());
    //     pageTable[vpn_to_store].physicalPage = victim;
@@ -523,18 +631,26 @@ AddressSpace::Swap(unsigned vpn_to_store)
    // 
     
     // La página está sucia. Debo escribirla en swap.
-    if (t_victim->space->pageTable[vpn].dirty)
+    if (t_victim->space->GetPageDirty(vpn))
     {
         // El archivo es 1:1 con la vpn.
-       t_victim->space->fileSwap->WriteAt(&machine->mainMemory[PHYSICAL_PAGE_ADDR(vpn)], 
-                                          PAGE_SIZE, 
-                                          vpn);
-       t_victim->space->swapMap[vpn] = true;
+       t_victim->space->WriteSwapFile(vpn);
+       t_victim->space->MarkSwapMap(vpn);
     }
     
     // La página del hilo víctima deja de ser válida.
-    t_victim->space->pageTable[vpn].valid = false;
 
+    unsigned t_victim_physicalPage = t_victim->space->GetPagePhysicalPage(vpn);
+    bool t_victim_readOnly = t_victim->space->GetPageReadOnly(vpn);
+    bool t_victim_use = t_victim->space->GetPageUse(vpn);
+    bool t_victim_dirty = t_victim->space->GetPageDirty(vpn);
+
+    t_victim->space->ActPageTable(vpn, t_victim_physicalPage,
+                                        false, 
+                                        t_victim_readOnly,
+                                        t_victim_use, 
+                                        t_victim_dirty);
+    
     // Devuelvo el marco que me pidieron.
     core_map->Mark(victim, vpn_to_store, currentThread->GetPid());
     pageTable[vpn_to_store].physicalPage = victim;
@@ -542,13 +658,15 @@ AddressSpace::Swap(unsigned vpn_to_store)
 
 }
 
+
 void
 AddressSpace::GetFromSwap(unsigned vpn)
-{
+{ 
+    puts("Traigo de SWAP");
     ASSERT(vpn <= numPages);
     ASSERT(swapMap[vpn]);
 
-    swapFile->ReadAt(machine->mainMemory[PHYSICAL_PAGE_ADDR(vpn)], PAGE_SIZE, vpn);
+    ReadSwapFile(vpn);
     pageTable[vpn].valid = true;
     pageTable[vpn].virtualPage = vpn;
     pageTable[vpn].dirty = false;
@@ -579,8 +697,8 @@ AddressSpace::UpdateTLB(unsigned indexTlb, unsigned badVAddr)
         pageTable[badPageNumber].physicalPage = core_map->Find(badVAddr,currentThread->GetPid());
         
         // En caso que no haya espacio, debo hacer Swap.
-        if (pageTable[badPageNumber].physicalPage == -1)
-            Swap();
+        if ((int)pageTable[badPageNumber].physicalPage == -1)
+            Swap(badPageNumber);
         
         ASSERT((int)pageTable[badPageNumber].physicalPage != -1);
         

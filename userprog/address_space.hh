@@ -14,6 +14,7 @@
 #define NACHOS_USERPROG_ADDRESSSPACE__HH
 
 
+#include "coff_reader.h"
 #include "filesys/file_system.hh"
 #include "machine/translation_entry.hh"
 #include "lib/table.hh"
@@ -62,10 +63,22 @@ public:
     void Swap(unsigned vpn_to_store);
     void GetFromSwap(unsigned vpn);
     bool TestSwapMap(int i);
-    // Hacer métodos para escribir en swapFile y en swapMap.
-    // Hacer otra para obtener el swapName.
+    void WriteSwapFile(unsigned vpn);
+    void ReadSwapFile(unsigned vpn);
+    void MarkSwapMap(unsigned vpn);
     #endif
+
+    // Método para actualizar la pageTable.
+    void ActPageTable(unsigned virtualPage, unsigned physicalPage, bool valid, 
+                      bool readOnly, bool use, bool dirty);
     
+    // Métodos para obtener los campos de la pageTable.
+    unsigned GetPageVpn(unsigned vpn);
+    unsigned GetPagePhysicalPage(unsigned vpn);
+    bool GetPageValid(unsigned vpn);
+    bool GetPageReadOnly(unsigned vpn);
+    bool GetPageUse(unsigned vpn);
+    bool GetPageDirty(unsigned vpn);
 private:
 
     /// Assume linear page table translation for now!
