@@ -57,6 +57,14 @@ public:
     // Using for DL
     void LoadPage(unsigned badVAddr);
     #endif
+    #ifdef SWAP
+    // Using for SWAP
+    void Swap(unsigned vpn_to_store);
+    void GetFromSwap(unsigned vpn);
+    bool TestSwapMap(int i);
+    // Hacer métodos para escribir en swapFile y en swapMap.
+    // Hacer otra para obtener el swapName.
+    #endif
     
 private:
 
@@ -79,6 +87,7 @@ private:
     #ifdef SWAP
         char* swapName;
         OpenFile *swapFile;
+        bool* swapMap;
     #endif
 };
 

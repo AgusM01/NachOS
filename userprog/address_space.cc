@@ -25,7 +25,12 @@
 #include "filesys/file_system.hh"
 #endif
 
-/// First, set up the translation from program memory to physical memory.
+void LoadPagePrintStats(uint32_t codeAddr, uint32_t codeSize, uint32_t endCodeAddr, 
+                   uint32_t dataAddr, uint32_t dataSize, uint32_t endDataAddr, 
+                   uint32_t badPageNumber, uint32_t badVAddr, uint32_t botBadPage, 
+                   uint32_t topBadPage, uint32_t offsetPage);
+
+    /// First, set up the translation from program memory to physical memory.
 /// For now, this is really simple (1:1), since we are only uniprogramming,
 /// and we have a single unsegmented page table.
 AddressSpace::AddressSpace(OpenFile *executable_file, int newThreadPid)
@@ -66,8 +71,14 @@ AddressSpace::AddressSpace(OpenFile *executable_file, int newThreadPid)
     swapName = concat("SWAP.", id);
     //printf("%s\n", swapName);
     ASSERT(fileSystem->Create(swapName, size)); 
+
+    // Abro el archivo de swap de este thread.
     swapFile = fileSystem->Open(swapName);
     ASSERT(swapFile != nullptr);
+
+    // Mediante el swapMap veo que páginas ya he escrito en swap.
+    swapMap = new bool[numPages];
+    ASSERT(swapMap != nullptr);
     #endif
     
     DEBUG('a', "Initializing address space, num pages %u, size %u\n",
@@ -92,6 +103,14 @@ AddressSpace::AddressSpace(OpenFile *executable_file, int newThreadPid)
         #else
         /// Devolvemos el primer lugar de la memoria física libre.
         pageTable[i].physicalPage = core_map->Find(i,currentThread->GetPid());
+        // Si no encuentra lugar en la memoria y está activado swap, debemos swappear a un proceso.
+        if (pageTable[i].physicalPage == -1)
+            Swap(pageTable[i].virtualPage);
+        
+        ASSERT(pageTable[i] != -1);
+
+        // Cuando creo el archivo ninguna página está en swap.
+        swapMap[i] = false; 
         #endif
         
         pageTable[i].valid = true;
@@ -345,20 +364,13 @@ AddressSpace::LoadPage(unsigned badPageNumber)
     uint32_t dataSize = exe->GetInitDataSize();
     uint32_t dataAddr = exe->GetInitDataAddr();
     uint32_t endDataAddr  = (dataAddr + dataSize);
-
-   // puts("----------------------------------------------------------");
-   // printf("codeAddr: %d\n", codeAddr);
-   // printf("codeSize: %d\n", codeSize);
-   // printf("endCodeAddr: %d\n", endCodeAddr);
-   // printf("dataAddr: %d\n", dataAddr);
-   // printf("dataSize: %d\n", dataSize);
-   // printf("endDataAddr: %d\n", endDataAddr);
-   // printf("badPageNumber: %d\n", badPageNumber);
-   // printf("badVAddr: %d\n", badVAddr);
-   // printf("botBadPage: %d\n", botBadPage);
-   // printf("topBadPage: %d\n", topBadPage);
-   // printf("offsetPage: %d\n", offsetPage);
-   // puts("----------------------------------------------------------");
+    
+    /*
+    LoadPagePrintStats(codeAddr, codeSize, endCodeAddr, 
+                       dataAddr, dataSize, endDataAddr, 
+                       badPageNumber, badVAddr, botBadPage, 
+                       topBadPage, offsetPage);
+    */
     
     // Es una dirección del stack. Relleno con 0 y listo.
     if (dataSize == 0){
@@ -447,25 +459,143 @@ AddressSpace::LoadPage(unsigned badPageNumber)
 }
 #endif
 
+#ifdef SWAP
+
+// Testea si la página i fué swappeada.
+bool 
+AddressSpace::TestSwapMap(int i)
+{
+    ASSERT(i <= numPages);
+    return swapMap[i];
+}
+
+void 
+AddressSpace::Swap(unsigned vpn_to_store)
+{
+    // Primero debo elegir una víctima.
+    int victim = core_map->PickVictim();
+    
+    // Obtengo el pid del thread al cual le pertenece la página.
+    unsigned pid_victim = core_map->GetPid(victim);
+
+    // Obtengo el número de página víctima.
+    unsigned vpn = core_map->GetVpn(victim);
+
+    // Thread al cual voy a mandar su página a swap.
+    Thread* t_victim = space_table->Get(pid_victim);
+    ASSERT(t_victim != nullptr);
+    
+    // En el único caso que tiene sentido checkear que la TLB
+    // no tenga esta página es en el cual el hilo víctima es 
+    // el hilo actual.
+    if (currentThread == t_victim)
+    {
+        TranslationEntry* tlb = machine->GetMMU()->tlb;
+        for (unsigned int i = 0; i < TLB_SIZE ; i++)
+        {
+            // Si efectivamente la victima está en la tlb,
+            // actualizamos la pageTable.
+            if (tlb[i].virtualPage == vpn)
+            {
+               // Invalido la victima en la tlb.
+               tlb[i].valid = false;
+
+               pageTable[vpn].virtualPage = tlb[i].virtualPage;
+               pageTable[vpn].physicalPage = tlb[i].physicalPage;
+               pageTable[vpn].valid = tlb[i].valid;
+               pageTable[vpn].readOnly = tlb[i].readOnly;
+               pageTable[vpn].use = tlb[i].use;
+               pageTable[vpn].dirty = tlb[i].dirty;
+            }
+        }
+    }
+
+    // Una vez resuelto posibles conflictos con la tlb,
+    // debo checkear si la página está sucia.
+    
+    // Si no está sucia, no la escribo ya que no hubo ningún cambio / no se utilizó.
+   // if (!(t_victim->pageTable[vpn].dirty))
+   // {
+   //     core_map->Mark(victim, vpn_to_store, currentThread->GetPid());
+   //     pageTable[vpn_to_store].physicalPage = victim;
+   //     return;
+   // }
+   // 
+    
+    // La página está sucia. Debo escribirla en swap.
+    if (t_victim->space->pageTable[vpn].dirty)
+    {
+        // El archivo es 1:1 con la vpn.
+       t_victim->space->fileSwap->WriteAt(&machine->mainMemory[PHYSICAL_PAGE_ADDR(vpn)], 
+                                          PAGE_SIZE, 
+                                          vpn);
+       t_victim->space->swapMap[vpn] = true;
+    }
+    
+    // La página del hilo víctima deja de ser válida.
+    t_victim->space->pageTable[vpn].valid = false;
+
+    // Devuelvo el marco que me pidieron.
+    core_map->Mark(victim, vpn_to_store, currentThread->GetPid());
+    pageTable[vpn_to_store].physicalPage = victim;
+    return;
+
+}
+
+void
+AddressSpace::GetFromSwap(unsigned vpn)
+{
+    ASSERT(vpn <= numPages);
+    ASSERT(swapMap[vpn]);
+
+    swapFile->ReadAt(machine->mainMemory[PHYSICAL_PAGE_ADDR(vpn)], PAGE_SIZE, vpn);
+    pageTable[vpn].valid = true;
+    pageTable[vpn].virtualPage = vpn;
+    pageTable[vpn].dirty = false;
+
+    return;
+
+}
+#endif
+
 void 
 AddressSpace::UpdateTLB(unsigned indexTlb, unsigned badVAddr) 
 {
     unsigned badPageNumber = badVAddr / PAGE_SIZE;
     
-    // Es el primer acceso y hay que cargar la página, esto es por DL.
-    #ifdef DEMAND_LOADING
-    if ((int)pageTable[badPageNumber].physicalPage == -1){
+    // La página no está en memoria, por SWAP o DL.
+    #if (defined(SWAP) || defined(DEMAND_LOADING))
+    if (!(pageTable[badPageNumber].valid)){
         
         #ifndef SWAP
+        #ifdef DEMAND_LOADING
         // Busco un lugar en la memoria libre.
         pageTable[badPageNumber].physicalPage = bit_map->Find();
+        ASSERT((int)pageTable[badPageNumber].physicalPage != -1);
+        LoadPage(badPageNumber);
+        #endif
         #else
         // Busco un lugar en la memoria libre.
         pageTable[badPageNumber].physicalPage = core_map->Find(badVAddr,currentThread->GetPid());
-        #endif
+        
+        // En caso que no haya espacio, debo hacer Swap.
+        if (pageTable[badPageNumber].physicalPage == -1)
+            Swap();
         
         ASSERT((int)pageTable[badPageNumber].physicalPage != -1);
-        LoadPage(badPageNumber);
+        
+        // En este caso, si la página está en swap, la cargo de allí.
+        if (swapMap[badPageNumber]){
+            GetFromSwap(badPageNumber);
+        }
+        else { 
+            #ifdef DEMAND_LOADING
+            LoadPage(badPageNumber);
+            #else // La única forma que la página no esté en memoria sin haber DL es que haya sido swappeada.
+            ASSERT(false);
+            #endif
+        }
+        #endif
     }
     #endif
 
@@ -492,3 +622,26 @@ AddressSpace::UpdateTLB(unsigned indexTlb, unsigned badVAddr)
     MMU->tlb[indexTlb].dirty = pageTable[badPageNumber].dirty;
     MMU->tlb[indexTlb].readOnly = pageTable[badPageNumber].readOnly;
 }
+
+
+void LoadPagePrintStats(uint32_t codeAddr, uint32_t codeSize, uint32_t endCodeAddr, 
+                   uint32_t dataAddr, uint32_t dataSize, uint32_t endDataAddr, 
+                   uint32_t badPageNumber, uint32_t badVAddr, uint32_t botBadPage, 
+                   uint32_t topBadPage, uint32_t offsetPage)
+{
+    puts("----------------------------------------------------------");
+    printf("codeAddr: %d\n", codeAddr);
+    printf("codeSize: %d\n", codeSize);                                
+    printf("endCodeAddr: %d\n", endCodeAddr);
+    printf("dataAddr: %d\n", dataAddr);
+    printf("dataSize: %d\n", dataSize);
+    printf("endDataAddr: %d\n", endDataAddr);
+    printf("badPageNumber: %d\n", badPageNumber);
+    printf("badVAddr: %d\n", badVAddr);
+    printf("botBadPage: %d\n", botBadPage);
+    printf("topBadPage: %d\n", topBadPage);
+    printf("offsetPage: %d\n", offsetPage);
+    puts("----------------------------------------------------------");
+    return;
+}
+

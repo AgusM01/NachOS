@@ -67,8 +67,10 @@ public:
     /// Devuelve un numero de marco que será la víctima a reemplazo.
     int PickVictim();
     
+    /// Devuelve el pid del thread al cual le "pertenece" dicho marco.
     unsigned GetPid(unsigned which);
-
+    
+    /// Devuelve la vpn alojada en dicho marco.
     unsigned GetVpn(unsigned which);
 
 private:
