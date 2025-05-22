@@ -8,6 +8,7 @@
 
 
 #include "coremap.hh"
+#include "system.hh"
 #include "system_dep.hh"
 
 #include <cstdint>
@@ -61,6 +62,10 @@ void
 CoreMap::Clear(unsigned which)
 {
     ASSERT(which < numBits);
+    
+    if(map[which].used && currentThread->GetPid() != map[which].pid)
+        return;
+    
     map[which].used = false;
     #ifdef PRPOLICY_FIFO
         

@@ -59,7 +59,7 @@ static void
 DefaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar el PC. Cuestion es: de donde sacar la dirección => VPN que fallo? De un registro simulado machine->register[BadVAddr]
 {
     int exceptionArg = machine->ReadRegister(2);
-
+    printf("Di error, soy: %d\n", currentThread->GetPid());
     fprintf(stderr, "Unexpected user mode exception: %s, arg %d.\n",
             ExceptionTypeToString(et), exceptionArg);
     ASSERT(false);
@@ -522,7 +522,6 @@ SyscallHandler(ExceptionType _et)
             break;
         }
         case SC_JOIN: {
-
             SpaceId childId = machine->ReadRegister(4); 
             int status = 0;
             Thread *child;
@@ -536,6 +535,7 @@ SyscallHandler(ExceptionType _et)
             }
             
             machine->WriteRegister(2, status);
+            //printf("Hago JOIN, soy: %d\n", currentThread->GetPid());
             break;
         }
         default:

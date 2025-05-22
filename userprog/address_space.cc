@@ -261,17 +261,19 @@ AddressSpace::AddressSpace(OpenFile *executable_file, int newThreadPid)
 /// Nothing for now!
 AddressSpace::~AddressSpace()
 {
-    //printf("Elimino pageTable, soy %s\n", currentThread->GetName());
+    printf("Elimino pageTable, soy %s\n", currentThread->GetName());
     for (unsigned i = 0; i < numPages; i++)
-        if (((int)pageTable[i].physicalPage) != -1){
+        if (pageTable[i].valid){
             #ifndef SWAP
             bit_map->Clear(pageTable[i].physicalPage);
             #else
-            mutex->Acquire();
             core_map->Clear(pageTable[i].physicalPage);
-            mutex->Release();
             #endif
         }
+    #ifdef SWAP
+    printf("Soy %d\n", currentThread->GetPid());
+    core_map->Print();
+    #endif
     // Ver.    
     #ifdef DEMAND_LOADING
         delete exe;
@@ -314,7 +316,7 @@ AddressSpace::InitRegisters()
 void
 AddressSpace::SaveState()
 {
-    //printf("Guardo estado, soy %s\n", currentThread->GetName());
+    printf("Guardo estado, soy %d\n", currentThread->GetPid());
     #ifdef USE_TLB
     TranslationEntry* tlb = machine->GetMMU()->tlb;
     for (unsigned int i = 0; i < TLB_SIZE ; i++)
@@ -322,13 +324,13 @@ AddressSpace::SaveState()
         if(tlb[i].valid) 
         {
             currentThread->space->pageTable[tlb[i].virtualPage].virtualPage = tlb[i].virtualPage;
-            currentThread->space->pageTable[tlb[i].virtualPage].physicalPage = tlb[i].physicalPage;
+            //currentThread->space->pageTable[tlb[i].virtualPage].physicalPage = tlb[i].physicalPage;
             currentThread->space->pageTable[tlb[i].virtualPage].dirty = tlb[i].dirty;
             currentThread->space->pageTable[tlb[i].virtualPage].use = tlb[i].use;
             currentThread->space->pageTable[tlb[i].virtualPage].readOnly = tlb[i].readOnly;
+            currentThread->space->pageTable[tlb[i].virtualPage].valid = tlb[i].valid;
         }
     }
-    
     #endif
 }
 
@@ -602,7 +604,7 @@ AddressSpace::Swap(unsigned vpn_to_store)
                tlb[i].valid = false;
                 
                // Actualizo la pageTable
-               ActPageTable(vpn, tlb[i].physicalPage, tlb[i].valid, tlb[i].readOnly, 
+               ActPageTable(vpn, tlb[i].physicalPage, false, tlb[i].readOnly, 
                             tlb[i].use, tlb[i].dirty);
             }
         }
@@ -612,13 +614,22 @@ AddressSpace::Swap(unsigned vpn_to_store)
     // debo checkear si la página está sucia.
     
     // Si no está sucia, no la escribo ya que no hubo ningún cambio / no se utilizó.
-   // if (!(t_victim->space->GetPageDirty(vpn)))
-   // {
-   //     core_map->Mark(victim, vpn_to_store, currentThread->GetPid());
-   //     pageTable[vpn_to_store].physicalPage = victim;
-   //     return;
-   // }
-   // 
+    if (!(t_victim->space->GetPageDirty(vpn)))
+    {
+          unsigned t_victim_physicalPage = t_victim->space->GetPagePhysicalPage(vpn);
+          bool t_victim_readOnly = t_victim->space->GetPageReadOnly(vpn);
+          bool t_victim_use = t_victim->space->GetPageUse(vpn);
+          bool t_victim_dirty = t_victim->space->GetPageDirty(vpn);
+          t_victim->space->ActPageTable(vpn, 
+                                        t_victim_physicalPage,
+                                        false, 
+                                        t_victim_readOnly,
+                                        t_victim_use, 
+                                        t_victim_dirty);
+          core_map->Mark(victim, vpn_to_store, currentThread->GetPid());
+          pageTable[vpn_to_store].physicalPage = victim;
+          return;
+    }
     
     // La página está sucia. Debo escribirla en swap.
     if (t_victim->space->GetPageDirty(vpn))
@@ -693,9 +704,9 @@ AddressSpace::UpdateTLB(unsigned indexTlb, unsigned badVAddr)
         
         // En caso que no haya espacio, debo hacer Swap.
         if ((int)pageTable[badPageNumber].physicalPage == -1){
-            printf("badPageNumber: %d\n", badPageNumber);
-            printf("currentThreadPid: %d\n",currentThread->GetPid());
-            printf("currentThreadNumPages: %d\n", currentThread->space->GetNumPages());
+           // printf("badPageNumber: %d\n", badPageNumber);
+           // printf("currentThreadPid: %d\n",currentThread->GetPid());
+           // printf("currentThreadNumPages: %d\n", currentThread->space->GetNumPages());
 
             Swap(badPageNumber);
         }
