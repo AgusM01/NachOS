@@ -1,7 +1,7 @@
 #include "syscall.h"
 #include "lib.c"
 
-#define PROCS 9
+#define PROCS 3
 
 int main(){
     puts("HOLA\n");

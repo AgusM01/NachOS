@@ -62,9 +62,9 @@ public:
     // Using for SWAP
     void Swap(unsigned vpn_to_store);
     void GetFromSwap(unsigned vpn);
-    bool TestSwapMap(int i);
-    void WriteSwapFile(unsigned vpn);
-    void ReadSwapFile(unsigned vpn);
+    bool TestSwapMap(unsigned i);
+    void WriteSwapFile(unsigned vpn, unsigned physicalPage);
+    void ReadSwapFile(unsigned vpn, unsigned physicalPage);
     void MarkSwapMap(unsigned vpn);
     #endif
 
@@ -79,6 +79,8 @@ public:
     bool GetPageReadOnly(unsigned vpn);
     bool GetPageUse(unsigned vpn);
     bool GetPageDirty(unsigned vpn);
+
+    unsigned GetNumPages();
 private:
 
     /// Assume linear page table translation for now!
