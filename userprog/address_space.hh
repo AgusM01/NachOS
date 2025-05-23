@@ -91,8 +91,10 @@ private:
     /// Number of pages in the virtual address space. -> Para no guerdar una tabla de paginacion enorme.
     /// Si un proceso quiere acceder a un valor superior al numPages dará una excepción.
     unsigned numPages;
-
     
+    // Pid del thread al cual pertenece este addresspace.
+    int pid;
+
     #ifdef DEMAND_LOADING
     // Using for DL
         Executable *exe; 

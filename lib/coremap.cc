@@ -184,3 +184,6 @@ CoreMap::WriteBack(OpenFile *file) const
     ASSERT(file != nullptr);
     file->WriteAt((char *) map, numWords * sizeof (CoreStruct), 0);
 }
+
+unsigned
+CoreMap::GetSize(){return numBits;}

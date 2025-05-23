@@ -370,23 +370,27 @@ SyscallHandler(ExceptionType _et)
             char filename[FILE_NAME_MAX_LEN + 1];
 
             if (filenameAddr == 0){
+                puts("Error filename null");
                 DEBUG('e', "Error: address to filename string is null. \n");
                 status = false;
             }
 
             if (!ReadStringFromUser(filenameAddr, 
                                     filename, sizeof filename) || !status){
-                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
+                puts("Error filename long"); 
+                DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
                 status = false;
             }
 
             if (!(executable = fileSystem->Open(filename)) || !status) {
+                puts("Error al abrir el archivo");
                 DEBUG('e', "Error: Unable to open file %s\n", filename);
                 status = false;
             }
 
             if (!(newThread = new Thread(nullptr,join ? true : false)) || !status){
+                puts("Error al crear el thread");
                 DEBUG('e', "Error: Unable to create a thread %s\n", filename);
                 status = false; 
             }
@@ -397,11 +401,13 @@ SyscallHandler(ExceptionType _et)
             
             if (newpid == -1 && status)
             {
+                puts("Error agg thread space table");
                 DEBUG('e', "Error: No se puede agregar el Thread a la space_table\n");
                 status = false;
             }
 
             if (!(space = new AddressSpace(executable, newpid)) || !status){
+                puts("Error crear addres space\n"); 
                 DEBUG('e', "Error: Unable to create the address space \n");
                 status = false;
             }

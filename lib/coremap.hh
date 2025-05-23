@@ -72,7 +72,9 @@ public:
     
     /// Devuelve la vpn alojada en dicho marco.
     unsigned GetVpn(unsigned which);
-
+    
+    /// Devuelve el tamaño del coremap.
+    unsigned GetSize();
 private:
 
     /// Number of bits in the bitmap.

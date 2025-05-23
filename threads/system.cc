@@ -259,9 +259,9 @@ Cleanup()
     
     delete space_table;
     
-    #ifdef SWAP 
-    delete core_map;
-    #endif
+   // #ifdef SWAP 
+   // delete core_map;
+   // #endif
 #endif
 
 #ifdef FILESYS_NEEDED

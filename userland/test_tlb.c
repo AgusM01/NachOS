@@ -16,11 +16,11 @@ int main(){
          puts(ito);
          puts("\n");
     }
-//    puts("Por hacer join\n"); 
-//    for(int i = 0; i < PROCS; i++){
-//        res[i] = Join(pids[i]);
-//        //puts("me voy\n");
-//    }
+    //puts("Por hacer join\n"); 
+   // for(int i = 0; i < PROCS; i++){
+   //     res[i] = Join(pids[i]);
+   //     //puts("me voy\n");
+   // }
 
     // for(int i = 0; i < PROCS; i++){
     //     itoa(res[i], ito);

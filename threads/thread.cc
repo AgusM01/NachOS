@@ -83,11 +83,11 @@ Thread::~Thread()
     delete waitToChild;
     free(chName);
 
-
-#ifdef USER_PROGRAM
-    delete fileTableIds;
+    #ifdef USER_PROGRAM
     delete space;
-#endif
+    delete fileTableIds;
+    #endif
+    
 
     ASSERT(this != currentThread);
     if (stack != nullptr) {
@@ -187,6 +187,12 @@ Thread::Finish(int returnStatus)
     ASSERT(this == currentThread);
 
     DEBUG('t', "Finishing thread \"%s\"\n", GetName());
+    
+   // // Borro el address_space cuando termina.
+   // #ifdef USER_PROGRAM
+   // delete space;
+   // delete fileTableIds;
+   // #endif
 
     //JOIN IMPLEMENTATION
     if (join) {
