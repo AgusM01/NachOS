@@ -62,10 +62,6 @@ void
 CoreMap::Clear(unsigned which)
 {
     ASSERT(which < numBits);
-    
-    if(map[which].used && currentThread->GetPid() != map[which].pid)
-        return;
-    
     map[which].used = false;
     #ifdef PRPOLICY_FIFO
         

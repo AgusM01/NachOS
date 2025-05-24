@@ -188,12 +188,14 @@ Thread::Finish(int returnStatus)
 
     DEBUG('t', "Finishing thread \"%s\"\n", GetName());
     
-   // // Borro el address_space cuando termina.
-   // #ifdef USER_PROGRAM
-   // delete space;
-   // delete fileTableIds;
-   // #endif
-
+    // Borro mi lugar en el coremap.
+    #ifdef SWAP
+    for (unsigned i = 0; i < core_map->GetSize(); i++){
+        if (core_map->GetPid(i) == pid)
+            core_map->Clear(i);
+    }
+    #endif 
+    
     //JOIN IMPLEMENTATION
     if (join) {
         DEBUG('t', "Signal to father thread to continue with Join\n");
@@ -359,7 +361,7 @@ Thread::Join() {
 
     ASSERT(join);
     int ret;
-
+    
     //Espero la respuesta del Child de que terminó
     waitToChild->Receive(&ret);
 

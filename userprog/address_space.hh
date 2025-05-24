@@ -81,6 +81,8 @@ public:
     bool GetPageDirty(unsigned vpn);
 
     unsigned GetNumPages();
+    
+    void ActValid(unsigned vpn, bool nv);
 private:
 
     /// Assume linear page table translation for now!
