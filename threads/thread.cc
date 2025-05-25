@@ -191,7 +191,7 @@ Thread::Finish(int returnStatus)
     // Borro mi lugar en el coremap.
     #ifdef SWAP
     for (unsigned i = 0; i < core_map->GetSize(); i++){
-        if (core_map->GetPid(i) == pid)
+        if (core_map->GetPid(i) == (unsigned int)pid)
             core_map->Clear(i);
     }
     #endif 

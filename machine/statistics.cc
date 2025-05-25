@@ -43,6 +43,10 @@ Statistics::Print()
     printf("Disk I/O: reads %lu, writes %lu\n", numDiskReads, numDiskWrites);
     printf("Console I/O: reads %lu, writes %lu\n",
            numConsoleCharsRead, numConsoleCharsWritten);
+    #ifndef SWAP
     printf("Paging: faults %lu, hits %lu\n", numPageFaults, numPageHits-numPageFaults);
+    #else
+    printf("Paging: faults %lu, hits %lu, swap %lu\n", numPageFaults, numPageHits-numPageFaults, numPageSwap);
+    #endif
     //printf("Hit TLB ratio: %.3lf%%\n", (numPageFaults/(numPageHits-numPageFaults))*100);
 }

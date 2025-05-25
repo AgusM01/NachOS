@@ -49,9 +49,9 @@ CoreMap::Mark(unsigned which, unsigned vpn, int proc_id)
     map[which].used = true;
     map[which].vpn = vpn;
     map[which].pid = proc_id;
-    
-
-    #ifdef PRPOLICY_FIFO
+    #ifdef PRPOLICY_CLOCK
+    map[which].recently_used = true;
+    //map[which].dirty = ...
     #endif
 }
 
@@ -63,9 +63,6 @@ CoreMap::Clear(unsigned which)
 {
     ASSERT(which < numBits);
     map[which].used = false;
-    #ifdef PRPOLICY_FIFO
-        
-    #endif
 }
 
 /// Return true if the “nth” bit is set.
@@ -89,9 +86,6 @@ CoreMap::Find(unsigned vpn, int proc_id)
     for (unsigned i = 0; i < numBits; i++) {
         if (!Test(i)) {
             Mark(i,vpn,proc_id);
-           // map[i].used = true;
-           // map[i].pid = proc_id;
-           // map[i].vpn = vpn;
             return i;
         }
     }
@@ -132,14 +126,20 @@ CoreMap::Print() const
 int
 CoreMap::PickVictim()
 {
+    #ifdef PRPOLICY_CLOCK
+    for (unsigned i = 0; i < numBits; i++)
+    {
+        
+    }
+    #endif
     
     #ifdef PRPOLICY_FIFO
        fifo_ind++;
        fifo_ind = fifo_ind % numBits;
        return fifo_ind;
-    #else 
-        return SystemDep::Random()%numBits;     
     #endif
+    
+    return SystemDep::Random()%numBits;     
 
 
 }

@@ -344,7 +344,7 @@ AddressSpace::RestoreState()
 {
     #ifdef USE_TLB
     //Invalidar la TLB
-    for (int i = 0; i < TLB_SIZE; i++)
+    for (unsigned int i = 0; i < TLB_SIZE; i++)
         machine->GetMMU()->tlb[i].valid = false;
     #else
     /// Comentar estas dos
@@ -402,9 +402,6 @@ AddressSpace::GetPageUse(unsigned vpn)
 bool 
 AddressSpace::GetPageDirty(unsigned vpn)
 { 
-   // printf("miPid: %d\n", pid);
-   // printf("pid: %d\n", currentThread->GetPid());
-   // printf("numPages: %d\n", numPages);
     return pageTable[vpn].dirty;
 }
 
@@ -555,6 +552,7 @@ AddressSpace::MarkSwapMap(unsigned vpn)
 void 
 AddressSpace::WriteSwapFile(unsigned vpn, unsigned physicalPage)
 {
+    stats->numPageSwap++;
     swapFile->WriteAt(&machine->mainMemory[physicalPage * PAGE_SIZE], 
                       PAGE_SIZE, 
                       vpn*PAGE_SIZE);

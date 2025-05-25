@@ -14,13 +14,14 @@ struct corestruct {
     unsigned pid; // Espacio de direcciones.
     unsigned vpn; // Pagina alojada.
     bool used;    // Usado o no
+    #ifdef PRPOLICY_CLOCK
+    bool recently_used;
+    bool dirty;
+    #endif
 };
 
 typedef struct corestruct CoreStruct;
 
-#ifdef PRPOLICY_CLOCK
-
-#endif
 class CoreMap{
 
 public:
@@ -31,7 +32,7 @@ public:
     /// Destructor del CoreMap.
     ~CoreMap();
     
-/// Set the “nth” bit.
+    /// Set the “nth” bit.
     void Mark(unsigned which, unsigned vpn, int proc_id);
 
     /// Clear the “nth” bit.
@@ -90,7 +91,6 @@ private:
     #ifdef PRPOLICY_FIFO
         unsigned fifo_ind;
     #endif
-
 };
 #endif
 
