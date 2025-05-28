@@ -14,6 +14,8 @@ struct corestruct {
     unsigned pid; // Espacio de direcciones.
     unsigned vpn; // Pagina alojada.
     bool used;    // Usado o no
+    
+    // Bits usados para el algoritmo del clock.
     #ifdef PRPOLICY_CLOCK
     bool recently_used;
     bool dirty;
@@ -88,8 +90,14 @@ private:
     /// Bit storage.
     CoreStruct* map;
     
+    // Indice para hacer fifo.
     #ifdef PRPOLICY_FIFO
         unsigned fifo_ind;
+    #endif
+    
+    // Indice para hacer clock.
+    #ifdef PRPOLICY_CLOCK
+        unsigned clock_ind;
     #endif
 };
 #endif

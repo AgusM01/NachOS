@@ -15,7 +15,7 @@
 
 
 #include "syscall.h"
-
+#include "./lib.c"
 
 #define DIM  1024
 
@@ -41,6 +41,12 @@ main(void)
             }
         }
     }
+
+    for (i = 0; i < DIM - 1; i++){
+        if (A[i] > A[i+1])
+            puts("MAL\n");
+    }
+
     // And then we're done -- should be 0!
     return A[0];
 }

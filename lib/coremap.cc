@@ -49,9 +49,12 @@ CoreMap::Mark(unsigned which, unsigned vpn, int proc_id)
     map[which].used = true;
     map[which].vpn = vpn;
     map[which].pid = proc_id;
+    
     #ifdef PRPOLICY_CLOCK
-    map[which].recently_used = true;
-    //map[which].dirty = ...
+    Thread* actual = space_table->Get(proc_id);
+    ASSERT(actual != nullptr);
+    map[which].recently_used = actual->space->GetPageUse(vpn);
+    map[which].dirty = actual->space->GetPageDirty(vpn); 
     #endif
 }
 
@@ -126,11 +129,55 @@ CoreMap::Print() const
 int
 CoreMap::PickVictim()
 {
+    /// La política de segunda oportunidad mejorada utiliza los bits de dirty y use.
+    
+    /// (0,0) -> Página ni sucia ni usada recientemente, mejor candidata para reemplazar.
+    /// (0,1) -> Página no usada recientemente pero sucia, hay que escribirla a swap.
+    /// (1,0) -> Página usada recientemente y limpia, probablemente se requiera pronto.
+    /// (1,1) -> Página usada recientemente y sucia, la peor candidata.
+
+    /// La idea es ir recorriendo las páginas e ir apagando los bits de use.
+    /// Hago una vuelta buscando (0,0). 
+    /// Si no encontré ninguna, hago otra vuelta buscando (0,1)
+    /// apagando los bits de use que encuentro.
+    /// En la tercera vuelta busco (0,0) de nuevo.
+
     #ifdef PRPOLICY_CLOCK
+    
+    // Primera vuelta
+    int index;
+
     for (unsigned i = 0; i < numBits; i++)
     {
-        
+        index = (i + clock_ind) % numBits; 
+        ASSERT(map[index].used);
+        if (!map[index].recently_used && !map[index].dirty)
+            return index;
     }
+    
+    // Segunda vuelta
+    for (unsigned i = 0; i < numBits; i++)
+    {
+        index = (i + clock_ind) % numBits; 
+        ASSERT(map[index].used);
+        // Busco (0,1)
+        if (!map[index].recently_used && map[index].dirty)
+            return index;
+        
+        // En caso que no encuento, voy apagando los bits de used.
+        map[index].recently_used = false;
+    }
+    
+    // Tercera vuelta.
+    for (unsigned i = 0; i < numBits; i++)
+    {
+        index = (i + clock_ind) % numBits; 
+        ASSERT(map[index].used);
+        if (!map[index].recently_used && !map[index].dirty)
+            return index;
+    }
+    
+    return index;
     #endif
     
     #ifdef PRPOLICY_FIFO
@@ -140,8 +187,6 @@ CoreMap::PickVictim()
     #endif
     
     return SystemDep::Random()%numBits;     
-
-
 }
 
 unsigned
