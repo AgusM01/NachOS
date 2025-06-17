@@ -46,13 +46,7 @@
 #include "directory.hh"
 #include "file_header.hh"
 
-#ifndef SWAP
 #include "lib/bitmap.hh"
-#else
-#include "lib/coremap.hh"
-#endif
-
-
 #include <stdio.h>
 #include <string.h>
 
@@ -75,14 +69,13 @@ static const unsigned DIRECTORY_SECTOR = 1;
 FileSystem::FileSystem(bool format)
 {
     DEBUG('f', "Initializing the file system.\n");
+    // Debemos inicializar el disco (de 0)
     if (format) {
         
-        #ifndef SWAP
+        // Creamos un bitmap para ir llevando los sectores libres del disco.
         Bitmap     *freeMap = new Bitmap(NUM_SECTORS);
-        #else
-        CoreMap    *freeMap = new CoreMap(NUM_SECTORS);
-        #endif
         
+        // Creamos un directorio vacío.
         Directory  *dir     = new Directory(NUM_DIR_ENTRIES);
         FileHeader *mapH    = new FileHeader;
         FileHeader *dirH    = new FileHeader;
@@ -192,11 +185,7 @@ FileSystem::Create(const char *name, unsigned initialSize)
         success = false;  // File is already in directory.
     } else {
         
-        #ifndef SWAP
         Bitmap *freeMap = new Bitmap(NUM_SECTORS);
-        #else
-        CoreMap *freeMap = new CoreMap(NUM_SECTORS);
-        #endif
         
         freeMap->FetchFrom(freeMapFile);
         int sector = freeMap->Find();
@@ -275,11 +264,7 @@ FileSystem::Remove(const char *name)
     FileHeader *fileH = new FileHeader;
     fileH->FetchFrom(sector);
     
-    #ifndef SWAP
     Bitmap *freeMap = new Bitmap(NUM_SECTORS);
-    #else
-    CoreMap *freeMap = new CoreMap(NUM_SECTORS);
-    #endif
     
     freeMap->FetchFrom(freeMapFile);
 
@@ -306,7 +291,6 @@ FileSystem::List()
     delete dir;
 }
 
-#ifndef SWAP
 static bool
 AddToShadowBitmap(unsigned sector, Bitmap *map)
 {
@@ -320,21 +304,6 @@ AddToShadowBitmap(unsigned sector, Bitmap *map)
     DEBUG('f', "Marked sector %u.\n", sector);
     return true;
 }
-#else
-static bool
-AddToShadowBitmap(unsigned sector, CoreMap *map)
-{
-    ASSERT(map != nullptr);
-
-    if (map->Test(sector)) {
-        DEBUG('f', "Sector %u was already marked.\n", sector);
-        return false;
-    }
-    map->Mark(sector);
-    DEBUG('f', "Marked sector %u.\n", sector);
-    return true;
-}
-#endif
 
 static bool
 CheckForError(bool value, const char *message)
@@ -345,7 +314,6 @@ CheckForError(bool value, const char *message)
     return !value;
 }
 
-#ifndef SWAP
 static bool
 CheckSector(unsigned sector, Bitmap *shadowMap)
 {
@@ -356,20 +324,7 @@ CheckSector(unsigned sector, Bitmap *shadowMap)
     return CheckForError(AddToShadowBitmap(sector, shadowMap),
                          "sector number already used.");
 }
-#else
-static bool
-CheckSector(unsigned sector, CoreMap *shadowMap)
-{
-    if (CheckForError(sector < NUM_SECTORS,
-                      "sector number too big.  Skipping bitmap check.")) {
-        return true;
-    }
-    return CheckForError(AddToShadowBitmap(sector, shadowMap),
-                         "sector number already used.");
-}
-#endif
 
-#ifndef SWAP
 static bool
 CheckFileHeader(const RawFileHeader *rh, unsigned num, Bitmap *shadowMap)
 {
@@ -390,30 +345,7 @@ CheckFileHeader(const RawFileHeader *rh, unsigned num, Bitmap *shadowMap)
     }
     return error;
 }
-#else
-static bool
-CheckFileHeader(const RawFileHeader *rh, unsigned num, CoreMap *shadowMap)
-{
-    ASSERT(rh != nullptr);
 
-    bool error = false;
-
-    DEBUG('f', "Checking file header %u.  File size: %u bytes, number of sectors: %u.\n",
-          num, rh->numBytes, rh->numSectors);
-    error |= CheckForError(rh->numSectors >= DivRoundUp(rh->numBytes,
-                                                        SECTOR_SIZE),
-                           "sector count not compatible with file size.");
-    error |= CheckForError(rh->numSectors < NUM_DIRECT,
-                           "too many blocks.");
-    for (unsigned i = 0; i < rh->numSectors; i++) {
-        unsigned s = rh->dataSectors[i];
-        error |= CheckSector(s, shadowMap);
-    }
-    return error;
-}
-#endif
-
-#ifndef SWAP
 static bool
 CheckBitmaps(const Bitmap *freeMap, const Bitmap *shadowMap)
 {
@@ -426,22 +358,7 @@ CheckBitmaps(const Bitmap *freeMap, const Bitmap *shadowMap)
     }
     return error;
 }
-#else
-static bool
-CheckBitmaps(const CoreMap *freeMap, const CoreMap *shadowMap)
-{
-    bool error = false;
-    for (unsigned i = 0; i < NUM_SECTORS; i++) {
-        DEBUG('f', "Checking sector %u. Original: %u, shadow: %u.\n",
-              i, freeMap->Test(i), shadowMap->Test(i));
-        error |= CheckForError(freeMap->Test(i) == shadowMap->Test(i),
-                               "inconsistent coremap.");
-    }
-    return error;
-}
-#endif
 
-#ifndef SWAP
 static bool
 CheckDirectory(const RawDirectory *rd, Bitmap *shadowMap)
 {
@@ -494,60 +411,6 @@ CheckDirectory(const RawDirectory *rd, Bitmap *shadowMap)
     }
     return error;
 }
-#else
-static bool
-CheckDirectory(const RawDirectory *rd, CoreMap *shadowMap)
-{
-    ASSERT(rd != nullptr);
-    ASSERT(shadowMap != nullptr);
-
-    bool error = false;
-    unsigned nameCount = 0;
-    const char *knownNames[NUM_DIR_ENTRIES];
-
-    for (unsigned i = 0; i < NUM_DIR_ENTRIES; i++) {
-        DEBUG('f', "Checking direntry: %u.\n", i);
-        const DirectoryEntry *e = &rd->table[i];
-
-        if (e->inUse) {
-            if (strlen(e->name) > FILE_NAME_MAX_LEN) {
-                DEBUG('f', "Filename too long.\n");
-                error = true;
-            }
-
-            // Check for repeated filenames.
-            DEBUG('f', "Checking for repeated names.  Name count: %u.\n",
-                  nameCount);
-            bool repeated = false;
-            for (unsigned j = 0; j < nameCount; j++) {
-                DEBUG('f', "Comparing \"%s\" and \"%s\".\n",
-                      knownNames[j], e->name);
-                if (strcmp(knownNames[j], e->name) == 0) {
-                    DEBUG('f', "Repeated filename.\n");
-                    repeated = true;
-                    error = true;
-                }
-            }
-            if (!repeated) {
-                knownNames[nameCount] = e->name;
-                DEBUG('f', "Added \"%s\" at %u.\n", e->name, nameCount);
-                nameCount++;
-            }
-
-            // Check sector.
-            error |= CheckSector(e->sector, shadowMap);
-
-            // Check file header.
-            FileHeader *h = new FileHeader;
-            const RawFileHeader *rh = h->GetRaw();
-            h->FetchFrom(e->sector);
-            error |= CheckFileHeader(rh, e->sector, shadowMap);
-            delete h;
-        }
-    }
-    return error;
-}
-#endif
 
 bool
 FileSystem::Check()
@@ -555,11 +418,7 @@ FileSystem::Check()
     DEBUG('f', "Performing filesystem check\n");
     bool error = false;
     
-    #ifndef SWAP
     Bitmap *shadowMap = new Bitmap(NUM_SECTORS);
-    #else
-    CoreMap *shadowMap = new CoreMap(NUM_SECTORS);
-    #endif
     
     shadowMap->Mark(FREE_MAP_SECTOR);
     shadowMap->Mark(DIRECTORY_SECTOR);
@@ -588,11 +447,7 @@ FileSystem::Check()
     error |= CheckFileHeader(dirRH, DIRECTORY_SECTOR, shadowMap);
     delete dirH;
 
-    #ifndef SWAP
     Bitmap *freeMap = new Bitmap(NUM_SECTORS);
-    #else
-    CoreMap *freeMap = new CoreMap(NUM_SECTORS);
-    #endif
     
     freeMap->FetchFrom(freeMapFile);
     Directory *dir = new Directory(NUM_DIR_ENTRIES);
@@ -625,22 +480,14 @@ FileSystem::Print()
     FileHeader *bitH    = new FileHeader;
     FileHeader *dirH    = new FileHeader;
     
-    #ifndef SWAP
     Bitmap     *freeMap = new Bitmap(NUM_SECTORS);
-    #else
-    CoreMap    *freeMap = new CoreMap(NUM_SECTORS);
-    #endif
     
     Directory  *dir     = new Directory(NUM_DIR_ENTRIES);
 
     printf("--------------------------------\n");
     bitH->FetchFrom(FREE_MAP_SECTOR);
     
-    #ifndef SWAP
     bitH->Print("Bitmap");
-    #else
-    bitH->Print("CoreMap");
-    #endif
     
     printf("--------------------------------\n");
     dirH->FetchFrom(DIRECTORY_SECTOR);
