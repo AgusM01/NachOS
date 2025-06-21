@@ -66,6 +66,4 @@ private:
     Thread* holder;  
     int holderOriginalPriority;
 };
-
-
 #endif

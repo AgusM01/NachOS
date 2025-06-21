@@ -8,7 +8,7 @@
 #define NACHOS_LIB_TABLE__HH
 
 
-#include "list.hh"
+#include "lib/list.hh"
 
 
 template <class T>

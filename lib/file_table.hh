@@ -102,10 +102,9 @@ FileTable::Add(OpenFile* file, unsigned pid)
 OpenFile* 
 FileTable::GetFile(int i)
 {
-    if(i > current)
-        return nullptr;
+    ASSERT(i >= 0);
 
-    return data[i].file;
+    return HasKey(i) ? data[i].file : nullptr;
 }
 
 

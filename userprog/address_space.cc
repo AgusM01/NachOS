@@ -19,7 +19,6 @@
 #include "executable.hh"
 #include "lib/utility.hh"
 #include "threads/system.hh"
-#include "threads/lock.hh"
 #include <stdio.h>
 #include <string.h>
 

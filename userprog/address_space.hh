@@ -15,7 +15,6 @@
 
 
 #include "coff_reader.h"
-#include "filesys/file_system.hh"
 #include "machine/translation_entry.hh"
 #include "lib/table.hh"
 #include "userprog/executable.hh"

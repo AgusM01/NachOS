@@ -35,9 +35,7 @@
 #ifndef NACHOS_FILESYS_FILESYSTEM__HH
 #define NACHOS_FILESYS_FILESYSTEM__HH
 
-
 #include "open_file.hh"
-
 
 #ifdef FILESYS_STUB  // Temporarily implement file system calls as calls to
                      // UNIX, until the real file system implementation is
@@ -95,6 +93,21 @@ public:
 #include "directory_entry.hh"
 #include "machine/disk.hh"
 
+#include "lib/table.hh"
+#include "threads/lock.hh" // locks.hh ya incluye semaforos.
+
+// Mantiene el índice en la FileTable correspondiente al archivo.
+struct OpenFileListStruct {
+    OpenFile* file;
+    int idx;
+};
+
+// Dado un archivo, mantiene el número de procesos que lo tienen abierto.
+struct fileStruct {
+    OpenFile* file;
+    int open;
+};
+
 
 /// Initial file sizes for the bitmap and directory; until the file system
 /// supports extensible files, the directory size sets the maximum number of
@@ -140,6 +153,15 @@ private:
                             ///< file.
     OpenFile *directoryFile;  ///< “Root” directory -- list of file names,
                               ///< represented as a file.
+
+    Table<fileStruct*> *fileTable; // Tabla de archivos gestionada por el SO.
+
+    ::List<OpenFileListStruct*> *fileList; // Lista de archivos gestionada por el SO.
+    
+    Lock* CreateLock = new Lock("FSCreateLock");
+    Lock* WriteLock = new Lock ("FSWriteLock");
+    Lock* OpenCloseLock = new Lock ("FSOpenCloseLock");
+    Semaphore* ReadSem = new Semaphore("FSReaderSem", 0); 
 };
 
 #endif

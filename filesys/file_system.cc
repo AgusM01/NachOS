@@ -135,12 +135,20 @@ FileSystem::FileSystem(bool format)
         freeMapFile   = new OpenFile(FREE_MAP_SECTOR);
         directoryFile = new OpenFile(DIRECTORY_SECTOR);
     }
+
+    // Debemos inicializar las estructuras que no serán útiles para 
+    // el manejo de los archivos abiertos.
+    
+    fileTable = new Table<fileStruct*>;
+    fileList = new ::List<OpenFileListStruct*>;
 }
 
 FileSystem::~FileSystem()
 {
     delete freeMapFile;
     delete directoryFile;
+    delete fileTable;
+    delete fileList;
 }
 
 /// Create a file in the Nachos file system (similar to UNIX `create`).
