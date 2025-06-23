@@ -43,10 +43,12 @@ extern CoreMap *core_map;
 #endif
 extern Machine *machine;  // User program memory and registers.
 extern SynchConsole *synch_console;
-#ifndef SWAP
 extern Bitmap *bit_map;
-#endif
 extern Table <Thread*> *space_table;
+#ifdef FILESYS
+#include "lib/file_table.hh"
+extern FileTable *fileTable;
+#endif
 #endif
 
 #ifdef FILESYS_NEEDED  // *FILESYS* or *FILESYS_STUB*.

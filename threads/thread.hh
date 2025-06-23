@@ -39,12 +39,21 @@
 #define NACHOS_THREADS_THREAD__HH
 
 
+#include "filesys/open_file.hh"
 #include "lib/utility.hh"
 
 
 #ifdef USER_PROGRAM
 #include "machine/machine.hh"
 #include "userprog/address_space.hh"
+
+#ifdef FILESYS
+struct procFileInfo {
+    OpenFile* file;
+    int seek;
+};
+#endif
+
 #endif
 
 #include <stdint.h>
@@ -186,7 +195,10 @@ private:
     /// registers -- one for its state while executing user code, one for its
     /// state while executing kernel code.
     int userRegisters[NUM_TOTAL_REGS];
-
+    
+    #ifdef FILESYS
+    Table <procFileInfo*> *fileTableIds;
+    #endif
 public:
 
     // Save user-level register state.
@@ -197,8 +209,23 @@ public:
 
     // User code this thread is running.
     AddressSpace *space;
-
+    
+    #ifdef FILESYS
+    // Agrega un archivo a la tabla de arhivos abiertos del proceso.
+    int AddFile(OpenFile* newFile);
+    
+    // Devuelve un archivo que mantiene abierto el proceso.
+    OpenFile* GetFile(int fd);
+    
+    // Devuelve la posición del proceso dentro de dicho archivo.
+    int GetFileSeek(int fd);
+    
+    // Elimina un archivo de la lista de archivos abiertos del proceso.
+    OpenFile* RemoveFile(int fd);
+    #else
     Table <OpenFile*> *fileTableIds;
+    #endif
+
 #endif
 };
 

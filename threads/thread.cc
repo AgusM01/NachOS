@@ -51,11 +51,26 @@ Thread::Thread(const char *threadName, bool isJoin, int threadPriority)
     pid = -1;
 #ifdef USER_PROGRAM
     space    = nullptr;
-    fileTableIds = new Table <OpenFile*>;
+
+    #ifdef FILESYS
+    fileTableIds = new Table <procFileInfo*>;
+    OpenFile* in = nullptr;
+    OpenFile* out = nullptr;
+    struct procFileInfo *newIn = new procFileInfo;
+    struct procFileInfo *newOut = new procFileInfo;
+    newIn->file = in;
+    newIn->seek = 0;
+    newOut->file = out;
+    newOut->seek = 0;
+    fileTableIds->Add(newIn);
+    fileTableIds->Add(newOut);
+    #else
+    fileTableIds = new Table<OpenFile*>;
     OpenFile* in = nullptr;
     OpenFile* out = nullptr;
     fileTableIds->Add(in);
     fileTableIds->Add(out);
+    #endif
 #endif
 
     // JOIN IMPLEMENTATION
@@ -403,7 +418,41 @@ Thread::PrintStatus()
     }
     return "";
 }
+// ----------------FILES--------------
+#if defined(USER_PROGRAM) && defined (FILESYS)
+int
+Thread::AddFile(OpenFile* file)
+{
+    struct procFileInfo *newFile = new procFileInfo;
+    newFile->file = file;
+    newFile->seek = 0;
+    
+    return fileTableIds->Add(newFile);
+}
 
+OpenFile*
+Thread::GetFile(int fd)
+{
+    struct procFileInfo *fileInfo = fileTableIds->Get(fd);
+    return fileInfo == nullptr ? nullptr : fileInfo->file;
+}
+
+int 
+Thread::GetFileSeek(int fd)
+{
+    struct procFileInfo *fileInfo = fileTableIds->Get(fd);
+    ASSERT(fileInfo != nullptr);
+    return fileInfo->seek;
+}
+
+OpenFile*
+Thread::RemoveFile(int fd)
+{
+    struct procFileInfo *fileInfoRem;
+    fileInfoRem = fileTableIds->Remove(fd);
+    return fileInfoRem == nullptr ? nullptr : fileInfoRem->file;
+}
+#endif
 // --------------- PID----------------
 
 void

@@ -94,11 +94,11 @@ USERPROG_HDR = userprog/address_space.hh            	\
                userprog/debugger_command_manager.hh 	\
                userprog/executable.hh               	\
                userprog/transfer.hh                 	\
-							 userprog/synch_console.hh								\
+			   userprog/synch_console.hh				\
                filesys/file_system.hh               	\
                filesys/open_file.hh                 	\
                lib/bitmap.hh                        	\
-							 lib/coremap.hh													\
+			   lib/coremap.hh							\
                machine/console.hh                   	\
                machine/encoding.hh                  	\
                machine/endianness.hh                	\
@@ -115,10 +115,10 @@ USERPROG_SRC = userprog/address_space.cc            	\
                userprog/exception.cc                	\
                userprog/prog_test.cc                	\
                userprog/transfer.cc                 	\
-							 userprog/synch_console.cc								\
+			   userprog/synch_console.cc				\
                lib/bitmap.cc                        	\
-               lib/coremap.cc													\
-							 machine/console.cc                   	\
+               lib/coremap.cc							\
+			   machine/console.cc                   	\
                machine/encoding.cc                  	\
                machine/endianness.cc                	\
                machine/exception_type.cc            	\
@@ -138,6 +138,7 @@ FILESYS_HDR = filesys/directory.hh       \
               filesys/raw_directory.hh   \
               filesys/raw_file_header.hh \
               filesys/synch_disk.hh      \
+              lib/file_table.hh          \
               machine/disk.hh
 FILESYS_SRC = filesys/directory.cc   \
               filesys/file_header.cc \
@@ -145,6 +146,7 @@ FILESYS_SRC = filesys/directory.cc   \
               filesys/fs_test.cc     \
               filesys/open_file.cc   \
               filesys/synch_disk.cc  \
+              lib/file_table.cc      \
               machine/disk.cc
 
 # Assemble the expected paths by prepending `BASE_DIR`.  You do not need to

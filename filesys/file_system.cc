@@ -41,14 +41,17 @@
 /// All rights reserved.  See `copyright.h` for copyright notice and
 /// limitation of liability and disclaimer of warranty provisions.
 
-
-#include "file_system.hh"
 #include "directory.hh"
 #include "file_header.hh"
 
-#include "lib/bitmap.hh"
+#include "threads/system.hh"
 #include <stdio.h>
 #include <string.h>
+
+
+// Locks para manejar la concurrencia.
+Lock* CreateLock = new Lock("FSCreateLock");
+Lock* OpenRemoveLock = new Lock ("FSOpenCloseLock");
 
 
 /// Sectors containing the file headers for the bitmap of free sectors, and
@@ -135,20 +138,12 @@ FileSystem::FileSystem(bool format)
         freeMapFile   = new OpenFile(FREE_MAP_SECTOR);
         directoryFile = new OpenFile(DIRECTORY_SECTOR);
     }
-
-    // Debemos inicializar las estructuras que no serán útiles para 
-    // el manejo de los archivos abiertos.
-    
-    fileTable = new Table<fileStruct*>;
-    fileList = new ::List<OpenFileListStruct*>;
 }
 
 FileSystem::~FileSystem()
 {
     delete freeMapFile;
     delete directoryFile;
-    delete fileTable;
-    delete fileList;
 }
 
 /// Create a file in the Nachos file system (similar to UNIX `create`).
@@ -179,6 +174,7 @@ FileSystem::~FileSystem()
 bool
 FileSystem::Create(const char *name, unsigned initialSize)
 {
+    CreateLock->Acquire();
     ASSERT(name != nullptr);
     ASSERT(initialSize < MAX_FILE_SIZE);
 
@@ -217,6 +213,7 @@ FileSystem::Create(const char *name, unsigned initialSize)
         delete freeMap;
     }
     delete dir;
+    CreateLock->Release();
     return success;
 }
 
@@ -230,6 +227,8 @@ FileSystem::Create(const char *name, unsigned initialSize)
 OpenFile *
 FileSystem::Open(const char *name)
 {
+    OpenRemoveLock->Acquire();
+
     ASSERT(name != nullptr);
 
     Directory *dir = new Directory(NUM_DIR_ENTRIES);
@@ -239,9 +238,22 @@ FileSystem::Open(const char *name)
     dir->FetchFrom(directoryFile);
     int sector = dir->Find(name);
     if (sector >= 0) {
+        
+        // Primero debo checkear en la file table que el archivo
+        // no se encuentre abierto.
+        openFile = fileTable->GetFile(name);
+        if (openFile != nullptr){
+            fileTable->Add(openFile, name);
+            delete dir;
+            OpenRemoveLock->Release();
+            return openFile;
+        }
+
         openFile = new OpenFile(sector);  // `name` was found in directory.
+        fileTable->Add(openFile, name); 
     }
     delete dir;
+    OpenRemoveLock->Release();
     return openFile;  // Return null if not found.
 }
 
@@ -261,18 +273,40 @@ bool
 FileSystem::Remove(const char *name)
 {
     ASSERT(name != nullptr);
+    
+    OpenRemoveLock->Acquire();
 
     Directory *dir = new Directory(NUM_DIR_ENTRIES);
     dir->FetchFrom(directoryFile);
     int sector = dir->Find(name);
     if (sector == -1) {
        delete dir;
+       OpenRemoveLock->Release();
        return false;  // file not found
     }
+   
+    // ESTO VA EN CLOSE DE OPENFILE
+    /////////////////////////////////////
+    // Encontró el archivo, se debe eliminar sólo si es el último
+    // hilo que está trabajando con el mismo.
+    
+    //int opens = fileTable->GetOpen(name);
+    //ASSERT(opens != -1);
+//
+    //if (opens > 1){
+    //    ASSERT(fileTable->CloseOne(name) != -1);
+    //    OpenCloseLock->Release();
+    //    return true;
+    //}
+    //
+    //ASSERT(fileTable->Remove(name) != -1); // Lo saca de la FileTable.
+    ///////////////////////////////////
+
     FileHeader *fileH = new FileHeader;
     fileH->FetchFrom(sector);
     
     Bitmap *freeMap = new Bitmap(NUM_SECTORS);
+    
     
     freeMap->FetchFrom(freeMapFile);
 
@@ -285,6 +319,7 @@ FileSystem::Remove(const char *name)
     delete fileH;
     delete dir;
     delete freeMap;
+    OpenRemoveLock->Release();
     return true;
 }
 

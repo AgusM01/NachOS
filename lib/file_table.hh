@@ -1,12 +1,17 @@
+#ifndef __FILE_TABLE_HH__
+#define __FILE_TABLE_HH__
 #include "list.hh"
 #include "filesys/open_file.hh"
+#include <cstring>
 
 // Una FileTable es una tabla que asocia cada archivo con un int que indica 
 // la cantidad de threads que tienen abiertos dicho archivo.
 
 struct fileStruct {
-    OpenFile* file;
-    int open;
+    OpenFile* file; // Archivo.
+    const char *name; // Nombre del archivo.
+    int open; // Cuantos procesos tienen abierto el archivo.
+    bool deleted; // Indica si el archivo fué eliminado.
 };
 
 class FileTable {
@@ -24,13 +29,16 @@ public:
     // la lista de Pids;
     // Retora el índice donde agregó al archivo.
     // Retorna -1 si no hay espacio.
-    int Add(OpenFile* file, unsigned pid);
+    int Add(OpenFile* file, const char *name);
 
     // Checkea si un índice dado tiene un archivo asociado.
     bool HasKey(int i) const;
 
     // Devuelve el archivo asociado a dicho índice.
-    OpenFile* GetFile(int i); 
+    OpenFile* GetFileIdx(int i);
+
+    // Devuelve el archivo buscándolo por su nombre.
+    OpenFile* GetFile(const char *name);
 
     // Devuelve la lista de Pids asociada a dicho índice.
     unsigned* GetPids(int i);
@@ -38,14 +46,31 @@ public:
     // Checkea si un archivo está en la tabla.
     // Si está devuelve el índice.
     // Si no, -1.
-    int CheckFileInTable(OpenFile* file);
+    int CheckFileInTable(const char *name);
+    
+    // Devuelve la cantidad de procesos que tienen abierto
+    // un archivo.
+    // Si el archivo no está, devuelve -1;
+    int GetOpen(const char *name);
+    
+    // Un thread cierra un archivo.
+    // Reduce el número que lo tienen abierto.
+    // En caso de éxito, retorna la cantidad de hilos
+    // que mantienen el archivo abierto.
+    // En caso de error, retorna -1.
+    int CloseOne(const char *name);
+
+    // Un thread elimina el archivo.
+    // Hay que marcarlo como eliminado para que no se pueda abrir por otro thread.
+    int Delete(const char *name);
+    
+    // Devuelve si un archivo ha sido borrado o no.
+    bool isDeleted(const char *name);
 
     // Elimina el archivo de la tabla.
-    // Si la cantidad de abiertos queda en 0, lo elimina de la tabla.
-    // De lo contrario, reduce la cantidad en 1.
     // Devuelve el índice del archivo si todo sale bien.
     // De lo contrario, devuelve -1.
-    int Remove(OpenFile* file);
+    int Remove(const char *name);
 
 private:
 
@@ -61,96 +86,6 @@ private:
     List<int> freed;
 };
 
-FileTable::FileTable()
-{
-    current = 0;
-}
 
-int
-FileTable::Add(OpenFile* file, unsigned pid)
-{
-
-    int i = CheckFileInTable(file);
-
-    if (i != -1)
-    {
-        data[i].open += 1;
-        return i;
-    }
-    
-    int cur_ret;
-
-    if (!freed.IsEmpty())
-        cur_ret = freed.Pop();
-    else
-    {
-        if (current < static_cast<int>(SIZE)){
-            cur_ret = current;
-            current++;
-        }
-        else 
-            return -1;
-    }   
-    
-    data[cur_ret].file = file;
-    data[cur_ret].open = 1;
-    
-    return cur_ret;
-}
-
-
-OpenFile* 
-FileTable::GetFile(int i)
-{
-    ASSERT(i >= 0);
-
-    return HasKey(i) ? data[i].file : nullptr;
-}
-
-
-int 
-FileTable::CheckFileInTable(OpenFile* file)
-{
-   for (int i = 0; i < current; i++)
-       if (file == data[i].file)
-           return i;
-
-   return -1;
-}
-
-bool
-FileTable::HasKey(int i) const
-{
-    ASSERT(i >= 0);
-
-    return i < current && !freed.Has(i);
-}
-
-int 
-FileTable::Remove(OpenFile* file)
-{
-    int i = CheckFileInTable(file);
-
-    if (i == -1)
-        return -1;
-    
-    if (data[i].open > 1){
-        data[i].open -= 1;
-        return i;
-    }
-
-    if (i == current - 1) {
-        current--;
-        for (int j = current - 1; j >= 0 && !HasKey(j); j--) {
-            ASSERT(freed.Has(j));
-            freed.Remove(j);
-            current--;
-        }
-    } else {
-        freed.SortedInsert(i, i);
-    }
-    return i;
-}
-    
-
+#endif // __FILE_TABLE_HH__
     

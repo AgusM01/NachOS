@@ -8,10 +8,6 @@
 
 #include "system.hh"
 
-#ifdef SWAP
-#include "lib/coremap.hh"
-#endif 
-
 #ifdef USER_PROGRAM
 #include "userprog/debugger.hh"
 #include "userprog/exception.hh"
@@ -47,14 +43,17 @@ SynchDisk *synchDisk;
 Machine *machine;  ///< User program memory and registers.
 SynchConsole *synch_console;
 
-#ifndef SWAP
 Bitmap *bit_map;
-#endif
 
 Table <Thread*> *space_table;
 #ifdef SWAP
 CoreMap *core_map;
 #endif
+
+#ifdef FILESYS
+FileTable *fileTable;
+#endif
+
 #endif
 
 // External definition, to allow us to take a pointer to this function.
@@ -214,9 +213,7 @@ Initialize(int argc, char **argv)
     
     synch_console = new SynchConsole(nullptr,nullptr);
     
-    #ifndef SWAP
     bit_map = new Bitmap(numPhysicalPages);
-    #endif
     
     space_table = new Table <Thread*>;
     
@@ -224,10 +221,13 @@ Initialize(int argc, char **argv)
     newpid = space_table->Add(currentThread);
     currentThread->SetPid(newpid);
     ASSERT(newpid != -1);
-    //printf("newpid de main: %d\n", newpid);
     
     #ifdef SWAP
     core_map = new CoreMap(numPhysicalPages);
+    #endif
+    
+    #ifdef FILESYS
+    fileTable = new FileTable();
     #endif
     
     SetExceptionHandlers();
@@ -258,6 +258,10 @@ Cleanup()
     #endif
     
     delete space_table;
+
+    #ifdef FILESYS
+    delete fileTable;
+    #endif
     
    // #ifdef SWAP 
    // delete core_map;

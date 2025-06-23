@@ -211,7 +211,11 @@ SyscallHandler(ExceptionType _et)
 
             if (!status){
                 DEBUG('e', "`Open` requested for file `%s`.\n", filename);
+                #ifndef FILESYS
                 status = currentThread->fileTableIds->Add(newFile);
+                #else
+                status = currentThread->AddFile(newFile);
+                #endif
             }
             machine->WriteRegister(2, status);
             break;
@@ -234,11 +238,18 @@ SyscallHandler(ExceptionType _et)
                 status = -1;
             }
             // Sacarlo de la tabla
+            #ifndef FILESYS
             if (!status && !(file = currentThread->fileTableIds->Remove(fid))){
                 DEBUG('e', "Cannot found fd id %u in table.\n", fid);
                 status = -1;
             }
-            
+            #else
+            if (!status && !(file = currentThread->RemoveFile(fid))){
+                DEBUG('e', "Cannot found fd id %u in table.\n", fid);
+                status = -1;
+            }
+            #endif
+
             // Sacarlo de memoria 
             if (!status)
                 delete file;
@@ -296,10 +307,17 @@ SyscallHandler(ExceptionType _et)
                 status = -1;
             }
             
+            #ifndef FILESYS
             if(!status && id != 0 && !(file = currentThread->fileTableIds->Get(id))) {
                 DEBUG('e', "Error: File not found. \n");
                 status = -1;
             }
+            #else
+            if(!status && id != 0 && !(file = currentThread->GetFile(id))) {
+                DEBUG('e', "Error: File not found. \n");
+                status = -1;
+            }
+            #endif
             
             if (!status) {
                 if (id == 0){
@@ -341,11 +359,17 @@ SyscallHandler(ExceptionType _et)
             }
             
             //Buscar id
+            #ifndef FILESYS
             if(!status && id != 1 && !(file = currentThread->fileTableIds->Get(id))) {
                 DEBUG('e', "Error: File not found. \n");
                 status = -1;
             }
-            
+            #else
+            if(!status && id != 1 && !(file = currentThread->GetFile(id))) {
+                DEBUG('e', "Error: File not found. \n");
+                status = -1;
+            }
+            #endif
             if (!status) {
                 ReadBufferFromUser(bufferToRead, bufferTransfer, bytesToWrite);
                 if (id == 1){
