@@ -17,10 +17,6 @@
 
 #include <string.h>
 
-Lock* WriteLock = new Lock ("FSWriteLock");
-Lock* CloseLock = new Lock ("FSWriteLock");
-Semaphore* ReadSem = new Semaphore("FSReaderSem", 0); 
-
 /// Open a Nachos file for reading and writing.  Bring the file header into
 /// memory while the file is open.
 ///

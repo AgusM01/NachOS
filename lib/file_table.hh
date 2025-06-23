@@ -1,17 +1,36 @@
 #ifndef __FILE_TABLE_HH__
 #define __FILE_TABLE_HH__
+#include "threads/condition.hh"
 #include "list.hh"
 #include "filesys/open_file.hh"
 #include <cstring>
+
+#define ACQUIRE 0
+#define RELEASE 1
+
+#define SEM_P 0
+#define SEM_V 1
+
+#define WAIT 0
+#define SIGNAL 1
+#define BROADCAST 2
 
 // Una FileTable es una tabla que asocia cada archivo con un int que indica 
 // la cantidad de threads que tienen abiertos dicho archivo.
 
 struct fileStruct {
     OpenFile* file; // Archivo.
-    const char *name; // Nombre del archivo.
+    char *name; // Nombre del archivo.
     int open; // Cuantos procesos tienen abierto el archivo.
     bool deleted; // Indica si el archivo fué eliminado.
+    int readers; // Cantidad de lectores actuales del archivo.
+    bool writer; // Si hay un escritor queriendo escribir.
+    Lock *OpenRemoveLock; // Lock para abrir y eliminar el archivo.
+    Condition *RemoveCondition; // Condición para eliminar el archivo cuando todos lo tengan cerrado.
+    Condition *WriterCondition; // Condición para escribir un archivo cuando nadie esté leyendolo.
+    Semaphore *ReadersSem;
+    Lock *RdWrLock; // Condición para escribir en el archivo sincronizando lector/escritor.
+    Lock *WrLock; // Condición para escribir en el archivo sincronizando escritores.
 };
 
 class FileTable {
@@ -43,6 +62,23 @@ public:
     // Devuelve la lista de Pids asociada a dicho índice.
     unsigned* GetPids(int i);
     
+    // Devuelve la cantidad de lectores del archivo.
+    int GetReaders(const char *name);
+
+    // Añade un lector al archivo. 
+    // Es región crítica por lo que se accede mediante el WriterLock.
+    int AddReader(const char *name);
+
+    // Elimina un lector del archivo. 
+    // Es región crítica por lo que se accede mediante el WriterLock.
+    int RemoveReader(const char *name);
+    
+    // Devuelve si hay un escritor queriendo escribir.
+    bool GetWriter(const char* name);
+
+    // Setea un escritor.
+    int SetWriter(const char* name, bool w);
+
     // Checkea si un archivo está en la tabla.
     // Si está devuelve el índice.
     // Si no, -1.
@@ -71,6 +107,32 @@ public:
     // Devuelve el índice del archivo si todo sale bien.
     // De lo contrario, devuelve -1.
     int Remove(const char *name);
+
+    // Realiza la operación indicada con el lock
+    // utilizado para abrir o eliminar un archivo.
+    bool FileORLock(const char *name, int op);
+
+    // Reliza la operación indicada con la condición
+    // utilizada al momento de eliminar un archivo.
+    bool FileRemoveCondition(const char *name, int op);
+    
+    // Reliza la operación indicada con la condición
+    // utilizada al momento de escribir un archivo.
+    bool FileWriterCondition(const char *name, int op);
+
+    // Realiza la operación indicada con el semáforo
+    // utilizado para 
+    bool FileSem(const char *name, int op);
+
+    // Realiza la operación indicada con el lock
+    // utilizado para escribir en el archivo.
+    // Sincronizando entre lectores - escritor.
+    bool FileWrLock(const char *name, int op);
+
+    // Realiza la operación indicada con el lock
+    // utilizado para escribir en el archivo.
+    // Sincronizando entre escritores.
+    bool FileRdWrLock(const char *name, int op);
 
 private:
 

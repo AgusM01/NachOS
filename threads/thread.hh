@@ -50,6 +50,7 @@
 #ifdef FILESYS
 struct procFileInfo {
     OpenFile* file;
+    char* name;
     int seek;
 };
 #endif
@@ -212,7 +213,7 @@ public:
     
     #ifdef FILESYS
     // Agrega un archivo a la tabla de arhivos abiertos del proceso.
-    int AddFile(OpenFile* newFile);
+    int AddFile(OpenFile* newFile, char* name);
     
     // Devuelve un archivo que mantiene abierto el proceso.
     OpenFile* GetFile(int fd);
@@ -222,6 +223,9 @@ public:
     
     // Elimina un archivo de la lista de archivos abiertos del proceso.
     OpenFile* RemoveFile(int fd);
+    
+    // Devuelve el nombre de un archivo abierto por el proceso.
+    char* GetFileName(int fd);
     #else
     Table <OpenFile*> *fileTableIds;
     #endif

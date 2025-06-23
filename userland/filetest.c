@@ -10,13 +10,14 @@
 
 
 #include "syscall.h"
-
+#include "./lib.c"
 
 int
 main(void)
 {
-    Create("test.txt");
-    OpenFileId o = Open("test.txt");
+    puts("Hola filetest\n");
+    Create("FSSimpleTest.txt");
+    OpenFileId o = Open("FSSimpleTest.txt");
     Write("Hello world\n",12,o);
     Close(o);
     return 0;

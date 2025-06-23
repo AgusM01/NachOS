@@ -48,12 +48,7 @@
 #include <stdio.h>
 #include <string.h>
 
-
-// Locks para manejar la concurrencia.
 Lock* CreateLock = new Lock("FSCreateLock");
-Lock* OpenRemoveLock = new Lock ("FSOpenCloseLock");
-
-
 /// Sectors containing the file headers for the bitmap of free sectors, and
 /// the directory of files.  These file headers are placed in well-known
 /// sectors, so that they can be located on boot-up.
@@ -138,6 +133,8 @@ FileSystem::FileSystem(bool format)
         freeMapFile   = new OpenFile(FREE_MAP_SECTOR);
         directoryFile = new OpenFile(DIRECTORY_SECTOR);
     }
+
+    DEBUG('f', "End of creating FileSystem\n");
 }
 
 FileSystem::~FileSystem()
@@ -227,8 +224,6 @@ FileSystem::Create(const char *name, unsigned initialSize)
 OpenFile *
 FileSystem::Open(const char *name)
 {
-    OpenRemoveLock->Acquire();
-
     ASSERT(name != nullptr);
 
     Directory *dir = new Directory(NUM_DIR_ENTRIES);
@@ -243,17 +238,28 @@ FileSystem::Open(const char *name)
         // no se encuentre abierto.
         openFile = fileTable->GetFile(name);
         if (openFile != nullptr){
+            DEBUG('f', "File in table: %s\n", name);
+            fileTable->FileORLock(name, ACQUIRE);
+
+            // El archivo ha sido eliminado, no puede abrirse.
+            if (fileTable->isDeleted(name)){
+                delete dir;
+                fileTable->FileORLock(name, RELEASE);
+                return nullptr;
+            }
+
             fileTable->Add(openFile, name);
             delete dir;
-            OpenRemoveLock->Release();
+            fileTable->FileORLock(name, RELEASE);
             return openFile;
         }
-
+        DEBUG('f', "File not in table: %s\n", name);        
+        // En este caso el archivo está siendo abierto por primera vez
+        // por lo que no es necesario tomar medidas de concurrencia.
         openFile = new OpenFile(sector);  // `name` was found in directory.
         fileTable->Add(openFile, name); 
     }
     delete dir;
-    OpenRemoveLock->Release();
     return openFile;  // Return null if not found.
 }
 
@@ -274,34 +280,53 @@ FileSystem::Remove(const char *name)
 {
     ASSERT(name != nullptr);
     
-    OpenRemoveLock->Acquire();
 
     Directory *dir = new Directory(NUM_DIR_ENTRIES);
     dir->FetchFrom(directoryFile);
     int sector = dir->Find(name);
     if (sector == -1) {
        delete dir;
-       OpenRemoveLock->Release();
        return false;  // file not found
     }
-   
-    // ESTO VA EN CLOSE DE OPENFILE
-    /////////////////////////////////////
-    // Encontró el archivo, se debe eliminar sólo si es el último
-    // hilo que está trabajando con el mismo.
     
-    //int opens = fileTable->GetOpen(name);
-    //ASSERT(opens != -1);
-//
-    //if (opens > 1){
-    //    ASSERT(fileTable->CloseOne(name) != -1);
-    //    OpenCloseLock->Release();
-    //    return true;
-    //}
-    //
-    //ASSERT(fileTable->Remove(name) != -1); // Lo saca de la FileTable.
-    ///////////////////////////////////
+    // Encontró el archivo.
 
+    // Si el archivo no fué abierto por nadie se puede eliminar directamente.
+    if (fileTable->CheckFileInTable(name) != -1){
+        // El archivo ha sido abierto, entonces está en la tabla.
+        
+        // Adquirimos su Lock.
+        fileTable->FileORLock(name, ACQUIRE);
+
+        // Primero checkeamos que no esté eliminado.    
+        if (fileTable->isDeleted(name)){
+            fileTable->FileORLock(name, RELEASE);
+            return false;
+        }
+
+        // El archivo no ha sido eliminado.
+
+        // Lo marco como eliminado.
+        ASSERT(fileTable->Delete(name) != -1);
+        
+        // Si soy el único proceso que lo mantenía abierto
+        // no espero nada, suelto el lock y lo borro.
+        if (fileTable->GetOpen(name) > 1){
+            // Debo esperar a que todos
+            // los hilos que mantienen el archivo abierto lo
+            // cierren para poder reclamar los sectores.
+            fileTable->FileRemoveCondition(name, WAIT);
+        }
+
+        // Para este punto puedo soltar el Lock ya que no permito
+        // más aberturas del archivo.
+        fileTable->FileORLock(name, RELEASE);
+    
+        // Elimino el archivo de la fileTable.
+        fileTable->Remove(name);
+    }
+    
+    // Para este punto el archivo se puede eliminar de manera segura.
     FileHeader *fileH = new FileHeader;
     fileH->FetchFrom(sector);
     
@@ -319,7 +344,6 @@ FileSystem::Remove(const char *name)
     delete fileH;
     delete dir;
     delete freeMap;
-    OpenRemoveLock->Release();
     return true;
 }
 

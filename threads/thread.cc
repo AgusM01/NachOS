@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <cstring>
 
 /// This is put at the top of the execution stack, for detecting stack
 /// overflows.
@@ -421,11 +422,13 @@ Thread::PrintStatus()
 // ----------------FILES--------------
 #if defined(USER_PROGRAM) && defined (FILESYS)
 int
-Thread::AddFile(OpenFile* file)
+Thread::AddFile(OpenFile* file, char* Filename)
 {
     struct procFileInfo *newFile = new procFileInfo;
     newFile->file = file;
     newFile->seek = 0;
+    newFile->name = new char[FILE_NAME_MAX_LEN];
+    strcpy(newFile->name, Filename);
     
     return fileTableIds->Add(newFile);
 }
@@ -451,6 +454,15 @@ Thread::RemoveFile(int fd)
     struct procFileInfo *fileInfoRem;
     fileInfoRem = fileTableIds->Remove(fd);
     return fileInfoRem == nullptr ? nullptr : fileInfoRem->file;
+}
+
+char*
+Thread::GetFileName(int fd)
+{
+    struct procFileInfo *fileInfo;
+    fileInfo = fileTableIds->Get(fd);
+
+    return fileInfo == nullptr ? nullptr : fileInfo->name;
 }
 #endif
 // --------------- PID----------------

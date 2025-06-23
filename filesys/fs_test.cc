@@ -73,6 +73,9 @@ Copy(const char *from, const char *to)
     // Close the UNIX and the Nachos files.
     delete openFile;
     fclose(fp);
+
+    DEBUG('f', "File copied\n"); 
+    interrupt->Halt();
 }
 
 /// Print the contents of the Nachos file `name`.

@@ -18,7 +18,6 @@
 #include "condition.hh"
 #include "semaphore.hh"
 #include "system.hh"
-#include <new>
 #include <stdlib.h>
 
 
@@ -64,7 +63,7 @@ Condition::Wait() /*Preguntar atomicidad*/
     queue->Append(stop);
     condLock->Release();
 
-    stop->P();
+    stop->P(); // Si pasa de acá es porque recibió un signal.
     delete stop;
     free(semName);
     condLock->Acquire();

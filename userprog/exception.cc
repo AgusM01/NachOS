@@ -214,7 +214,7 @@ SyscallHandler(ExceptionType _et)
                 #ifndef FILESYS
                 status = currentThread->fileTableIds->Add(newFile);
                 #else
-                status = currentThread->AddFile(newFile);
+                status = currentThread->AddFile(newFile, filename);
                 #endif
             }
             machine->WriteRegister(2, status);
@@ -225,6 +225,11 @@ SyscallHandler(ExceptionType _et)
             
             OpenFileId fid = machine->ReadRegister(4);
             OpenFile *file;
+
+            #ifdef FILESYS
+            char* filename;
+            #endif
+
             int status = 0;
             DEBUG('e', "`Close` requested for id %u.\n", fid);
 
@@ -244,8 +249,55 @@ SyscallHandler(ExceptionType _et)
                 status = -1;
             }
             #else
+            filename = currentThread->GetFileName(fid);
+            
+            // El archivo no está abierto.
+            if (filename == nullptr)
+                status = -1;
+
             if (!status && !(file = currentThread->RemoveFile(fid))){
                 DEBUG('e', "Cannot found fd id %u in table.\n", fid);
+                status = -1;
+            }
+            
+            if(status != -1) {
+                // El archivo fué cerrado.
+                // Hay que eliminarlo unicamente si el proceso es el último
+                // en tenerlo abierto.
+                
+                fileTable->FileORLock(filename, ACQUIRE);
+                
+                int opens = fileTable->GetOpen(filename);
+                
+                if (opens > 1){
+                    status = fileTable->CloseOne(filename);
+                    if (status > 0)
+                        status = 0;
+                    machine->WriteRegister(2,status);
+                    fileTable->FileORLock(filename, RELEASE);
+                    break;
+                }
+
+                // Soy el último proceso que tiene abierto el archivo.
+                if (opens == 1) 
+                {
+
+                    // Soy el último y el archivo tiene que ser borrado.
+                    // Por lo tanto aviso al thread que estaba esperando para hacerlo.
+                    if (fileTable->isDeleted(filename))
+                    {
+                        fileTable->FileRemoveCondition(filename, SIGNAL);
+                    }
+
+                    if (!status)
+                        delete file;
+
+                    machine->WriteRegister(2,status);
+                    fileTable->FileORLock(filename, RELEASE);
+                    break;
+                }
+                
+                // Si llegó acá es porque opens no tiene un valor válido.
                 status = -1;
             }
             #endif
@@ -254,7 +306,7 @@ SyscallHandler(ExceptionType _et)
             if (!status)
                 delete file;
 
-            machine->WriteRegister(2, 0);
+            machine->WriteRegister(2, status);
             break;
         } 
         
@@ -308,6 +360,7 @@ SyscallHandler(ExceptionType _et)
             }
             
             #ifndef FILESYS
+            DEBUG('f', "Reading file not FILESYS\n");
             if(!status && id != 0 && !(file = currentThread->fileTableIds->Get(id))) {
                 DEBUG('e', "Error: File not found. \n");
                 status = -1;
@@ -316,6 +369,39 @@ SyscallHandler(ExceptionType _et)
             if(!status && id != 0 && !(file = currentThread->GetFile(id))) {
                 DEBUG('e', "Error: File not found. \n");
                 status = -1;
+            }
+            
+            char* filename = currentThread->GetFileName(id);
+
+            if (filename == nullptr)
+                status = -1;
+            
+            DEBUG('f', "Reading file %s\n", filename);
+
+            // Si está todo bien y no estoy escribiendo a consola.
+            if (status != -1 && id != 0) {
+                
+                // Aumento la cantidad de lectores
+                // y de paso checkeo que no se esté escribiendo el archivo.
+                fileTable->FileRdWrLock(filename, ACQUIRE);
+                fileTable->AddReader(filename);
+                fileTable->FileRdWrLock(filename, RELEASE);
+
+                status = file->ReadAt(bufferTransfer, bytesToRead, currentThread->GetFileSeek(id));
+                
+                if (status != 0) // NO estoy en EOF
+                    WriteBufferToUser(bufferTransfer, bufferToWrite, status);
+            
+
+                fileTable->FileRdWrLock(filename, ACQUIRE);
+                fileTable->RemoveReader(filename);
+                if (fileTable->GetReaders(filename) == 0 && fileTable->GetWriter(filename))
+                    fileTable->FileWriterCondition(filename, SIGNAL);
+
+                fileTable->FileRdWrLock(filename, RELEASE);
+                
+                machine->WriteRegister(2,status);
+                break;
             }
             #endif
             
@@ -342,17 +428,17 @@ SyscallHandler(ExceptionType _et)
             int status = 0;            
             OpenFile *file;            
             char bufferTransfer[bytesToWrite];
-
+            
             if (id == 0){
                 DEBUG('e', "Error: File Descriptor Stdin");
                 status = -1;
             }
-                
+            
             if (!status && bufferToRead == 0){
                 DEBUG('e', "Error: Buffer to read is null. \n");
                 status = -1;
             }
-
+            
             if (!status && bytesToWrite <= 0) {
                 DEBUG('e', "Error: Bytes to write is non positive. \n");
                 status = -1;
@@ -369,7 +455,34 @@ SyscallHandler(ExceptionType _et)
                 DEBUG('e', "Error: File not found. \n");
                 status = -1;
             }
+            
+            char* filename = currentThread->GetFileName(id);
+            
+            if (filename == nullptr)
+            status = -1;
+            
+            DEBUG('f', "Writing file %s\n", filename);
+            // Si está todo bien y no estoy escribiendo a consola.
+            if (status != -1 && id != 1) {
+                // Tengo el Lock, tengo que checkear que no haya ecritores.
+                fileTable->FileWrLock(filename, ACQUIRE);
+                fileTable->FileRdWrLock(filename, ACQUIRE);
+                fileTable->SetWriter(filename, true);
+
+                int readers = fileTable->GetReaders(filename);
+                
+                if (readers > 0)
+                    fileTable->FileWriterCondition(filename, WAIT);
+                // Cuando salga de acá, tiene el lock tomado y no hay lectores.
+                // Por lo tanto, escribo.
+                status = file->WriteAt(bufferTransfer, bytesToWrite, currentThread->GetFileSeek(id));
+                machine->WriteRegister(2,status);
+                fileTable->FileRdWrLock(filename, RELEASE);
+                fileTable->FileWrLock(filename, RELEASE);
+                break;
+            }
             #endif
+            
             if (!status) {
                 ReadBufferFromUser(bufferToRead, bufferTransfer, bytesToWrite);
                 if (id == 1){
