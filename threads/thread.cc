@@ -448,6 +448,16 @@ Thread::GetFileSeek(int fd)
     return fileInfo->seek;
 }
 
+int 
+Thread::AddFileSeek(int fd, int q)
+{
+    ASSERT(q >= 0);
+    struct procFileInfo *fileInfo = fileTableIds->Get(fd);
+    ASSERT(fileInfo != nullptr);
+    fileInfo->seek += q;
+    return fileInfo->seek;
+}
+
 OpenFile*
 Thread::RemoveFile(int fd)
 {

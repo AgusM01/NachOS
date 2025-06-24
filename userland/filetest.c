@@ -15,10 +15,17 @@
 int
 main(void)
 {
-    puts("Hola filetest\n");
-    Create("FSSimpleTest.txt");
-    OpenFileId o = Open("FSSimpleTest.txt");
+    Create("FSTest1");
+    OpenFileId o = Open("FSTest1");
     Write("Hello world\n",12,o);
+    Write("Agustin\n",8,o);
+    Write("Merino\n",7,o);
+    Write("La indomita luz se hizo carne en mi\n",36,o);
+    Write("La indomita luz se hizo carne en mi\n",36,o);
+    Write("La indomita luz se hizo carne en mi\n",36,o);
+    Write("La indomita luz se hizo carne en mi\n",36,o);
+    Write("La indomita luz se hizo carne en mi\n",36,o);
+    Write("La indomita luz se hizo carne en mi\n",36,o);
     Close(o);
     return 0;
 }

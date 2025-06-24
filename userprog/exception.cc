@@ -191,26 +191,28 @@ SyscallHandler(ExceptionType _et)
             int status = 0;
             OpenFile *newFile;
             char filename[FILE_NAME_MAX_LEN + 1];
+            
+            DEBUG('f', "Opening a file\n");
 
             if (filenameAddr == 0){
-                DEBUG('e', "Error: address to filename string is null. \n");
+                DEBUG('f', "Error: address to filename string is null. \n");
                 status = -1;
             }
 
             if (!status && !ReadStringFromUser(filenameAddr, 
                                     filename, sizeof filename)){
-                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
+                 DEBUG('f', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
                 status = -1;
             }
         
             if (!status && !(newFile = fileSystem->Open(filename))){
-                DEBUG('e', "Cannot open file %s.\n", filename);
+                DEBUG('f', "Cannot open file %s.\n", filename);
                 status = -1; 
             }
 
             if (!status){
-                DEBUG('e', "`Open` requested for file `%s`.\n", filename);
+                DEBUG('f', "`Open` requested for file `%s`.\n", filename);
                 #ifndef FILESYS
                 status = currentThread->fileTableIds->Add(newFile);
                 #else
@@ -389,9 +391,13 @@ SyscallHandler(ExceptionType _et)
 
                 status = file->ReadAt(bufferTransfer, bytesToRead, currentThread->GetFileSeek(id));
                 
-                if (status != 0) // NO estoy en EOF
+                // PARA TESTEAR YA QUE NO HAY READ_AT
+                //status = file->ReadAt(bufferTransfer, bytesToRead, 0);
+                
+                if (status != 0){ // NO estoy en EOF
                     WriteBufferToUser(bufferTransfer, bufferToWrite, status);
-            
+                    currentThread->AddFileSeek(id, bytesToRead); 
+                }
 
                 fileTable->FileRdWrLock(filename, ACQUIRE);
                 fileTable->RemoveReader(filename);
@@ -429,30 +435,32 @@ SyscallHandler(ExceptionType _et)
             OpenFile *file;            
             char bufferTransfer[bytesToWrite];
             
+            DEBUG('f', "Writing file of id: %d\n", id);
+            
             if (id == 0){
-                DEBUG('e', "Error: File Descriptor Stdin");
+                DEBUG('f', "Error: File Descriptor Stdin");
                 status = -1;
             }
             
             if (!status && bufferToRead == 0){
-                DEBUG('e', "Error: Buffer to read is null. \n");
+                DEBUG('f', "Error: Buffer to read is null. \n");
                 status = -1;
             }
             
             if (!status && bytesToWrite <= 0) {
-                DEBUG('e', "Error: Bytes to write is non positive. \n");
+                DEBUG('f', "Error: Bytes to write is non positive. \n");
                 status = -1;
             }
             
             //Buscar id
             #ifndef FILESYS
             if(!status && id != 1 && !(file = currentThread->fileTableIds->Get(id))) {
-                DEBUG('e', "Error: File not found. \n");
+                DEBUG('f', "Error: File not found. \n");
                 status = -1;
             }
             #else
             if(!status && id != 1 && !(file = currentThread->GetFile(id))) {
-                DEBUG('e', "Error: File not found. \n");
+                DEBUG('f', "Error: File not found. \n");
                 status = -1;
             }
             
@@ -475,7 +483,11 @@ SyscallHandler(ExceptionType _et)
                     fileTable->FileWriterCondition(filename, WAIT);
                 // Cuando salga de acá, tiene el lock tomado y no hay lectores.
                 // Por lo tanto, escribo.
+                ReadBufferFromUser(bufferToRead, bufferTransfer, bytesToWrite);
                 status = file->WriteAt(bufferTransfer, bytesToWrite, currentThread->GetFileSeek(id));
+                currentThread->AddFileSeek(id, bytesToWrite); 
+                DEBUG('f', "Escribí %s en file %s en posición %d\n", bufferTransfer, filename, currentThread->GetFileSeek(id));
+                
                 machine->WriteRegister(2,status);
                 fileTable->FileRdWrLock(filename, RELEASE);
                 fileTable->FileWrLock(filename, RELEASE);

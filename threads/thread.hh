@@ -221,6 +221,9 @@ public:
     // Devuelve la posición del proceso dentro de dicho archivo.
     int GetFileSeek(int fd);
     
+    // Desplaza la posición del proceso dentro del archivo. 
+    int AddFileSeek(int fd, int q);
+    
     // Elimina un archivo de la lista de archivos abiertos del proceso.
     OpenFile* RemoveFile(int fd);
     
