@@ -17,6 +17,7 @@ FileTable::Add(OpenFile* file, const char *name)
 
     if (i != -1)
     {
+        DEBUG('f', "El archivo %s ya está en la FileTable\n", name);
         data[i].open += 1;
         return i;
     }
@@ -35,6 +36,8 @@ FileTable::Add(OpenFile* file, const char *name)
             return -1;
     }   
     
+    DEBUG('f', "Añado el archivo %s a la FileTable\n", name);
+
     data[cur_ret].file = file;
     data[cur_ret].open = 1;
     data[cur_ret].readers = 0;
@@ -82,9 +85,12 @@ int
 FileTable::CheckFileInTable(const char *name)
 {
    for (int i = 0; i < current; i++)
-       if (!strcmp(name, data[i].name))
-           return i;
-
+       if (!strcmp(name, data[i].name)){
+            DEBUG('f', "Encuentro al archivo %s en la FileTable\n", name);
+            return i;
+       }
+   
+   DEBUG('f', "No encuentro a %s en la FileTable\n", name);
    return -1;
 }
 
@@ -110,7 +116,8 @@ FileTable::AddReader(const char* name)
     
     if (idx == -1)
         return -1;
-    
+
+    DEBUG('f', "Añado lector al arhivo %s en la FileTable\n", name);
     data[idx].readers += 1;
 
     return data[idx].readers;
@@ -124,6 +131,7 @@ FileTable::RemoveReader(const char* name)
     if (idx == -1 || data[idx].readers == 0)
         return -1;
 
+    DEBUG('f', "Saco lector al arhivo %s en la FileTable\n", name);
     data[idx].readers -= 1;
     return data[idx].readers;
 }
@@ -135,6 +143,8 @@ FileTable::GetWriter(const char *name)
     
     ASSERT(idx != -1);
 
+    DEBUG('f', "Traigo valor de escritor del archivo %s en la FileTable\n", name);
+
     return data[idx].writer;
 }
 
@@ -142,7 +152,10 @@ int
 FileTable::SetWriter(const char *name, bool w)
 {
     int idx = CheckFileInTable(name);
-
+    
+    if (idx != -1)
+        DEBUG('f', "Seteo escritor al arhivo %s en la FileTable\n", name);
+    
     return idx == -1 ? -1 : data[idx].writer = w;
 }
 
@@ -150,6 +163,9 @@ int
 FileTable::GetOpen(const char *name)
 {
     int idx = CheckFileInTable(name);
+
+    if (idx != -1)
+        DEBUG('f', "Traigo los abiertos del archivo %s en la FileTable\n", name);
 
     return idx == -1 ? -1 : data[idx].open;
 }
@@ -161,9 +177,12 @@ FileTable::CloseOne(const char *name)
     
     ASSERT(idx != -1);
     
-    if (data[idx].open == 1)
+    if (data[idx].open == 1){
+        DEBUG('f', "No puedo cerrar uno del archivo %s en la FileTable ya que soy el último que lo tiene abierto\n", name);
         return -1;
-
+    }
+    
+    DEBUG('f', "Cierro uno del archivo %s en la FileTable\n", name); 
     data[idx].open -= 1;
     return data[idx].open;
 }
@@ -175,6 +194,7 @@ FileTable::Delete(const char *name)
 
     ASSERT(idx != -1);
 
+    DEBUG('f', "Seteo al archivo %s para ser borrado en la FileTable\n", name); 
     data[idx].deleted = true;
     return idx;
 }
@@ -185,7 +205,7 @@ FileTable::isDeleted(const char *name)
     int idx = CheckFileInTable(name);
 
     ASSERT(idx != -1);
-    
+    DEBUG('f', "Checkeo si el archivo %s está para ser borrado en la FileTable\n", name); 
     return data[idx].deleted;
 }
 
@@ -197,6 +217,8 @@ FileTable::Remove(const char *name)
     if (i == -1)
         return -1;
     
+    DEBUG('f', "Elimino archivo %s de la FileTable\n", name);
+
    // if (data[i].open > 1){
    //     data[i].open -= 1;
    //     return i;
@@ -233,10 +255,12 @@ FileTable::FileORLock(const char *name, int op)
 
     switch (op) { 
         case ACQUIRE:
+            DEBUG('f', "Tomo el ORLock del archivo %s en la FileTable\n", name);
             (data[idx].OpenRemoveLock)->Acquire();
         break;
 
         case RELEASE:
+            DEBUG('f', "Suelto el ORLock del archivo %s en la FileTable\n", name);
             (data[idx].OpenRemoveLock)->Release();
         break;
 
@@ -257,10 +281,12 @@ FileTable::FileWrLock(const char *name, int op)
 
     switch (op) { 
         case ACQUIRE:
+            DEBUG('f', "Tomo el WrLock del archivo %s en la FileTable\n", name);
             (data[idx].WrLock)->Acquire();
         break;
 
         case RELEASE:
+            DEBUG('f', "Suelto el WrLock del archivo %s en la FileTable\n", name);
             (data[idx].WrLock)->Release();
         break;
 
@@ -281,10 +307,12 @@ FileTable::FileRdWrLock(const char *name, int op)
 
     switch (op) { 
         case ACQUIRE:
+            DEBUG('f', "Tomo el RdWrLock del archivo %s en la FileTable\n", name);
             (data[idx].RdWrLock)->Acquire();
         break;
 
         case RELEASE:
+            DEBUG('f', "Suelto el RdWrLock del archivo %s en la FileTable\n", name);
             (data[idx].RdWrLock)->Release();
         break;
 
@@ -307,14 +335,17 @@ FileTable::FileRemoveCondition(const char *name, int op)
 
     switch (op) { 
         case WAIT:
+            DEBUG('f', "Hago wait sobre la FileRemoveCondition del archivo %s\n", name);
             (data[idx].RemoveCondition)->Wait();
         break;
 
         case SIGNAL:
+            DEBUG('f', "Hago signal sobre la FileRemoveCondition del archivo %s\n", name);
             (data[idx].RemoveCondition)->Signal();
         break;
     
         case BROADCAST:
+            DEBUG('f', "Hago broadcast sobre la FileRemoveCondition del archivo %s\n", name);
             (data[idx].RemoveCondition)->Broadcast();
         break;
 
@@ -337,14 +368,17 @@ FileTable::FileWriterCondition(const char *name, int op)
 
     switch (op) { 
         case WAIT:
+            DEBUG('f', "Hago wait sobre la FileWriterCondition del archivo %s\n", name);
             (data[idx].WriterCondition)->Wait();
         break;
 
         case SIGNAL:
+            DEBUG('f', "Hago signal sobre la FileWriterCondition del archivo %s\n", name);
             (data[idx].WriterCondition)->Signal();
         break;
     
         case BROADCAST:
+            DEBUG('f', "Hago broadcast sobre la FileWriterCondition del archivo %s\n", name);
             (data[idx].WriterCondition)->Broadcast();
         break;
 
@@ -365,10 +399,12 @@ FileTable::FileSem(const char *name, int op)
 
     switch (op) { 
         case SEM_P:
+            DEBUG('f', "Hago P en el FileSem del archivo %s\n", name);
             (data[idx].ReadersSem)->P();
         break;
 
         case SEM_V:
+            DEBUG('f', "Hago V en el FileSem del archivo %s\n", name);
             (data[idx].ReadersSem)->V();
         break;
 

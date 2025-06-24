@@ -151,6 +151,7 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
     char *buf;
 
     if (position >= fileLength) {
+        DEBUG('f', "Position: %d, fileLength: %d\n", position, fileLength);
         return 0;  // Check request.
     }
     if (position + numBytes > fileLength) {

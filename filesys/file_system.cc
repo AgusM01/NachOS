@@ -183,6 +183,7 @@ FileSystem::Create(const char *name, unsigned initialSize)
     bool success;
 
     if (dir->Find(name) != -1) {
+        DEBUG('f', "El archivo %s ya está en el directorio\n", name);
         success = false;  // File is already in directory.
     } else {
         
@@ -211,6 +212,7 @@ FileSystem::Create(const char *name, unsigned initialSize)
     }
     delete dir;
     CreateLock->Release();
+    DEBUG('f', "Archivo %s creado correctamente\n", name);
     return success;
 }
 
@@ -238,7 +240,7 @@ FileSystem::Open(const char *name)
         // no se encuentre abierto.
         openFile = fileTable->GetFile(name);
         if (openFile != nullptr){
-            DEBUG('f', "File in table: %s\n", name);
+            DEBUG('f', "Archivo nuevo %s, en la FileTable\n", name);
             fileTable->FileORLock(name, ACQUIRE);
 
             // El archivo ha sido eliminado, no puede abrirse.
@@ -253,7 +255,7 @@ FileSystem::Open(const char *name)
             fileTable->FileORLock(name, RELEASE);
             return openFile;
         }
-        DEBUG('f', "File not in table: %s\n", name);        
+        DEBUG('f', "Archivo nuevo %s, no en la FileTable\n", name);        
         // En este caso el archivo está siendo abierto por primera vez
         // por lo que no es necesario tomar medidas de concurrencia.
         openFile = new OpenFile(sector);  // `name` was found in directory.

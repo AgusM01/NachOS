@@ -177,7 +177,11 @@ SyscallHandler(ExceptionType _et)
             if (!status){
             DEBUG('e', "`Create` requested for file `%s`.\n", filename);
             
-            unsigned initialSize = machine->ReadRegister(5);
+            // unsigned initialSize = machine->ReadRegister(5);
+            
+            // Dado que todavía el FileSistem no permite archivos extensibles, le damos
+            // un tamaño inicial.
+            unsigned initialSize = 1024;
             status = fileSystem->Create(filename, initialSize) ? 0 : -1;
             }
             
@@ -388,9 +392,10 @@ SyscallHandler(ExceptionType _et)
                 fileTable->FileRdWrLock(filename, ACQUIRE);
                 fileTable->AddReader(filename);
                 fileTable->FileRdWrLock(filename, RELEASE);
-
+                
                 status = file->ReadAt(bufferTransfer, bytesToRead, currentThread->GetFileSeek(id));
                 
+                DEBUG('f', "Leí %s con una cantidad de bytes de %d en el archivo %s. Offset actual: %d\n", bufferTransfer, status, filename, currentThread->GetFileSeek(id));
                 // PARA TESTEAR YA QUE NO HAY READ_AT
                 //status = file->ReadAt(bufferTransfer, bytesToRead, 0);
                 
@@ -470,6 +475,8 @@ SyscallHandler(ExceptionType _et)
             status = -1;
             
             DEBUG('f', "Writing file %s\n", filename);
+            ASSERT(file == fileTable->GetFile(filename));
+            
             // Si está todo bien y no estoy escribiendo a consola.
             if (status != -1 && id != 1) {
                 // Tengo el Lock, tengo que checkear que no haya ecritores.
@@ -486,7 +493,7 @@ SyscallHandler(ExceptionType _et)
                 ReadBufferFromUser(bufferToRead, bufferTransfer, bytesToWrite);
                 status = file->WriteAt(bufferTransfer, bytesToWrite, currentThread->GetFileSeek(id));
                 currentThread->AddFileSeek(id, bytesToWrite); 
-                DEBUG('f', "Escribí %s en file %s en posición %d\n", bufferTransfer, filename, currentThread->GetFileSeek(id));
+                DEBUG('f', "Escribí %s con una cantidad de bytes de %d en file %s. Offset actual: %d\n", bufferTransfer, status, filename, currentThread->GetFileSeek(id));
                 
                 machine->WriteRegister(2,status);
                 fileTable->FileRdWrLock(filename, RELEASE);
@@ -495,6 +502,7 @@ SyscallHandler(ExceptionType _et)
             }
             #endif
             
+            DEBUG('f', "Con FS activado, si leo esto es porque o status es -1 o estoy escribiendo a STDOUT. Status: %d, fd: %d\n", status, id);
             if (!status) {
                 ReadBufferFromUser(bufferToRead, bufferTransfer, bytesToWrite);
                 if (id == 1){
@@ -595,35 +603,35 @@ SyscallHandler(ExceptionType _et)
             char filename[FILE_NAME_MAX_LEN + 1];
 
             if (filenameAddr == 0){
-                DEBUG('e', "Error: address to filename string is null. \n");
+                DEBUG('f', "Error: address to filename string is null. \n");
                 status = false;
             }
 
             if (!status || argsVector == 0){
-                DEBUG('e', "Error: address to argsVector is null. \n");
+                DEBUG('f', "Error: address to argsVector is null. \n");
                 status = false;
             }
 
             if (!ReadStringFromUser(filenameAddr, 
                                     filename, sizeof filename) || !status){
-                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
+                 DEBUG('f', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
                 status = false;
             }
 
             if (!(argv = SaveArgs(argsVector)) || !status){
-                 DEBUG('e', "Error: Unable to get User Args Vectors.\n",
+                 DEBUG('f', "Error: Unable to get User Args Vectors.\n",
                       FILE_NAME_MAX_LEN);
                 status = false;
             }
 
             if (!(executable = fileSystem->Open(filename)) || !status) {
-                DEBUG('e', "Error: Unable to open file %s\n", filename);
+                DEBUG('f', "Error: Unable to open file %s\n", filename);
                 status = false;
             }
 
             if (!(newThread = new Thread(nullptr, join ? true : false)) || !status){
-                DEBUG('e', "Error: Unable to create a thread %s\n", filename);
+                DEBUG('f', "Error: Unable to create a thread %s\n", filename);
                 status = false; 
             }
 
@@ -633,12 +641,12 @@ SyscallHandler(ExceptionType _et)
             
             if (newpid == -1 && status)
             {
-                DEBUG('e', "Error: No se puede agregar el Thread a la space_table\n");
+                DEBUG('f', "Error: No se puede agregar el Thread a la space_table\n");
                 status = false;
             }
 
             if (!(space = new AddressSpace(executable, newpid)) || !status){
-                DEBUG('e', "Error: Unable to create the address space \n");
+                DEBUG('f', "Error: Unable to create the address space \n");
                 status = false;
             }
 
@@ -647,8 +655,6 @@ SyscallHandler(ExceptionType _et)
                 space_table->Remove(newpid);
 
             if (status){
-                // No creo que tenga sentido borrar el ejecutable.
-                //delete executable;
                 newThread->SetPid(newpid);
                 newThread->space = space;
                 newThread->Fork(ProcessInitArgs, (void*)argv);
