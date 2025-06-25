@@ -237,21 +237,21 @@ SyscallHandler(ExceptionType _et)
             #endif
 
             int status = 0;
-            DEBUG('e', "`Close` requested for id %u.\n", fid);
+            DEBUG('f', "`Close` requested for id %u.\n", fid);
 
             if (fid == 0 || fid == 1){
-                DEBUG('e', "Cannot close console fd id %u.\n", fid);
+                DEBUG('f', "Cannot close console fd id %u.\n", fid);
                 status = -1;
             }
             
             if (!status && fid < 0){
-                DEBUG('e', "Bad fd id %u.\n", fid);
+                DEBUG('f', "Bad fd id %u.\n", fid);
                 status = -1;
             }
             // Sacarlo de la tabla
             #ifndef FILESYS
             if (!status && !(file = currentThread->fileTableIds->Remove(fid))){
-                DEBUG('e', "Cannot found fd id %u in table.\n", fid);
+                DEBUG('f', "Cannot found fd id %u in table.\n", fid);
                 status = -1;
             }
             #else
@@ -262,7 +262,7 @@ SyscallHandler(ExceptionType _et)
                 status = -1;
 
             if (!status && !(file = currentThread->RemoveFile(fid))){
-                DEBUG('e', "Cannot found fd id %u in table.\n", fid);
+                DEBUG('f', "Cannot found fd id %u in table.\n", fid);
                 status = -1;
             }
             
@@ -276,6 +276,7 @@ SyscallHandler(ExceptionType _et)
                 int opens = fileTable->GetOpen(filename);
                 
                 if (opens > 1){
+                    DEBUG('f', "Cierro el archivo %s y no soy el último\n", filename);
                     status = fileTable->CloseOne(filename);
                     if (status > 0)
                         status = 0;
@@ -287,16 +288,20 @@ SyscallHandler(ExceptionType _et)
                 // Soy el último proceso que tiene abierto el archivo.
                 if (opens == 1) 
                 {
-
-                    // Soy el último y el archivo tiene que ser borrado.
-                    // Por lo tanto aviso al thread que estaba esperando para hacerlo.
+                    DEBUG('f', "Soy el último, cerrando completamente el archivo %s\n", filename);
+                    
                     if (fileTable->isDeleted(filename))
                     {
+                        // Soy el último y el archivo tiene que ser borrado.
+                        // Por lo tanto aviso al thread que estaba esperando para hacerlo.
+                        DEBUG('f', "Cierro último el archivo %s y debe ser eliminado\n", filename);
                         fileTable->FileRemoveCondition(filename, SIGNAL);
                     }
 
-                    if (!status)
+                    if (!status){
+                        fileTable->SetClosed(filename, true);
                         delete file;
+                    }
 
                     machine->WriteRegister(2,status);
                     fileTable->FileORLock(filename, RELEASE);
@@ -307,7 +312,8 @@ SyscallHandler(ExceptionType _et)
                 status = -1;
             }
             #endif
-
+            
+            DEBUG('f', "NO TENGO QUE ESTAR ACA\n");
             // Sacarlo de memoria 
             if (!status)
                 delete file;
@@ -527,28 +533,24 @@ SyscallHandler(ExceptionType _et)
             char filename[FILE_NAME_MAX_LEN + 1];
 
             if (filenameAddr == 0){
-                puts("Error filename null");
-                DEBUG('e', "Error: address to filename string is null. \n");
+                DEBUG('f', "Error: address to filename string is null. \n");
                 status = false;
             }
 
             if (!ReadStringFromUser(filenameAddr, 
                                     filename, sizeof filename) || !status){
-                puts("Error filename long"); 
-                DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
+                DEBUG('f', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
                 status = false;
             }
 
             if (!(executable = fileSystem->Open(filename)) || !status) {
-                puts("Error al abrir el archivo");
-                DEBUG('e', "Error: Unable to open file %s\n", filename);
+                DEBUG('f', "Error: Unable to open file %s\n", filename);
                 status = false;
             }
 
             if (!(newThread = new Thread(nullptr,join ? true : false)) || !status){
-                puts("Error al crear el thread");
-                DEBUG('e', "Error: Unable to create a thread %s\n", filename);
+                DEBUG('f', "Error: Unable to create a thread %s\n", filename);
                 status = false; 
             }
             
@@ -558,14 +560,12 @@ SyscallHandler(ExceptionType _et)
             
             if (newpid == -1 && status)
             {
-                puts("Error agg thread space table");
-                DEBUG('e', "Error: No se puede agregar el Thread a la space_table\n");
+                DEBUG('f', "Error: No se puede agregar el Thread a la space_table\n");
                 status = false;
             }
 
             if (!(space = new AddressSpace(executable, newpid)) || !status){
-                puts("Error crear addres space\n"); 
-                DEBUG('e', "Error: Unable to create the address space \n");
+                DEBUG('f', "Error: Unable to create the address space \n");
                 status = false;
             }
 
@@ -574,8 +574,6 @@ SyscallHandler(ExceptionType _et)
                 space_table->Remove(newpid);
 
             if (status){
-                // No creo que tenga sentido borrar el ejecutable.
-                //delete executable;
                 newThread->SetPid(newpid);
                 newThread->space = space;
                 newThread->Fork(ProcessInit, nullptr);

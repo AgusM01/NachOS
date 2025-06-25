@@ -236,19 +236,27 @@ FileSystem::Open(const char *name)
     int sector = dir->Find(name);
     if (sector >= 0) {
         
-        // Primero debo checkear en la file table que el archivo
-        // no se encuentre abierto.
-        openFile = fileTable->GetFile(name);
-        if (openFile != nullptr){
+        // Primero debo checkear que el archivo no esté en la fileTable.
+        if (fileTable->CheckFileInTable(name) != -1){
             DEBUG('f', "Archivo nuevo %s, en la FileTable\n", name);
             fileTable->FileORLock(name, ACQUIRE);
 
             // El archivo ha sido eliminado, no puede abrirse.
             if (fileTable->isDeleted(name)){
+                DEBUG('f', "El archivo %s ha sido eliminado y no puede abrirse\n", name);
                 delete dir;
                 fileTable->FileORLock(name, RELEASE);
                 return nullptr;
             }
+            
+            // Si el archivo fué cerrado. Debo crearlo de nuevo.
+            if (fileTable->GetClosed(name)){
+                openFile = new OpenFile(sector);
+                // Lo seteo como abierto (fué creado de nuevo el OpenFile.
+                fileTable->SetClosed(name, false);
+            }
+            else
+                openFile = fileTable->GetFile(name);
 
             fileTable->Add(openFile, name);
             delete dir;
@@ -261,6 +269,9 @@ FileSystem::Open(const char *name)
         openFile = new OpenFile(sector);  // `name` was found in directory.
         fileTable->Add(openFile, name); 
     }
+    else
+        DEBUG('f', "Archivo %s no encontrado, no se puede abrir\n", name);
+
     delete dir;
     return openFile;  // Return null if not found.
 }

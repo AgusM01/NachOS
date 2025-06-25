@@ -14,7 +14,7 @@
 template <class T>
 class Table {
 public:
-    static const unsigned SIZE = 20;
+    static const unsigned SIZE = 30;
 
     /// Construct an empty table.
     Table();

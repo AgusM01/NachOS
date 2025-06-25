@@ -25,6 +25,7 @@ struct fileStruct {
     bool deleted; // Indica si el archivo fué eliminado.
     int readers; // Cantidad de lectores actuales del archivo.
     bool writer; // Si hay un escritor queriendo escribir.
+    bool closed; // Si el archivo fué cerrado.
     Lock *OpenRemoveLock; // Lock para abrir y eliminar el archivo.
     Condition *RemoveCondition; // Condición para eliminar el archivo cuando todos lo tengan cerrado.
     Condition *WriterCondition; // Condición para escribir un archivo cuando nadie esté leyendolo.
@@ -88,6 +89,12 @@ public:
     // un archivo.
     // Si el archivo no está, devuelve -1;
     int GetOpen(const char *name);
+
+    // Retorna si el archivo fué cerrado o no.
+    bool GetClosed(const char *name);
+
+    // Setea el elemento cerrado del archivo.
+    int SetClosed(const char *name, bool v);
     
     // Un thread cierra un archivo.
     // Reduce el número que lo tienen abierto.

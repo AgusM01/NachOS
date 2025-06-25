@@ -19,16 +19,16 @@ main(void)
         itoa(i,ito[1]);
         if (i < 10){
             if (!(i % 2)){
-                pids[i] = Exec2("wrFile1", ito, 1);
+                pids[i] = Exec("wrFile1", 1);
             }
             else
-                pids[i] = Exec2("rdFile1", ito, 1);
+                pids[i] = Exec("rdFile1", 1);
         }
         else{
             if (!(i % 2))
-                pids[i] = Exec2("wrFile2", ito, 1);
+                pids[i] = Exec("wrFile2", 1);
             else
-                pids[i] = Exec2("rdFile2", ito, 1);
+                pids[i] = Exec("rdFile2", 1);
         }
     }
 

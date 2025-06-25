@@ -40,6 +40,7 @@ FileTable::Add(OpenFile* file, const char *name)
 
     data[cur_ret].file = file;
     data[cur_ret].open = 1;
+    data[cur_ret].closed = false;
     data[cur_ret].readers = 0;
     data[cur_ret].writer = false;
 
@@ -86,11 +87,9 @@ FileTable::CheckFileInTable(const char *name)
 {
    for (int i = 0; i < current; i++)
        if (!strcmp(name, data[i].name)){
-            DEBUG('f', "Encuentro al archivo %s en la FileTable\n", name);
             return i;
        }
    
-   DEBUG('f', "No encuentro a %s en la FileTable\n", name);
    return -1;
 }
 
@@ -168,6 +167,31 @@ FileTable::GetOpen(const char *name)
         DEBUG('f', "Traigo los abiertos del archivo %s en la FileTable\n", name);
 
     return idx == -1 ? -1 : data[idx].open;
+}
+
+bool
+FileTable::GetClosed(const char *name)
+{
+    int idx = CheckFileInTable(name);
+    
+    ASSERT(idx != -1);
+
+    DEBUG('f', "Pregunto si el archivo %s fué cerrado anteriormente\n", name);
+    
+    return data[idx].closed; 
+}
+
+int
+FileTable::SetClosed(const char *name, bool v)
+{
+    int idx = CheckFileInTable(name);
+
+    if (idx != -1){
+        DEBUG('f', "Seteo el campo closed del archivo %s\n", name);
+        data[idx].closed = v;
+    }
+
+    return idx == -1 ? -1 : 0;
 }
 
 int

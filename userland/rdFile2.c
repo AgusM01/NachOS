@@ -2,17 +2,16 @@
 #include "syscall.h"
 #include <stdio.h>
 
-int main(int argc, char *argv[])
+int main()
 {
-    printf("Proceso lector FStest2: %s\n", argv[0]);
 
-    int fd = Open("FSTest2");
+    int fd2 = Open("FSTest2");
     char readed[24];
-    puts("Leo: ");
-    Read(readed, 23, fd);
-    Write(argv[0], 1, fd);
-
-    Close(fd);
+    Read(readed, 23, fd2);
+    int fd1 = Open("FSTest1");
+    Write(readed, 23, fd1);
+    Close(fd1);
+    Close(fd2);
 
     return 0;
 }
