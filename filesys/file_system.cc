@@ -252,13 +252,18 @@ FileSystem::Open(const char *name)
             // Si el archivo fué cerrado. Debo crearlo de nuevo.
             if (fileTable->GetClosed(name)){
                 openFile = new OpenFile(sector);
-                // Lo seteo como abierto (fué creado de nuevo el OpenFile.
-                fileTable->SetClosed(name, false);
             }
             else
                 openFile = fileTable->GetFile(name);
 
+            // Lo agrego a la FileTable.
+            // Si no fué cerrado simplemente aumenta en 1 la cantidad de abiertos.
+            // Si fué cerrado, reemplaza el openFile por este nuevo.
             fileTable->Add(openFile, name);
+            
+            // Lo seteo como abierto.
+            fileTable->SetClosed(name, false);
+            
             delete dir;
             fileTable->FileORLock(name, RELEASE);
             return openFile;

@@ -8,15 +8,11 @@ main(void)
 {
     int pids[PROCS];
     int res[PROCS];
-    char* ito[2];
-    char* fst = "1";
-    ito[0] = fst;
 
     Create("FSTest1");
     Create("FSTest2");
     
     for (int i = 0; i < PROCS; i++){
-        itoa(i,ito[1]);
         if (i < 10){
             if (!(i % 2)){
                 pids[i] = Exec("wrFile1", 1);

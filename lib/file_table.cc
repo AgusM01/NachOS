@@ -18,6 +18,12 @@ FileTable::Add(OpenFile* file, const char *name)
     if (i != -1)
     {
         DEBUG('f', "El archivo %s ya está en la FileTable\n", name);
+        
+        // Si el archivo fué cerrado, debo reemplazar el file
+        // ya que el anterior se eliminó.
+        if (GetClosed(name))
+            data[i].file = file;
+
         data[i].open += 1;
         return i;
     }

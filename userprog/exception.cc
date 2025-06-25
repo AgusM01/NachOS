@@ -289,7 +289,8 @@ SyscallHandler(ExceptionType _et)
                 if (opens == 1) 
                 {
                     DEBUG('f', "Soy el último, cerrando completamente el archivo %s\n", filename);
-                    
+                    fileTable->CloseOne(filename);
+
                     if (fileTable->isDeleted(filename))
                     {
                         // Soy el último y el archivo tiene que ser borrado.
@@ -297,11 +298,12 @@ SyscallHandler(ExceptionType _et)
                         DEBUG('f', "Cierro último el archivo %s y debe ser eliminado\n", filename);
                         fileTable->FileRemoveCondition(filename, SIGNAL);
                     }
+                    
 
-                    if (!status){
-                        fileTable->SetClosed(filename, true);
-                        delete file;
-                    }
+                    DEBUG('f', "Deleteo %s\n", filename);
+                    fileTable->SetClosed(filename, true);
+                    
+                    delete file;
 
                     machine->WriteRegister(2,status);
                     fileTable->FileORLock(filename, RELEASE);

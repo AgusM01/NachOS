@@ -14,7 +14,8 @@
 template <class T>
 class Table {
 public:
-    static const unsigned SIZE = 30;
+    // El tamaño original es 20. Lo aumenté para FileSystem.
+    static const unsigned SIZE = 50;
 
     /// Construct an empty table.
     Table();
