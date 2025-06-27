@@ -3,6 +3,7 @@
 #include "filesys/directory_entry.hh"
 #include "filesys/file_system.hh"
 #include "filesys/raw_file_header.hh"
+#include "filesys/raw_indirect_node.hh"
 
 #ifdef USER_PROGRAM
 #include "system.hh"
@@ -85,6 +86,6 @@ Filesystem:\n\
   Free sectors map size: %u bytes.\n\
   Maximum number of dir-entries: %u.\n\
   Directory file size: %u bytes.\n",
-      NUM_DIRECT, MAX_FILE_SIZE, FILE_NAME_MAX_LEN,
+      NUM_DIRECT*NUM_INDIRECT, MAX_FILE_SIZE, FILE_NAME_MAX_LEN,
       FREE_MAP_FILE_SIZE, NUM_DIR_ENTRIES, DIRECTORY_FILE_SIZE);
 }

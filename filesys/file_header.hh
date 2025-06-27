@@ -13,6 +13,7 @@
 #define NACHOS_FILESYS_FILEHEADER__HH
 
 
+#include "raw_indirect_node.hh"
 #include "raw_file_header.hh"
 #include "lib/bitmap.hh"
 
@@ -65,6 +66,13 @@ public:
 
 private:
     RawFileHeader raw;
+    // El raw además tiene que contener:
+    // numBytes 
+    // numSectors <- NUM_INDIRECT
+    // Los otros pueden tener:
+    // SECTOR_SIZE / sizeof(int) <- NUM_DIRECT
+    RawIndirectNode raw_ind[NUM_INDIRECT];
+    RawIndirectNode raw_ind2[NUM_INDIRECT][NUM_DIRECT];
 };
 
 

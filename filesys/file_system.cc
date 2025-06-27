@@ -48,6 +48,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#define MIN(a,b) a < b ? a : b
+
 Lock* CreateLock = new Lock("FSCreateLock");
 /// Sectors containing the file headers for the bitmap of free sectors, and
 /// the directory of files.  These file headers are placed in well-known
@@ -73,7 +75,7 @@ FileSystem::FileSystem(bool format)
         // Creamos un bitmap para ir llevando los sectores libres del disco.
         Bitmap     *freeMap = new Bitmap(NUM_SECTORS);
         
-        // Creamos un directorio vacío.
+        // Creamos un directorio vacío. -> Por el momento tenemos un único directorio.
         Directory  *dir     = new Directory(NUM_DIR_ENTRIES);
         FileHeader *mapH    = new FileHeader;
         FileHeader *dirH    = new FileHeader;
@@ -95,7 +97,9 @@ FileSystem::FileSystem(bool format)
         // We need to do this before we can `Open` the file, since open reads
         // the file header off of disk (and currently the disk has garbage on
         // it!).
-
+        
+        // Esto permite eliminar mapH y dirH ya que la información importante
+        // (RawFileHeader) la mando a disco. Una unidad estática.
         DEBUG('f', "Writing headers back to disk.\n");
         mapH->WriteBack(FREE_MAP_SECTOR);
         dirH->WriteBack(DIRECTORY_SECTOR);
@@ -193,8 +197,10 @@ FileSystem::Create(const char *name, unsigned initialSize)
         int sector = freeMap->Find();
           // Find a sector to hold the file header.
         if (sector == -1) {
+            DEBUG('f', "Error: no hay lugar para el header del archivo %s\n", name);
             success = false;  // No free block for file header.
         } else if (!dir->Add(name, sector)) {
+            DEBUG('f', "Error: no hay espacio en directorio para archivo %s\n", name);
             success = false;  // No space in directory.
         } else {
             FileHeader *h = new FileHeader;
@@ -206,13 +212,20 @@ FileSystem::Create(const char *name, unsigned initialSize)
                 dir->WriteBack(directoryFile);
                 freeMap->WriteBack(freeMapFile);
             }
+            else
+                DEBUG('f', "Error: No hay espacio en el disco para los datos del archivo %s\n", name);
+
             delete h;
         }
         delete freeMap;
     }
     delete dir;
     CreateLock->Release();
-    DEBUG('f', "Archivo %s creado correctamente\n", name);
+    if (success)
+        DEBUG('f', "Archivo %s creado correctamente\n", name);
+    else
+        DEBUG('f', "Archivo %s no pudo ser creado\n", name);
+    
     return success;
 }
 
@@ -298,6 +311,7 @@ FileSystem::Remove(const char *name)
 {
     ASSERT(name != nullptr);
     
+    DEBUG('f', "El archivo %s va a ser removido\n", name);
 
     Directory *dir = new Directory(NUM_DIR_ENTRIES);
     dir->FetchFrom(directoryFile);
@@ -349,7 +363,6 @@ FileSystem::Remove(const char *name)
     fileH->FetchFrom(sector);
     
     Bitmap *freeMap = new Bitmap(NUM_SECTORS);
-    
     
     freeMap->FetchFrom(freeMapFile);
 
@@ -422,12 +435,27 @@ CheckFileHeader(const RawFileHeader *rh, unsigned num, Bitmap *shadowMap)
     error |= CheckForError(rh->numSectors >= DivRoundUp(rh->numBytes,
                                                         SECTOR_SIZE),
                            "sector count not compatible with file size.");
-    error |= CheckForError(rh->numSectors < NUM_DIRECT,
+    error |= CheckForError(rh->numSectors < NUM_INDIRECT * NUM_DIRECT,
                            "too many blocks.");
-    for (unsigned i = 0; i < rh->numSectors; i++) {
-        unsigned s = rh->dataSectors[i];
-        error |= CheckSector(s, shadowMap);
+
+
+    unsigned cantIndirects = DivRoundUp(rh->numSectors, NUM_DIRECT);
+    unsigned located = 0;
+    unsigned sectorsLeft = rh->numSectors;
+    RawIndirectNode rind;
+    for (unsigned i = 0; i < cantIndirects; i++) 
+    {
+        located = MIN(NUM_DIRECT, sectorsLeft);
+        synchDisk->ReadSector(rh->dataSectors[i], (char *) &rind);
+        for (unsigned j = 0; j < located; j++)
+        {
+            unsigned s = rind.dataSectors[j];
+            error |= CheckSector(s, shadowMap);
+        }
+        sectorsLeft -= located;
+        located = 0;
     }
+
     return error;
 }
 
@@ -571,7 +599,6 @@ FileSystem::Print()
 
     printf("--------------------------------\n");
     bitH->FetchFrom(FREE_MAP_SECTOR);
-    
     bitH->Print("Bitmap");
     
     printf("--------------------------------\n");

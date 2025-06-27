@@ -3,7 +3,7 @@
 ///
 /// The file header is used to locate where on disk the file's data is
 /// stored.  We implement this as a fixed size table of pointers -- each
-/// entry in the table points to the disk sector containing that portion of
+
 /// the file data (in other words, there are no indirect or doubly indirect
 /// blocks). The table size is chosen so that the file header will be just
 /// big enough to fit in one disk sector,
@@ -24,7 +24,12 @@
 
 
 #include "file_header.hh"
+#include "lib/utility.hh"
 #include "threads/system.hh"
+
+#define MIN(a,b) a < b ? a : b
+#define MAX(a,b) a > b ? a : b
+
 
 #include <ctype.h>
 #include <stdio.h>
@@ -39,54 +44,130 @@
 bool
 FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize)
 {
-    ASSERT(freeMap != nullptr);
 
+    ASSERT(freeMap != nullptr);
+    
+    // Con doble indirección MAX_FILE_SIZE es DISK_SIZE.
     if (fileSize > MAX_FILE_SIZE) {
         return false;
     }
 
     raw.numBytes = fileSize;
     raw.numSectors = DivRoundUp(fileSize, SECTOR_SIZE);
-    if (freeMap->CountClear() < raw.numSectors) {
+    
+    
+    unsigned cantIndirects1 = DivRoundUp(raw.numSectors, NUM_DIRECT*NUM_DIRECT);
+    unsigned cantIndirects2 = DivRoundUp(raw.numSectors, NUM_DIRECT);
+    unsigned cantIndirectsTotal = cantIndirects1 + cantIndirects2;
+    if (freeMap->CountClear() < raw.numSectors + cantIndirectsTotal) {
         return false;  // Not enough space.
     }
+    
+    DEBUG('f', "Hay espacio para %u sectores\n", raw.numSectors);
+    DEBUG('f', "En el bitmap hay disponibles %u sectores\n", freeMap->CountClear());
 
-    for (unsigned i = 0; i < raw.numSectors; i++) {
-        raw.dataSectors[i] = freeMap->Find();
+    // Para ejercicio 2:
+    // Ahora tengo NUM_INDIRECT punteros que pueden 
+    // contener NUM_DIRECT punteros los cuales cada uno de ellos
+    // contiene NUM_DIRECT sectores.
+    
+
+    unsigned sectorsLeft = raw.numSectors;
+    
+    for (unsigned i = 0; i < NUM_INDIRECT && sectorsLeft > 0; i++)
+    {
+        ASSERT((int)(raw.dataSectors[i] = freeMap->Find()) != -1);
+        for (unsigned j = 0; j < NUM_DIRECT && sectorsLeft > 0; j++)
+        {
+            ASSERT((int)(raw_ind[i].dataSectors[j] = freeMap->Find()) != -1);
+            for (unsigned k = 0; k < NUM_DIRECT && sectorsLeft > 0; k++)
+            {
+                ASSERT((int)(raw_ind2[i][j].dataSectors[k] = freeMap->Find()) != -1);
+                sectorsLeft -= 1;
+                DEBUG('f', "Sectores allocados: %u\n", raw.numSectors - sectorsLeft);
+                DEBUG('f', "Espacio en bitmap: %u\n", freeMap->CountClear());
+            }
+        }
     }
+
     return true;
 }
 
 /// De-allocate all the space allocated for data blocks for this file.
 ///
 /// * `freeMap` is the bit map of free disk sectors.
+/// Su concurrencia viene dada por Remove de file_system.cc.
 void
 FileHeader::Deallocate(Bitmap *freeMap)
 {
     ASSERT(freeMap != nullptr);
 
-    for (unsigned i = 0; i < raw.numSectors; i++) {
-        ASSERT(freeMap->Test(raw.dataSectors[i]));  // ought to be marked!
-        freeMap->Clear(raw.dataSectors[i]);
+    unsigned sectorsLeft = raw.numSectors;
+    
+    for (unsigned i = 0; i < NUM_INDIRECT && sectorsLeft > 0; i++)
+    {
+        // Traigo el primer nivel de indirección del disco.
+        synchDisk->ReadSector(raw.dataSectors[i], (char *) &raw_ind[i]);
+        for (unsigned j = 0; j < NUM_DIRECT && sectorsLeft > 0; j++)
+        {
+            // Traigo el segundo nivel de indirección del disco. 
+            synchDisk->ReadSector(raw_ind[i].dataSectors[j], (char*) &raw_ind2[i][j]);
+            for (unsigned k = 0; k < NUM_DIRECT && sectorsLeft > 0; k++)
+            {
+                ASSERT(freeMap->Test(raw_ind2[i][j].dataSectors[k]));
+                freeMap->Clear(raw_ind2[i][j].dataSectors[k]);
+                sectorsLeft -= 1;
+            }
+        }
     }
+   return; 
 }
 
 /// Fetch contents of file header from disk.
 ///
 /// * `sector` is the disk sector containing the file header.
+///
 void
 FileHeader::FetchFrom(unsigned sector)
 {
+    
+    DEBUG('f', "Traigo fileHeader del sector %u\n", sector);
     synchDisk->ReadSector(sector, (char *) &raw);
+    DEBUG('f', "La cantidad de sectores son: %u\n", raw.numSectors); 
+    unsigned cantIndirects1 = DivRoundUp(raw.numSectors, NUM_DIRECT*NUM_DIRECT);
+    unsigned cantIndirects2 = DivRoundUp(raw.numSectors, NUM_DIRECT);
+
+    for (unsigned i = 0; (i < cantIndirects1 || i == 0); i++){
+        synchDisk->ReadSector(raw.dataSectors[i], (char *) &raw_ind[i]);
+        for (unsigned j = 0; (j < cantIndirects2 || j == 0); j++){
+            synchDisk->ReadSector(raw_ind[i].dataSectors[j], (char *) &raw_ind2[i][j]);
+        }
+    } 
+    return;
 }
 
 /// Write the modified contents of the file header back to disk.
 ///
 /// * `sector` is the disk sector to contain the file header.
+///
 void
 FileHeader::WriteBack(unsigned sector)
 {
+    DEBUG('f', "Escribo en el disco el sector %u\n", sector);
+
+    unsigned cantIndirects1 = DivRoundUp(raw.numSectors, NUM_DIRECT*NUM_DIRECT);
+    unsigned cantIndirects2 = DivRoundUp(raw.numSectors, NUM_DIRECT);
+    
     synchDisk->WriteSector(sector, (char *) &raw);
+    
+    for (unsigned i = 0; i < cantIndirects1 || i == 0; i++){
+        synchDisk->WriteSector(raw.dataSectors[i], (char *) &raw_ind[i]);
+        for (unsigned j = 0; j < cantIndirects2 || j == 0; j++){
+            synchDisk->WriteSector(raw_ind[i].dataSectors[j], (char*) &raw_ind2[i][j]);
+        }
+    }
+    
+    return;
 }
 
 /// Return which disk sector is storing a particular byte within the file.
@@ -98,7 +179,31 @@ FileHeader::WriteBack(unsigned sector)
 unsigned
 FileHeader::ByteToSector(unsigned offset)
 {
-    return raw.dataSectors[offset / SECTOR_SIZE];
+    DEBUG('f', "Trayendo el byte %u\n", offset);
+    unsigned numSector = offset / SECTOR_SIZE;
+    
+    DEBUG('f', "El byte está en el sector %u\n", numSector);
+
+    unsigned cantIndirects1 = DivRoundUp(raw.numSectors, NUM_DIRECT*NUM_DIRECT);
+    unsigned cantIndirects2 = DivRoundUp(raw.numSectors, NUM_DIRECT);
+    
+    unsigned indirecLevel1 = cantIndirects1 == 0 ? 0 : numSector % cantIndirects1;
+    unsigned indirecLevel2 = cantIndirects2 == 0 ? 0 : numSector % cantIndirects2;
+    
+    DEBUG('f', "El primer nivel de indirección es %u\n", indirecLevel1);
+    DEBUG('f', "El segundo nivel de indirección es %u\n", indirecLevel2);
+
+    unsigned sectorInLevel = numSector - (NUM_DIRECT*NUM_DIRECT * indirecLevel1 + NUM_DIRECT*indirecLevel2);
+    
+    DEBUG('f', "El sector buscado es el sector numero %u dentro de su indirección\n", sectorInLevel);
+
+    RawIndirectNode rin_1;
+    RawIndirectNode rin_2;
+
+    synchDisk->ReadSector(raw.dataSectors[indirecLevel1], (char *) &rin_1);
+    synchDisk->ReadSector(rin_1.dataSectors[indirecLevel2], (char *) &rin_2);
+
+    return rin_2.dataSectors[sectorInLevel];
 }
 
 /// Return the number of bytes in the file.
@@ -113,7 +218,7 @@ FileHeader::FileLength() const
 void
 FileHeader::Print(const char *title)
 {
-    char *data = new char [SECTOR_SIZE];
+    char *data = new char[SECTOR_SIZE];
 
     if (title == nullptr) {
         printf("File header:\n");
@@ -125,24 +230,37 @@ FileHeader::Print(const char *title)
            "    block indexes: ",
            raw.numBytes);
 
-    for (unsigned i = 0; i < raw.numSectors; i++) {
-        printf("%u ", raw.dataSectors[i]);
-    }
-    printf("\n");
+    unsigned cantIndirects1 = DivRoundUp(raw.numSectors, NUM_DIRECT*NUM_DIRECT);
+    unsigned cantIndirects2 = DivRoundUp(raw.numSectors, NUM_DIRECT);
 
-    for (unsigned i = 0, k = 0; i < raw.numSectors; i++) {
-        printf("    contents of block %u:\n", raw.dataSectors[i]);
-        synchDisk->ReadSector(raw.dataSectors[i], data);
-        for (unsigned j = 0; j < SECTOR_SIZE && k < raw.numBytes; j++, k++) {
-            if (isprint(data[j])) {
-                printf("%c", data[j]);
-            } else {
-                printf("\\%X", (unsigned char) data[j]);
+    unsigned located = 0;
+    unsigned sectorsLeft = raw.numSectors;
+    
+    for (unsigned i = 0, k = 0; (i < cantIndirects1 || i == 0); i++){
+        synchDisk->ReadSector(raw.dataSectors[i], (char *) &raw_ind[i]);
+        for (unsigned j = 0; (j < cantIndirects2 || j == 0); j++){
+            synchDisk->ReadSector(raw_ind[i].dataSectors[j], (char *) &raw_ind2[i][j]);
+            located = MIN(NUM_DIRECT, sectorsLeft);
+            for (unsigned z = 0; z < located; z++){
+                printf("Contents of block %u:\n", raw_ind2[i][j].dataSectors[z]);
+                synchDisk->ReadSector(raw_ind2[i][j].dataSectors[z], data);
+                for (unsigned n = 0; n < SECTOR_SIZE && k < raw.numBytes; n++, k++){
+                    
+                    if (isprint(data[n])) {
+                        printf("%c", data[n]);
+                    } else {
+                        printf("\\%X", (unsigned char) data[n]);
+                    }
+                }
+                printf("\n");
             }
-        }
-        printf("\n");
+            sectorsLeft -= located;
+            located = 0;
+        } 
     }
+
     delete [] data;
+    return;
 }
 
 const RawFileHeader *

@@ -181,7 +181,10 @@ SyscallHandler(ExceptionType _et)
             
             // Dado que todavía el FileSistem no permite archivos extensibles, le damos
             // un tamaño inicial.
-            unsigned initialSize = 1024;
+            // El tamaño máximo es 121KiB.
+            // Esto es ya que se utilizan 8KiB para guardar más estructuras que 
+            // los datos del arhivo en sí.
+            unsigned initialSize = 5000;
             status = fileSystem->Create(filename, initialSize) ? 0 : -1;
             }
             
