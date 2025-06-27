@@ -15,8 +15,9 @@
 #define SIGNAL 1
 #define BROADCAST 2
 
-// Una FileTable es una tabla que asocia cada archivo con un int que indica 
-// la cantidad de threads que tienen abiertos dicho archivo.
+// Una FileTable es una tabla que mantiene todos los archivos
+// abiertos en el sistema y metadata de los mismos útiles para su
+// utilización y seguridad.
 
 struct fileStruct {
     OpenFile* file; // Archivo.

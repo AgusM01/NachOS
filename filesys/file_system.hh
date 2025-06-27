@@ -98,7 +98,14 @@ public:
 /// supports extensible files, the directory size sets the maximum number of
 /// files that can be loaded onto the disk.
 static const unsigned FREE_MAP_FILE_SIZE = NUM_SECTORS / BITS_IN_BYTE;
-static const unsigned NUM_DIR_ENTRIES = 10;
+
+// Con archivos extensibles podemos hacer esto 0.
+//static const unsigned NUM_DIR_ENTRIES = 10;
+static const unsigned NUM_DIR_ENTRIES = 0;
+
+// Con archivos extensibles esto será 0.
+// Se va incrementando a medida que ingresamos archivos
+// al directorio.
 static const unsigned DIRECTORY_FILE_SIZE
   = sizeof (DirectoryEntry) * NUM_DIR_ENTRIES;
 

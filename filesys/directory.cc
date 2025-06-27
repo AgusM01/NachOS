@@ -121,16 +121,40 @@ Directory::Add(const char *name, int newSector)
     if (FindIndex(name) != -1) {
         return false;
     }
+    
+    // Creamos una nueva tabla para el nuevo archivo.
+    // Ahora permitimos archivos extensibles.
+    DirectoryEntry* newTable = new DirectoryEntry [raw.tableSize + 1];
 
-    for (unsigned i = 0; i < raw.tableSize; i++) {
-        if (!raw.table[i].inUse) {
-            raw.table[i].inUse = true;
-            strncpy(raw.table[i].name, name, FILE_NAME_MAX_LEN);
-            raw.table[i].sector = newSector;
-            return true;
-        }
+    // Copiamos los contenidos de la tabla anterior a esta
+    for (unsigned i = 0; i < raw.tableSize; i++)
+    {
+        newTable[i] = raw.table[i];
     }
-    return false;  // no space.  Fix when we have extensible files.
+    
+    // Agregamos el nuevo archivo:
+    newTable[raw.tableSize].inUse = true;
+    strncpy(newTable[raw.tableSize].name, name, FILE_NAME_MAX_LEN);
+    newTable[raw.tableSize].sector = newSector;
+
+    delete [] raw.table;
+
+    raw.table = newTable;
+    raw.tableSize += 1;
+
+    return true;
+
+   // // Busca un lugar disponible en el directorio.
+   // // Cuando lo encuentra agrega el archivo.
+   // for (unsigned i = 0; i < raw.tableSize; i++) {
+   //     if (!raw.table[i].inUse) {
+   //         raw.table[i].inUse = true;
+   //         strncpy(raw.table[i].name, name, FILE_NAME_MAX_LEN);
+   //         raw.table[i].sector = newSector;
+   //         return true;
+   //     }
+   // }
+   // return false;  // no space.  Fix when we have extensible files.
 }
 
 /// Remove a file name from the directory.   Return true if successful;

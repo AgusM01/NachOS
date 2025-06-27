@@ -184,7 +184,9 @@ SyscallHandler(ExceptionType _et)
             // El tamaño máximo es 121KiB.
             // Esto es ya que se utilizan 8KiB para guardar más estructuras que 
             // los datos del arhivo en sí.
-            unsigned initialSize = 5000;
+            // Lo ponemos en 0 para el ejercicio 3. 
+            // Será un archivo extensible.
+            unsigned initialSize = 0;
             status = fileSystem->Create(filename, initialSize) ? 0 : -1;
             }
             
