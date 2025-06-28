@@ -56,7 +56,6 @@ FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize)
     raw.numBytes = fileSize;
     raw.numSectors = DivRoundUp(fileSize, SECTOR_SIZE);
     
-    
     unsigned cantIndirects1 = DivRoundUp(raw.numSectors, NUM_DIRECT*NUM_DIRECT);
     unsigned cantIndirects2 = DivRoundUp(raw.numSectors, NUM_DIRECT);
     unsigned cantIndirectsTotal = cantIndirects1 + cantIndirects2;
@@ -75,10 +74,10 @@ FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize)
 
     unsigned sectorsLeft = raw.numSectors;
     
-    for (unsigned i = 0; (i < NUM_INDIRECT && sectorsLeft > 0) || i == 0; i++)
+    for (unsigned i = 0; (i < NUM_INDIRECT && sectorsLeft > 0); i++)
     {
         ASSERT((int)(raw.dataSectors[i] = freeMap->Find()) != -1);
-        for (unsigned j = 0; (j < NUM_DIRECT && sectorsLeft > 0) || j == 0; j++)
+        for (unsigned j = 0; (j < NUM_DIRECT && sectorsLeft > 0); j++)
         {
             ASSERT((int)(raw_ind[i].dataSectors[j] = freeMap->Find()) != -1);
             for (unsigned k = 0; k < NUM_DIRECT && sectorsLeft > 0; k++)
@@ -101,15 +100,16 @@ FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize)
 void
 FileHeader::Deallocate(Bitmap *freeMap)
 {
+    // Elimina solo los datos. No el header.
     ASSERT(freeMap != nullptr);
 
     unsigned sectorsLeft = raw.numSectors;
     
-    for (unsigned i = 0; i < NUM_INDIRECT && sectorsLeft > 0; i++)
+    for (unsigned i = 0; (i < NUM_INDIRECT && sectorsLeft > 0); i++)
     {
         // Traigo el primer nivel de indirección del disco.
         synchDisk->ReadSector(raw.dataSectors[i], (char *) &raw_ind[i]);
-        for (unsigned j = 0; j < NUM_DIRECT && sectorsLeft > 0; j++)
+        for (unsigned j = 0; (j < NUM_DIRECT && sectorsLeft > 0); j++)
         {
             // Traigo el segundo nivel de indirección del disco. 
             synchDisk->ReadSector(raw_ind[i].dataSectors[j], (char*) &raw_ind2[i][j]);
@@ -119,7 +119,11 @@ FileHeader::Deallocate(Bitmap *freeMap)
                 freeMap->Clear(raw_ind2[i][j].dataSectors[k]);
                 sectorsLeft -= 1;
             }
+            ASSERT(freeMap->Test(raw_ind[i].dataSectors[j]));
+            freeMap->Clear(raw_ind[i].dataSectors[j]);
         }
+        ASSERT(freeMap->Test(raw.dataSectors[i]));
+        freeMap->Clear(raw.dataSectors[i]);
     }
    return; 
 }
@@ -134,13 +138,14 @@ FileHeader::FetchFrom(unsigned sector)
     
     DEBUG('f', "Traigo fileHeader del sector %u\n", sector);
     synchDisk->ReadSector(sector, (char *) &raw);
+    
     DEBUG('f', "La cantidad de sectores son: %u\n", raw.numSectors); 
     unsigned cantIndirects1 = DivRoundUp(raw.numSectors, NUM_DIRECT*NUM_DIRECT);
     unsigned cantIndirects2 = DivRoundUp(raw.numSectors, NUM_DIRECT);
 
-    for (unsigned i = 0; (i < cantIndirects1 || i == 0); i++){
+    for (unsigned i = 0; i < cantIndirects1; i++){
         synchDisk->ReadSector(raw.dataSectors[i], (char *) &raw_ind[i]);
-        for (unsigned j = 0; (j < cantIndirects2 || j == 0); j++){
+        for (unsigned j = 0; j < cantIndirects2; j++){
             synchDisk->ReadSector(raw_ind[i].dataSectors[j], (char *) &raw_ind2[i][j]);
         }
     }
@@ -163,9 +168,9 @@ FileHeader::WriteBack(unsigned sector)
     
     synchDisk->WriteSector(sector, (char *) &raw);
     
-    for (unsigned i = 0; i < cantIndirects1 || i == 0; i++){
+    for (unsigned i = 0; i < cantIndirects1; i++){
         synchDisk->WriteSector(raw.dataSectors[i], (char *) &raw_ind[i]);
-        for (unsigned j = 0; j < cantIndirects2 || j == 0; j++){
+        for (unsigned j = 0; j < cantIndirects2; j++){
             synchDisk->WriteSector(raw_ind[i].dataSectors[j], (char*) &raw_ind2[i][j]);
         }
     }
@@ -205,12 +210,14 @@ FileHeader::ByteToSector(unsigned offset)
 
     synchDisk->ReadSector(raw.dataSectors[indirecLevel1], (char *) &rin_1);
     synchDisk->ReadSector(rin_1.dataSectors[indirecLevel2], (char *) &rin_2);
+    
+    DEBUG('f', "ByteToSector el sector que devuelvo es el: %u\n", rin_2.dataSectors[direcInLevel]);
 
     return rin_2.dataSectors[direcInLevel];
 }
 
 bool
-FileHeader::AddSectors(unsigned sector, unsigned newSectors, unsigned addBytes)
+FileHeader::AddSectors(unsigned sector, unsigned lastSector, unsigned addBytes)
 {
     Bitmap *freeMap = new Bitmap(NUM_SECTORS);
     freeMap->FetchFrom(fileTable->GetFile("freeMap"));
@@ -218,8 +225,22 @@ FileHeader::AddSectors(unsigned sector, unsigned newSectors, unsigned addBytes)
     // Primero traigo el fileHeader.
     FetchFrom(sector);
     
+    DEBUG('f', "Voy a agregar sectores\n");
+
     if (raw.numBytes + addBytes > MAX_FILE_SIZE){
         DEBUG('f', "No es posible agregar más contenido al archivo.\n");
+        return false;
+    }
+    
+    // Calculo cuántos sectores tengo que agregar.
+    ASSERT(lastSector >= raw.numSectors);
+    unsigned newSectors = raw.numBytes != 0 ? lastSector - raw.numSectors : 1;
+    
+    DEBUG('f', "El arhivo tiene %u bytes y debo agregar %u bytes, por eso debo agregar %u sectores\n", raw.numBytes, addBytes, newSectors);
+
+    if (newSectors == 0){
+        DEBUG('f', "No es necesario agregar sectores\n");
+        raw.numBytes += addBytes;
         return false;
     }
 
@@ -244,20 +265,30 @@ FileHeader::AddSectors(unsigned sector, unsigned newSectors, unsigned addBytes)
     
     unsigned direcInLevel = numDirect - (NUM_DIRECT*NUM_DIRECT * indirecLevel1 + NUM_DIRECT*indirecLevel2);
     
-    direcInLevel += 1;
+    DEBUG('f', "El nivel de indirección 1 del último sector es %u.\n El nivel de indirección 2 del último sector es %u.\n El directo es el número %u, por lo que empiezo a agregar sectores en el %u.\n", indirecLevel1, indirecLevel2, direcInLevel, direcInLevel + 1);
+
+    if (raw.numBytes != 0)
+        direcInLevel += 1;
 
     unsigned newCantIndirects1 = DivRoundUp(raw.numSectors + newSectors, NUM_DIRECT*NUM_DIRECT);
     unsigned newCantIndirects2 = DivRoundUp(raw.numSectors + newSectors, NUM_DIRECT);
     unsigned leftSectors = newSectors;
+    
+    DEBUG('f', "La nueva primera indirección es %u.\n La nueva segunda indirección es %u\n", newCantIndirects1, newCantIndirects2); 
 
-    for (unsigned i = indirecLevel1; i <= newCantIndirects1 && leftSectors > 0; i++){
-        if (i > indirecLevel1)
+    for (unsigned i = indirecLevel1; i < newCantIndirects1 && leftSectors > 0; i++){
+        if (i > indirecLevel1 || (raw.numBytes == 0 && i == indirecLevel1)){
             ASSERT((int)(raw.dataSectors[i] = freeMap->Find()) != -1);
-        for (unsigned j = indirecLevel2; j <= newCantIndirects2 && leftSectors > 0; j++){
-            if (j > indirecLevel2)
+            DEBUG('f', "Agrego el sector %u en el primer nivel de indirección %u\n", raw.dataSectors[i], i);
+        }
+        for (unsigned j = indirecLevel2; j < newCantIndirects2 && leftSectors > 0; j++){
+            if (j > indirecLevel2 || (raw.numBytes == 0 && j == indirecLevel2)){
                 ASSERT((int)(raw_ind[i].dataSectors[j] = freeMap->Find()) != -1);
+                DEBUG('f', "Agrego el sector %u en el segundo nivel de indirección %u\n", raw_ind[i].dataSectors[j], j);
+            }
             for (unsigned k = direcInLevel; k < NUM_DIRECT && leftSectors > 0; k++, leftSectors--){
                 ASSERT((int)(raw_ind2[i][j].dataSectors[k] =  freeMap->Find()) != -1);
+                DEBUG('f', "Agrego el sector %u en el 1er nivel de indirección %u, 2do nivel de indirección %u y nivel directo %u\n", raw_ind2[i][j].dataSectors[k], i, j, k);
             }
             direcInLevel = 0;
         }
@@ -269,7 +300,10 @@ FileHeader::AddSectors(unsigned sector, unsigned newSectors, unsigned addBytes)
 
     // Mando todo a disco.
     WriteBack(sector);
+    freeMap->WriteBack(fileTable->GetFile("freeMap"));
+    delete freeMap;
 
+    DEBUG('f', "Añadí %u sectores correctamente\n", newSectors);
     return true;
 }
 
@@ -303,9 +337,9 @@ FileHeader::Print(const char *title)
     unsigned located = 0;
     unsigned sectorsLeft = raw.numSectors;
     
-    for (unsigned i = 0, k = 0; (i < cantIndirects1 || i == 0); i++){
+    for (unsigned i = 0, k = 0; i < cantIndirects1; i++){
         synchDisk->ReadSector(raw.dataSectors[i], (char *) &raw_ind[i]);
-        for (unsigned j = 0; (j < cantIndirects2 || j == 0); j++){
+        for (unsigned j = 0; j < cantIndirects2; j++){
             synchDisk->ReadSector(raw_ind[i].dataSectors[j], (char *) &raw_ind2[i][j]);
             located = MIN(NUM_DIRECT, sectorsLeft);
             for (unsigned z = 0; z < located; z++){

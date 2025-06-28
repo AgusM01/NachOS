@@ -170,11 +170,12 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
     lastSector  = DivRoundDown(position + numBytes - 1, SECTOR_SIZE);
     numSectors  = 1 + lastSector - firstSector;
 
-    // Hago espacio en el archivo para los sectores necesarios.
+    // Si escribo al final, tengo que hacer espacio.
     // La concurrencia se da ya que esto está atomizado por fuera.
     // El proceso que llama a WriteAt solo puede escribir si es 
     // el único manipulando el archivo.
-    hdr->AddSectors(hdrSector, numSectors, numBytes);
+    if (position + numBytes > fileLength || fileLength == 0)
+        hdr->AddSectors(hdrSector, lastSector, numBytes);
     buf = new char [numSectors * SECTOR_SIZE];
 
     firstAligned = position == firstSector * SECTOR_SIZE;

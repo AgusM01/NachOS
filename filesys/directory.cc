@@ -59,6 +59,8 @@ Directory::FetchFrom(OpenFile *file)
     ASSERT(file != nullptr);
     file->ReadAt((char *) raw.table,
                  raw.tableSize * sizeof (DirectoryEntry), 0);
+
+    DEBUG('f', "Traje el directorio el cual tiene %u entradas\n", raw.tableSize);
 }
 
 /// Write any modifications to the directory back to disk.
@@ -70,6 +72,8 @@ Directory::WriteBack(OpenFile *file)
     ASSERT(file != nullptr);
     file->WriteAt((char *) raw.table,
                   raw.tableSize * sizeof (DirectoryEntry), 0);
+    
+    DEBUG('f', "Guardé el directorio el cual tiene %u entradas\n", raw.tableSize);
 }
 
 /// Look up file name in directory, and return its location in the table of
@@ -116,6 +120,7 @@ Directory::Find(const char *name)
 bool
 Directory::Add(const char *name, int newSector)
 {
+    DEBUG('f', "Añadiendo el archivo %s al directorio\n", name);
     ASSERT(name != nullptr);
 
     if (FindIndex(name) != -1) {
@@ -141,7 +146,8 @@ Directory::Add(const char *name, int newSector)
 
     raw.table = newTable;
     raw.tableSize += 1;
-
+    
+    // ACÁ HAY UN ERROR
     return true;
 
    // // Busca un lugar disponible en el directorio.
