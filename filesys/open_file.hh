@@ -116,6 +116,7 @@ public:
   private:
     FileHeader *hdr;  ///< Header for this file.
     unsigned seekPosition;  ///< Current position within the file.
+    unsigned hdrSector; ///< Sector donde está el header del archivo.
 };
 
 #endif

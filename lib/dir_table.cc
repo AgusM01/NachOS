@@ -1,0 +1,135 @@
+#include "dir_table.hh"
+#include "filesys/directory_entry.hh"
+#include "lib/utility.hh"
+
+#include <cstring>
+
+DirTable::DirTable()
+{
+    current = 0;
+}
+
+int 
+DirTable::Add(OpenFile* file, const char* actName, const char* fatherName)
+{
+    ASSERT(file != nullptr);
+    ASSERT(actName != nullptr);
+
+    int i = CheckDirInTable(actName);
+    if (i != -1)
+    {
+        DEBUG('f', "El directorio %s ya está en la DirTable\n", actName);
+        // Ver si no hay que hacer algo como con los archivos cerrados.
+        return i;
+    }
+    
+    int cur_ret;
+
+    if (!freed.IsEmpty())
+        cur_ret = freed.Pop();
+    else
+    {
+        if (current < static_cast<int>(SIZE)){
+            cur_ret = current;
+            current++;
+        }
+        else 
+            return -1;
+    }   
+    
+    DEBUG('f', "Añado el directorio %s a la DirTable\n", actName);
+    
+    data[cur_ret].file = file;
+    
+    ASSERT(strlen(actName) <= DIR_NAME_MAX_LEN); 
+    data[cur_ret].actName = new char[DIR_NAME_MAX_LEN];
+    strcpy(data[cur_ret].actName, actName);
+
+    if (fatherName != nullptr){
+        DEBUG('f', "El directorio %s tiene como padre al directorio %s\n", actName, fatherName);
+        ASSERT(strlen(fatherName) <= DIR_NAME_MAX_LEN); 
+        data[cur_ret].fatherName = new char[DIR_NAME_MAX_LEN];
+        strcpy(data[cur_ret].fatherName, fatherName);
+    }
+    else
+        DEBUG('f', "El directorio %s no tiene un padre, por lo tanto es root\n", actName);
+
+    // Empieza con 0 entradas.
+    // Después se van agregando.
+    data[cur_ret].numEntries = 0;
+    
+    char* actDirLockName = concat("DirLock.", actName);
+    data[cur_ret].actDirLock = new Lock(actDirLockName);
+    
+    return cur_ret;
+}
+
+OpenFile*
+DirTable::GetDir(const char* name)
+{
+    int idx = CheckDirInTable(name);
+    
+    if (idx == -1){
+        DEBUG('f', "El directorio %s no se encuentra en la DirTable\n", name);
+        return nullptr;
+    }
+
+    return data[idx].file;
+}
+
+int 
+DirTable::CheckDirInTable(const char* name)
+{
+   for (int i = 0; i < current; i++)
+       if (!strcmp(name, data[i].actName)){
+            return i;
+       }
+   
+   return -1;
+}
+
+int
+DirTable::GetNumEntries(const char* name)
+{
+    int idx = CheckDirInTable(name);
+    ASSERT(idx != -1);
+    
+    return data[idx].numEntries;
+}
+
+int
+DirTable::SetNumEntries(const char* name, int numEntries)
+{
+    int idx = CheckDirInTable(name);
+    ASSERT(idx != -1);
+
+    data[idx].numEntries = numEntries;
+    return numEntries;
+}
+
+bool 
+DirTable::DirLock(const char *name, int op)
+{
+    int idx = CheckDirInTable(name);
+
+    ASSERT(idx != -1);
+
+    switch (op) { 
+        case ACQUIRE:
+            DEBUG('f', "Tomo el DirLock del directorio %s en la DirTable\n", name);
+            (data[idx].actDirLock)->Acquire();
+        break;
+
+        case RELEASE:
+            DEBUG('f', "Suelto el DirLock del directorio %s en la DirTable\n", name);
+            (data[idx].actDirLock)->Release();
+        break;
+
+        default:
+            return false;
+        break;
+    }
+
+    return true;
+}
+

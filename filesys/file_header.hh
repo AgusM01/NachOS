@@ -51,6 +51,9 @@ public:
     /// Convert a byte offset into the file to the disk sector containing the
     /// byte.
     unsigned ByteToSector(unsigned offset);
+    
+    // Agrega sectores a un archivo ya creado para poder hacerlo extensible.
+    bool AddSectors(unsigned sector, unsigned newSectors, unsigned addBytes);
 
     /// Return the length of the file in bytes
     unsigned FileLength() const;

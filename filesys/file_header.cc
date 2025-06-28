@@ -24,6 +24,7 @@
 
 
 #include "file_header.hh"
+#include "file_system.hh"
 #include "lib/utility.hh"
 #include "threads/system.hh"
 
@@ -74,10 +75,10 @@ FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize)
 
     unsigned sectorsLeft = raw.numSectors;
     
-    for (unsigned i = 0; i < NUM_INDIRECT && sectorsLeft > 0; i++)
+    for (unsigned i = 0; (i < NUM_INDIRECT && sectorsLeft > 0) || i == 0; i++)
     {
         ASSERT((int)(raw.dataSectors[i] = freeMap->Find()) != -1);
-        for (unsigned j = 0; j < NUM_DIRECT && sectorsLeft > 0; j++)
+        for (unsigned j = 0; (j < NUM_DIRECT && sectorsLeft > 0) || j == 0; j++)
         {
             ASSERT((int)(raw_ind[i].dataSectors[j] = freeMap->Find()) != -1);
             for (unsigned k = 0; k < NUM_DIRECT && sectorsLeft > 0; k++)
@@ -142,7 +143,9 @@ FileHeader::FetchFrom(unsigned sector)
         for (unsigned j = 0; (j < cantIndirects2 || j == 0); j++){
             synchDisk->ReadSector(raw_ind[i].dataSectors[j], (char *) &raw_ind2[i][j]);
         }
-    } 
+    }
+
+    DEBUG('f', "Termino de traer el fileHeader\n");
     return;
 }
 
@@ -180,22 +183,22 @@ unsigned
 FileHeader::ByteToSector(unsigned offset)
 {
     DEBUG('f', "Trayendo el byte %u\n", offset);
-    unsigned numSector = offset / SECTOR_SIZE;
+    unsigned numDirect = offset / SECTOR_SIZE;
     
-    DEBUG('f', "El byte está en el sector %u\n", numSector);
+    DEBUG('f', "El byte está en el directo %u\n", numDirect);
 
     unsigned cantIndirects1 = DivRoundUp(raw.numSectors, NUM_DIRECT*NUM_DIRECT);
     unsigned cantIndirects2 = DivRoundUp(raw.numSectors, NUM_DIRECT);
     
-    unsigned indirecLevel1 = cantIndirects1 == 0 ? 0 : numSector % cantIndirects1;
-    unsigned indirecLevel2 = cantIndirects2 == 0 ? 0 : numSector % cantIndirects2;
+    unsigned indirecLevel1 = cantIndirects1 == 0 ? 0 : numDirect % cantIndirects1;
+    unsigned indirecLevel2 = cantIndirects2 == 0 ? 0 : numDirect % cantIndirects2;
     
     DEBUG('f', "El primer nivel de indirección es %u\n", indirecLevel1);
     DEBUG('f', "El segundo nivel de indirección es %u\n", indirecLevel2);
 
-    unsigned sectorInLevel = numSector - (NUM_DIRECT*NUM_DIRECT * indirecLevel1 + NUM_DIRECT*indirecLevel2);
+    unsigned direcInLevel = numDirect - (NUM_DIRECT*NUM_DIRECT * indirecLevel1 + NUM_DIRECT*indirecLevel2);
     
-    DEBUG('f', "El sector buscado es el sector numero %u dentro de su indirección\n", sectorInLevel);
+    DEBUG('f', "El numero de dirección buscado es el numero %u dentro de su indirección\n", direcInLevel);
 
     RawIndirectNode rin_1;
     RawIndirectNode rin_2;
@@ -203,7 +206,71 @@ FileHeader::ByteToSector(unsigned offset)
     synchDisk->ReadSector(raw.dataSectors[indirecLevel1], (char *) &rin_1);
     synchDisk->ReadSector(rin_1.dataSectors[indirecLevel2], (char *) &rin_2);
 
-    return rin_2.dataSectors[sectorInLevel];
+    return rin_2.dataSectors[direcInLevel];
+}
+
+bool
+FileHeader::AddSectors(unsigned sector, unsigned newSectors, unsigned addBytes)
+{
+    Bitmap *freeMap = new Bitmap(NUM_SECTORS);
+    freeMap->FetchFrom(fileTable->GetFile("freeMap"));
+
+    // Primero traigo el fileHeader.
+    FetchFrom(sector);
+    
+    if (raw.numBytes + addBytes > MAX_FILE_SIZE){
+        DEBUG('f', "No es posible agregar más contenido al archivo.\n");
+        return false;
+    }
+
+    if (raw.numSectors + newSectors > freeMap->CountClear()){
+        DEBUG('f', "No es posible agregar más sectores a este archivo.\n");
+        return false;
+    }
+
+    // Tengo que calcular cuál es el último direct utilizado para agregar sectores
+    // a partir de ahí.
+    // Si bien la información está toda separada en el disco, dentro del fileHeader 
+    // sigue un orden y gracias a esto podemos decir que el primer direct va a contener
+    // los primeros bytes y el último, los últimos.
+    
+    unsigned numDirect = raw.numSectors;
+
+    unsigned cantIndirects1 = DivRoundUp(raw.numSectors, NUM_DIRECT*NUM_DIRECT);
+    unsigned cantIndirects2 = DivRoundUp(raw.numSectors, NUM_DIRECT);
+
+    unsigned indirecLevel1 = cantIndirects1 == 0 ? 0 : numDirect % cantIndirects1;
+    unsigned indirecLevel2 = cantIndirects2 == 0 ? 0 : numDirect % cantIndirects2;
+    
+    unsigned direcInLevel = numDirect - (NUM_DIRECT*NUM_DIRECT * indirecLevel1 + NUM_DIRECT*indirecLevel2);
+    
+    direcInLevel += 1;
+
+    unsigned newCantIndirects1 = DivRoundUp(raw.numSectors + newSectors, NUM_DIRECT*NUM_DIRECT);
+    unsigned newCantIndirects2 = DivRoundUp(raw.numSectors + newSectors, NUM_DIRECT);
+    unsigned leftSectors = newSectors;
+
+    for (unsigned i = indirecLevel1; i <= newCantIndirects1 && leftSectors > 0; i++){
+        if (i > indirecLevel1)
+            ASSERT((int)(raw.dataSectors[i] = freeMap->Find()) != -1);
+        for (unsigned j = indirecLevel2; j <= newCantIndirects2 && leftSectors > 0; j++){
+            if (j > indirecLevel2)
+                ASSERT((int)(raw_ind[i].dataSectors[j] = freeMap->Find()) != -1);
+            for (unsigned k = direcInLevel; k < NUM_DIRECT && leftSectors > 0; k++, leftSectors--){
+                ASSERT((int)(raw_ind2[i][j].dataSectors[k] =  freeMap->Find()) != -1);
+            }
+            direcInLevel = 0;
+        }
+        indirecLevel2 = 0;
+    }
+
+    raw.numSectors += newSectors;
+    raw.numBytes += addBytes;
+
+    // Mando todo a disco.
+    WriteBack(sector);
+
+    return true;
 }
 
 /// Return the number of bytes in the file.

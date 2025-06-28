@@ -47,7 +47,9 @@ extern Bitmap *bit_map;
 extern Table <Thread*> *space_table;
 #ifdef FILESYS
 #include "lib/file_table.hh"
+#include "lib/dir_table.hh"
 extern FileTable *fileTable;
+extern DirTable *dirTable;
 #endif
 #endif
 

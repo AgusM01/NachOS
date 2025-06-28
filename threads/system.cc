@@ -52,6 +52,7 @@ CoreMap *core_map;
 
 #ifdef FILESYS
 FileTable *fileTable;
+DirTable *dirTable;
 #endif
 
 #endif
@@ -228,6 +229,7 @@ Initialize(int argc, char **argv)
     
     #ifdef FILESYS
     fileTable = new FileTable();
+    dirTable = new DirTable();
     #endif
     
     SetExceptionHandlers();

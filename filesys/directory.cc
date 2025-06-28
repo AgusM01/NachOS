@@ -36,7 +36,7 @@
 /// * `size` is the number of entries in the directory.
 Directory::Directory(unsigned size)
 {
-    ASSERT(size > 0);
+    //ASSERT(size > 0);
     raw.table = new DirectoryEntry [size];
     raw.tableSize = size;
     for (unsigned i = 0; i < raw.tableSize; i++) {

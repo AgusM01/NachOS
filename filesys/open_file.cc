@@ -26,6 +26,7 @@ OpenFile::OpenFile(int sector)
     hdr = new FileHeader;
     hdr->FetchFrom(sector);
     seekPosition = 0;
+    hdrSector = sector;
 }
 
 /// Close a Nachos file, de-allocating any in-memory data structures.
@@ -107,6 +108,11 @@ int
 OpenFile::ReadAt(char *into, unsigned numBytes, unsigned position)
 {
     ASSERT(into != nullptr);
+    
+    // Tiene mas sentido permitir leer 0 que no permitir.
+    if (numBytes == 0)
+        return 0;
+
     ASSERT(numBytes > 0);
 
     unsigned fileLength = hdr->FileLength();
@@ -150,11 +156,11 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
     bool firstAligned, lastAligned;
     char *buf;
 
-    if (position >= fileLength) {
+    if (position >= fileLength && fileLength > 0) {
         DEBUG('f', "Position: %d, fileLength: %d\n", position, fileLength);
         return 0;  // Check request.
     }
-    if (position + numBytes > fileLength) {
+    if (position + numBytes > fileLength && fileLength > 0) {
         numBytes = fileLength - position;
     }
     DEBUG('f', "Writing %u bytes at %u, from file of length %u.\n",
@@ -164,6 +170,11 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
     lastSector  = DivRoundDown(position + numBytes - 1, SECTOR_SIZE);
     numSectors  = 1 + lastSector - firstSector;
 
+    // Hago espacio en el archivo para los sectores necesarios.
+    // La concurrencia se da ya que esto está atomizado por fuera.
+    // El proceso que llama a WriteAt solo puede escribir si es 
+    // el único manipulando el archivo.
+    hdr->AddSectors(hdrSector, numSectors, numBytes);
     buf = new char [numSectors * SECTOR_SIZE];
 
     firstAligned = position == firstSector * SECTOR_SIZE;

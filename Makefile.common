@@ -139,6 +139,7 @@ FILESYS_HDR = filesys/directory.hh       \
               filesys/raw_file_header.hh \
               filesys/synch_disk.hh      \
               lib/file_table.hh          \
+							lib/dir_table.hh           \
 							filesys/indirect_node.hh	 \
 							filesys/raw_indirect_node.hh \
               machine/disk.hh
@@ -149,6 +150,7 @@ FILESYS_SRC = filesys/directory.cc   \
               filesys/open_file.cc   \
               filesys/synch_disk.cc  \
               lib/file_table.cc      \
+							lib/dir_table.cc       \
 							filesys/indirect_node.cc \
               machine/disk.cc
 

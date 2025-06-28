@@ -23,7 +23,7 @@
 struct dirStruct {
     OpenFile* file; // Archivo que contiene al directorio.
     char* actName; // Nombre del directorio.
-    Lock* actDir; // Lock para actualizar el directorio.
+    Lock* actDirLock; // Lock para actualizar el directorio.
     char* fatherName; // Nombre del directorio de este directorio.
                       // Sirve para Ej4.
                       // Puede ser nullptr en caso que sea root.
@@ -49,7 +49,7 @@ class DirTable {
         // * 'fatherName': Nombre del padre del directorio.
         //                 Si es nullptr es porque el directorio
         //                 es el root.
-        int Add(OpenFile* file, char* actName, char* fatherName);
+        int Add(OpenFile* file, const char* actName, const char* fatherName);
         
         // Devuelve el directorio buscándolo por su nombre.
         // En caso de no estar, devuelve nullptr.
@@ -67,7 +67,7 @@ class DirTable {
         // Setea la cantidad de entradas de un directorio.
         // Devuelve la cantidad de entradas resultantes.
         // Falla si el directorio no existe.
-        int SetNumEntries(const char* name);
+        int SetNumEntries(const char* name, int numEntries);
 
         // Realiza una operación con el lock del directorio
         // ingresado.

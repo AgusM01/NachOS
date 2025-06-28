@@ -110,6 +110,13 @@ FileSystem::FileSystem(bool format)
 
         freeMapFile   = new OpenFile(FREE_MAP_SECTOR);
         directoryFile = new OpenFile(DIRECTORY_SECTOR);
+        
+        // Añadimos el freeMap a la fileTable
+        fileTable->Add(freeMapFile, "freeMap");
+
+        // Añadimos el directorio a la dirTable.
+        dirTable->Add(directoryFile, "root", nullptr);
+        
 
         // Once we have the files “open”, we can write the initial version of
         // each file back to disk.  The directory at this point is completely
@@ -119,7 +126,8 @@ FileSystem::FileSystem(bool format)
 
         DEBUG('f', "Writing bitmap and directory back to disk.\n");
         freeMap->WriteBack(freeMapFile);     // flush changes to disk
-        dir->WriteBack(directoryFile);
+        // No tiene sentido escribir el directorio ya que inicialmente no tiene nada.
+        //dir->WriteBack(directoryFile);
 
         if (debug.IsEnabled('f')) {
             freeMap->Print();
@@ -136,6 +144,12 @@ FileSystem::FileSystem(bool format)
         // Nachos is running.
         freeMapFile   = new OpenFile(FREE_MAP_SECTOR);
         directoryFile = new OpenFile(DIRECTORY_SECTOR);
+        
+        // Añadimos el freeMap a la fileTable
+        fileTable->Add(freeMapFile, "freeMap");
+        
+        // Añadimos el directorio a la dirTable.
+        dirTable->Add(directoryFile, "root", nullptr);
     }
 
     DEBUG('f', "End of creating FileSystem\n");
@@ -145,6 +159,8 @@ FileSystem::~FileSystem()
 {
     delete freeMapFile;
     delete directoryFile;
+    fileTable->Remove("freeMap");
+    // Ver en el ejercicio 4 que pasa al remover directorios.
 }
 
 /// Create a file in the Nachos file system (similar to UNIX `create`).
@@ -180,9 +196,15 @@ FileSystem::Create(const char *name, unsigned initialSize)
     ASSERT(initialSize < MAX_FILE_SIZE);
 
     DEBUG('f', "Creating file %s, size %u\n", name, initialSize);
-
-    Directory *dir = new Directory(NUM_DIR_ENTRIES);
-    dir->FetchFrom(directoryFile);
+    
+    dirTable->DirLock("root", ACQUIRE);
+    Directory *dir = new Directory(dirTable->GetNumEntries("root"));
+    // Cuando se haga el 4 debería ser algo del tipo:
+    // dir->FetchFrom(dirTable->GetDir(dirName));
+    // Dónde dirName es pasado por parámetro a Create.
+    // También habria que checkear que ese directorio
+    // que se pasa exista.
+    dir->FetchFrom(dirTable->GetDir("root"));
 
     bool success;
 
@@ -209,7 +231,7 @@ FileSystem::Create(const char *name, unsigned initialSize)
             if (success) {
                 // Everything worked, flush all changes back to disk.
                 h->WriteBack(sector);
-                dir->WriteBack(directoryFile);
+                dir->WriteBack(dirTable->GetDir("root"));
                 freeMap->WriteBack(freeMapFile);
             }
             else
@@ -221,11 +243,14 @@ FileSystem::Create(const char *name, unsigned initialSize)
     }
     delete dir;
     CreateLock->Release();
-    if (success)
+    if (success){
         DEBUG('f', "Archivo %s creado correctamente\n", name);
+        dirTable->SetNumEntries("root", dirTable->GetNumEntries("root") + 1);
+    }
     else
         DEBUG('f', "Archivo %s no pudo ser creado\n", name);
     
+    dirTable->DirLock("root", RELEASE);
     return success;
 }
 
@@ -245,8 +270,10 @@ FileSystem::Open(const char *name)
     OpenFile  *openFile = nullptr;
 
     DEBUG('f', "Opening file %s\n", name);
-    dir->FetchFrom(directoryFile);
+    dirTable->DirLock("root", ACQUIRE);
+    dir->FetchFrom(dirTable->GetDir("root"));
     int sector = dir->Find(name);
+    dirTable->DirLock("root", RELEASE);
     if (sector >= 0) {
         
         // Primero debo checkear que el archivo no esté en la fileTable.
@@ -312,11 +339,13 @@ FileSystem::Remove(const char *name)
     ASSERT(name != nullptr);
     
     DEBUG('f', "El archivo %s va a ser removido\n", name);
-
-    Directory *dir = new Directory(NUM_DIR_ENTRIES);
-    dir->FetchFrom(directoryFile);
+    
+    dirTable->DirLock("root", ACQUIRE);
+    Directory *dir = new Directory(dirTable->GetNumEntries("root"));
+    dir->FetchFrom(dirTable->GetDir("root"));
     int sector = dir->Find(name);
     if (sector == -1) {
+       dirTable->DirLock("root", RELEASE);
        delete dir;
        return false;  // file not found
     }
@@ -372,6 +401,8 @@ FileSystem::Remove(const char *name)
 
     freeMap->WriteBack(freeMapFile);  // Flush to disk.
     dir->WriteBack(directoryFile);    // Flush to disk.
+    dirTable->SetNumEntries("root", dirTable->GetNumEntries("root") - 1);
+    dirTable->DirLock("root", RELEASE);
     delete fileH;
     delete dir;
     delete freeMap;
@@ -382,10 +413,12 @@ FileSystem::Remove(const char *name)
 void
 FileSystem::List()
 {
-    Directory *dir = new Directory(NUM_DIR_ENTRIES);
+    dirTable->DirLock("root", ACQUIRE);
+    Directory *dir = new Directory(dirTable->GetNumEntries("root"));
 
-    dir->FetchFrom(directoryFile);
+    dir->FetchFrom(dirTable->GetDir("root"));
     dir->List();
+    dirTable->DirLock("root", RELEASE);
     delete dir;
 }
 
@@ -477,12 +510,14 @@ CheckDirectory(const RawDirectory *rd, Bitmap *shadowMap)
 {
     ASSERT(rd != nullptr);
     ASSERT(shadowMap != nullptr);
-
+    
+    dirTable->DirLock("root", ACQUIRE);
+    unsigned dirEntries = dirTable->GetNumEntries("root");
     bool error = false;
     unsigned nameCount = 0;
-    const char *knownNames[NUM_DIR_ENTRIES];
+    const char *knownNames[dirEntries];
 
-    for (unsigned i = 0; i < NUM_DIR_ENTRIES; i++) {
+    for (unsigned i = 0; i < dirEntries; i++) {
         DEBUG('f', "Checking direntry: %u.\n", i);
         const DirectoryEntry *e = &rd->table[i];
 
@@ -522,6 +557,7 @@ CheckDirectory(const RawDirectory *rd, Bitmap *shadowMap)
             delete h;
         }
     }
+    dirTable->DirLock("root", RELEASE);
     return error;
 }
 
@@ -563,11 +599,13 @@ FileSystem::Check()
     Bitmap *freeMap = new Bitmap(NUM_SECTORS);
     
     freeMap->FetchFrom(freeMapFile);
-    Directory *dir = new Directory(NUM_DIR_ENTRIES);
+    dirTable->DirLock("root", ACQUIRE);
+    Directory *dir = new Directory(dirTable->GetNumEntries("root"));
     const RawDirectory *rdir = dir->GetRaw();
-    dir->FetchFrom(directoryFile);
+    dir->FetchFrom(dirTable->GetDir("root"));
     error |= CheckDirectory(rdir, shadowMap);
     delete dir;
+    dirTable->DirLock("root", RELEASE);
 
     // The two bitmaps should match.
     DEBUG('f', "Checking bitmap consistency.\n");
@@ -595,7 +633,8 @@ FileSystem::Print()
     
     Bitmap     *freeMap = new Bitmap(NUM_SECTORS);
     
-    Directory  *dir     = new Directory(NUM_DIR_ENTRIES);
+    dirTable->DirLock("root", ACQUIRE);
+    Directory   *dir = new Directory(dirTable->GetNumEntries("root"));
 
     printf("--------------------------------\n");
     bitH->FetchFrom(FREE_MAP_SECTOR);
@@ -618,4 +657,5 @@ FileSystem::Print()
     delete dirH;
     delete freeMap;
     delete dir;
+    dirTable->DirLock("root", RELEASE);
 }
