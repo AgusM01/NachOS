@@ -84,13 +84,17 @@ FileSystem::FileSystem(bool format)
 
         // First, allocate space for FileHeaders for the directory and bitmap
         // (make sure no one else grabs these!)
+        // Los FileHeaders del bitmap y del directorio principal están en los
+        // sectores 0 y 1 respectivamente.
         freeMap->Mark(FREE_MAP_SECTOR);
         freeMap->Mark(DIRECTORY_SECTOR);
 
         // Second, allocate space for the data blocks containing the contents
         // of the directory and bitmap files.  There better be enough space!
-
+        
+        DEBUG('f', "Hago espacio para los datos del bitmap\n");
         ASSERT(mapH->Allocate(freeMap, FREE_MAP_FILE_SIZE));
+        DEBUG('f', "Hago espacio para los datos del directorio\n");
         ASSERT(dirH->Allocate(freeMap, DIRECTORY_FILE_SIZE));
 
         // Flush the bitmap and directory `FileHeader`s back to disk.
@@ -150,6 +154,32 @@ FileSystem::FileSystem(bool format)
         
         // Añadimos el directorio a la dirTable.
         dirTable->Add(directoryFile, "root", nullptr);
+    
+        // Creo un directorio con un tamaño máximo para poder conseguir
+        // el tamaño real.
+        Directory* rootDir = new Directory(NUM_SECTORS);
+       
+        // Traigo el directorio y su crudo.
+        rootDir->FetchFrom(directoryFile);
+        const RawDirectory* raw = rootDir->GetRaw();
+        
+        // Calculo la cantidad de entradas válidas.
+        unsigned dirEntries;
+        DEBUG('f', "Creando el FileSystem. Root actual:\n");
+        for(unsigned i = 0; i < 5; i++){
+            DEBUG('f', "Archivo: %s\n", raw->table[i].name);
+            DEBUG('f', "Sector: %u\n", raw->table[i].sector);
+            DEBUG('f', "En uso: %u\n", raw->table[i].inUse);
+        }
+
+        for (dirEntries = 0;raw->table[dirEntries].inUse;dirEntries++);
+
+
+        // Seteo el número en la dirTable para usos posteriores.
+        dirTable->SetNumEntries("root", dirEntries);
+        delete rootDir;
+        DEBUG('f', "La cantidad de dirEntries es: %u\n", dirEntries);
+        
     }
 
     DEBUG('f', "End of creating FileSystem\n");
@@ -159,7 +189,7 @@ FileSystem::~FileSystem()
 {
     delete fileTable->GetFile("freeMap");
     delete dirTable->GetDir("root");
-    fileTable->Remove("freeMap");
+    //fileTable->Remove("freeMap");
     // Ver en el ejercicio 4 que pasa al remover directorios.
 }
 
@@ -230,13 +260,21 @@ FileSystem::Create(const char *name, unsigned initialSize)
               // Fails if no space on disk for data.
             if (success) {
                 DEBUG('f', "Creación del archivo %s exitosa, mandando a disco todo\n", name);
+                // Escribo el bitmap así se actualiza el sector que le dí al archivo.
+                freeMap->WriteBack(freeMapFile);
+
                 // Everything worked, flush all changes back to disk.
                 DEBUG('f', "Mando a disco el header del archivo %s\n", name);
                 h->WriteBack(sector);
                 DEBUG('f', "Mando a disco el directorio que contiene el archivo\n");
                 dir->WriteBack(dirTable->GetDir("root"));
                 DEBUG('f', "Mando a disco el Bitmap\n");
+                // Lo traigo de nuevo para ver si hubo algún cambio.
+                freeMap->FetchFrom(freeMapFile);
                 freeMap->WriteBack(freeMapFile);
+                DEBUG('f', "Ahora quiero imprimir el Bitmap\n");
+                freeMap->Print();
+                
             }
             else
                 DEBUG('f', "Error: No hay espacio en el disco para los datos del archivo %s\n", name);
@@ -250,6 +288,10 @@ FileSystem::Create(const char *name, unsigned initialSize)
     if (success){
         DEBUG('f', "Archivo %s creado correctamente\n", name);
         dirTable->SetNumEntries("root", dirTable->GetNumEntries("root") + 1);
+       // DEBUG('f', "Miro el directorio antes de salir:\n");
+       // Directory* testDir = new Directory(dirTable->GetNumEntries("root"));
+       // testDir->FetchFrom(dirTable->GetDir("root"));
+       // delete testDir;
     }
     else
         DEBUG('f', "Archivo %s no pudo ser creado\n", name);
@@ -322,6 +364,9 @@ FileSystem::Open(const char *name)
         DEBUG('f', "Archivo %s no encontrado, no se puede abrir\n", name);
 
     delete dir;
+   // DEBUG('f', "Testeando el directorio al abrir el archivo %s\n", name);
+   // Directory *test = new Directory(dirTable->GetNumEntries("root"));
+   // test->FetchFrom(dirTable->GetDir("root"));
     return openFile;  // Return null if not found.
 }
 

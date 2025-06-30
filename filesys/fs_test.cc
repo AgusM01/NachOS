@@ -22,7 +22,7 @@
 #include "machine/statistics.hh"
 #include "threads/thread.hh"
 #include "threads/system.hh"
-
+#include "filesys/directory.hh"
 #include <stdio.h>
 #include <string.h>
 
@@ -53,13 +53,17 @@ Copy(const char *from, const char *to)
           from, fileLength, to);
 
     // Create a Nachos file of the same length.
-    if (!fileSystem->Create(to, fileLength)) {  // Create Nachos file.
+    if (!fileSystem->Create(to, 0)) {  // Create Nachos file.
         printf("Copy: could not create output file %s\n", to);
         fclose(fp);
         return;
     }
 
     OpenFile *openFile = fileSystem->Open(to);
+    DEBUG('f', "Testeando el directorio antes de Haltear\n");
+    Directory *test = new Directory(dirTable->GetNumEntries("root"));
+    test->FetchFrom(dirTable->GetDir("root"));
+    delete test;
     ASSERT(openFile != nullptr);
 
     // Copy the data in `TRANSFER_SIZE` chunks.
@@ -71,10 +75,11 @@ Copy(const char *from, const char *to)
     delete [] buffer;
 
     // Close the UNIX and the Nachos files.
+    
     delete openFile;
     fclose(fp);
 
-    DEBUG('f', "File copied\n"); 
+    DEBUG('f', "File copied\n");
     interrupt->Halt();
 }
 

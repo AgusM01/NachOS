@@ -156,7 +156,7 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
     bool firstAligned, lastAligned;
     char *buf;
 
-    if (position >= fileLength && fileLength > 0) {
+    if (position > fileLength) {
         DEBUG('f', "Position: %d, fileLength: %d\n", position, fileLength);
         return 0;  // Check request.
     }
@@ -174,7 +174,7 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
     // La concurrencia se da ya que esto está atomizado por fuera.
     // El proceso que llama a WriteAt solo puede escribir si es 
     // el único manipulando el archivo.
-    if (position + numBytes > fileLength || fileLength == 0)
+    if (lastSector > hdr->GetRaw()->numSectors || hdr->GetRaw()->numSectors == 0)
         hdr->AddSectors(hdrSector, lastSector, numBytes);
     buf = new char [numSectors * SECTOR_SIZE];
 

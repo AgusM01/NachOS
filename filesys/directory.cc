@@ -39,9 +39,9 @@ Directory::Directory(unsigned size)
     //ASSERT(size > 0);
     raw.table = new DirectoryEntry [size];
     raw.tableSize = size;
-    for (unsigned i = 0; i < raw.tableSize; i++) {
-        raw.table[i].inUse = false;
-    }
+   // for (unsigned i = 0; i < raw.tableSize; i++) {
+   //     raw.table[i].inUse = false;
+   // }
 }
 
 /// De-allocate directory data structure.
@@ -58,9 +58,17 @@ Directory::FetchFrom(OpenFile *file)
 {
     ASSERT(file != nullptr);
     file->ReadAt((char *) raw.table,
-                 raw.tableSize * sizeof (DirectoryEntry), 0);
-
-    DEBUG('f', "Traje el directorio el cual tiene %u entradas\n", raw.tableSize);
+                raw.tableSize * sizeof (DirectoryEntry), 0);
+    
+    if (raw.tableSize < NUM_SECTORS){
+        DEBUG('f', "Traje el directorio el cual tiene %u entradas\n", raw.tableSize);
+        DEBUG('f', "Entradas:\n");
+        for (unsigned i = 0; i < raw.tableSize; i++){
+            DEBUG('f', "Archivo %s\n", raw.table[i].name);
+            DEBUG('f', "Sector del header: %u\n", raw.table[i].sector);
+            DEBUG('f', "En uso: %u\n", raw.table[i].inUse);
+        }
+    }
 }
 
 /// Write any modifications to the directory back to disk.
@@ -73,7 +81,16 @@ Directory::WriteBack(OpenFile *file)
     file->WriteAt((char *) raw.table,
                   raw.tableSize * sizeof (DirectoryEntry), 0);
     
-    DEBUG('f', "Guardé el directorio el cual tiene %u entradas\n", raw.tableSize);
+    if (raw.tableSize < NUM_SECTORS){
+        DEBUG('f', "Guardé el directorio el cual tiene %u entradas\n", raw.tableSize);
+        DEBUG('f', "Entradas:\n");
+        for (unsigned i = 0; i < raw.tableSize; i++){
+            DEBUG('f', "Archivo %s\n", raw.table[i].name);
+            DEBUG('f', "Sector del header: %u\n", raw.table[i].sector);
+            DEBUG('f', "En uso: %u\n", raw.table[i].inUse);
+        }
+    }
+    
 }
 
 /// Look up file name in directory, and return its location in the table of
@@ -86,6 +103,8 @@ Directory::FindIndex(const char *name)
     ASSERT(name != nullptr);
 
     for (unsigned i = 0; i < raw.tableSize; i++) {
+        if (raw.table[i].inUse)
+            DEBUG('f', "Encontré %s y busco %s\n", raw.table[i].name, name);
         if (raw.table[i].inUse
               && !strncmp(raw.table[i].name, name, FILE_NAME_MAX_LEN)) {
             return i;
@@ -139,15 +158,22 @@ Directory::Add(const char *name, int newSector)
     
     // Agregamos el nuevo archivo:
     newTable[raw.tableSize].inUse = true;
-    strncpy(newTable[raw.tableSize].name, name, FILE_NAME_MAX_LEN);
+    strncpy(newTable[raw.tableSize].name, name, strlen(name) + 1);
     newTable[raw.tableSize].sector = newSector;
 
     delete [] raw.table;
 
     raw.table = newTable;
     raw.tableSize += 1;
+
+    DEBUG('f', "La tabla nueva es ahora:\n");
+    for (unsigned i = 0; i < raw.tableSize; i++)
+    {
+        DEBUG('f', "Archivo: %s\n", raw.table[i].name);
+        DEBUG('f', "Sector: %u\n", raw.table[i].sector);
+        DEBUG('f', "En uso: %u\n", raw.table[i].inUse);
+    }
     
-    // ACÁ HAY UN ERROR
     return true;
 
    // // Busca un lugar disponible en el directorio.

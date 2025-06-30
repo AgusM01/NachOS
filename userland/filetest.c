@@ -20,9 +20,9 @@ main(void)
     //Create("FSTest2");
     //OpenFileId fs2 = Open("FSTest2");
     Write("Hello world\n",12,fs1);
-   // Write("Agustin\n",8,fs1);
-   // Write("Merino\n",7,fs2);
-   // Write("La indómita luz se hizo carne en mí\n",36,fs1);
+    Write("Agustin\n",8,fs1);
+    Write("Merino\n",7,fs1);
+    Write("La indómita luz se hizo carne en mí\n",36,fs1);
    // Write("La indómita luz se hizo carne en mí\n",36,fs2);
    // Write("La indómita luz se hizo carne en mí\n",36,fs1);
    // Write("La indómita luz se hizo carne en mí\n",36,fs2);

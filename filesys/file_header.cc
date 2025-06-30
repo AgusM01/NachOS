@@ -73,16 +73,20 @@ FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize)
     
 
     unsigned sectorsLeft = raw.numSectors;
+
     
     for (unsigned i = 0; (i < NUM_INDIRECT && sectorsLeft > 0); i++)
     {
         ASSERT((int)(raw.dataSectors[i] = freeMap->Find()) != -1);
+        DEBUG('f', "El sector de la 1er indirección es: %u\n", raw.dataSectors[i]);
         for (unsigned j = 0; (j < NUM_DIRECT && sectorsLeft > 0); j++)
         {
             ASSERT((int)(raw_ind[i].dataSectors[j] = freeMap->Find()) != -1);
+            DEBUG('f', "El sector de la 2da indirección es: %u\n", raw_ind[i].dataSectors[j]);
             for (unsigned k = 0; k < NUM_DIRECT && sectorsLeft > 0; k++)
             {
                 ASSERT((int)(raw_ind2[i][j].dataSectors[k] = freeMap->Find()) != -1);
+                DEBUG('f', "El sector directo es: %u\n", raw_ind2[i][j].dataSectors[k]);
                 sectorsLeft -= 1;
                 DEBUG('f', "Sectores allocados: %u\n", raw.numSectors - sectorsLeft);
                 DEBUG('f', "Espacio en bitmap: %u\n", freeMap->CountClear());
@@ -301,6 +305,8 @@ FileHeader::AddSectors(unsigned sector, unsigned lastSector, unsigned addBytes)
     // Mando todo a disco.
     WriteBack(sector);
     freeMap->WriteBack(fileTable->GetFile("freeMap"));
+    
+    freeMap->Print();
     delete freeMap;
 
     DEBUG('f', "Añadí %u sectores correctamente\n", newSectors);

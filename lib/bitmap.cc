@@ -102,6 +102,7 @@ Bitmap::CountClear() const
 void
 Bitmap::Print() const
 {
+    DEBUG('f', "Voy a imprimir el Bitmap\n");
     printf("Bitmap bits set:\n");
     for (unsigned i = 0; i < numBits; i++) {
         if (Test(i)) {
