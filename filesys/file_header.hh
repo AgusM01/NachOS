@@ -58,6 +58,15 @@ public:
     /// Return the length of the file in bytes
     unsigned FileLength() const;
 
+    /// Cambia el tamaño del archivo.
+    /// Devuelve el nuevo tamaño.
+    /// Necesario para archivos extensibles.
+    unsigned ChangeLength(unsigned newLength);
+    
+    // Trae todos los sectores que tiene y los guarda en to.
+    // Usado para poder saber la cantidad de entradas en un directorio.
+    void GetEntireFile(char* to);
+    
     /// Print the contents of the file.
     void Print(const char *title);
 

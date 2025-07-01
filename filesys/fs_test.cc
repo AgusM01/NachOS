@@ -61,23 +61,46 @@ Copy(const char *from, const char *to)
 
     OpenFile *openFile = fileSystem->Open(to);
     DEBUG('f', "Testeando el directorio antes de Haltear\n");
-    Directory *test = new Directory(dirTable->GetNumEntries("root"));
-    test->FetchFrom(dirTable->GetDir("root"));
-    delete test;
+    Directory *dir = new Directory(dirTable->GetNumEntries("root"));
+    Bitmap *freeMap = new Bitmap(NUM_SECTORS);
+    OpenFile* freeMapFile = new OpenFile(0);
+    freeMap->FetchFrom(freeMapFile);
+    dir->FetchFrom(dirTable->GetDir("root"));
+    freeMap->Print();
     ASSERT(openFile != nullptr);
 
     // Copy the data in `TRANSFER_SIZE` chunks.
     char *buffer = new char [TRANSFER_SIZE];
     int amountRead;
     while ((amountRead = fread(buffer, sizeof(char),
-                               TRANSFER_SIZE, fp)) > 0)
+                               TRANSFER_SIZE, fp)) > 0){
+        DEBUG('f', "Voy a escribir %u bytes\n", amountRead);
         openFile->Write(buffer, amountRead);
+    }
     delete [] buffer;
 
     // Close the UNIX and the Nachos files.
     
     delete openFile;
     fclose(fp);
+    
+
+    // Escribimos todo de nuevo por las dudas si algo quedó desactualizado.
+    dir->FetchFrom(dirTable->GetDir("root"));
+    dir->WriteBack(dirTable->GetDir("root"));
+    freeMap->FetchFrom(fileTable->GetFile("freeMap"));
+    freeMap->WriteBack(fileTable->GetFile("freeMap"));
+    freeMap->Print();
+    delete dir;
+    delete freeMap;
+
+    DEBUG('f', "Abro bitmap y directorios nuevos antes terminar para checkear:\n");
+    OpenFile* lastFreeMapFile = new OpenFile(0);
+    Directory *lastDir = new Directory(dirTable->GetNumEntries("root"));
+    Bitmap* lastFreeMap = new Bitmap(NUM_SECTORS);
+    lastFreeMap->FetchFrom(lastFreeMapFile);
+    lastFreeMap->Print();
+    lastDir->FetchFrom(dirTable->GetDir("root"));
 
     DEBUG('f', "File copied\n");
     interrupt->Halt();

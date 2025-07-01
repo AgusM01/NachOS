@@ -45,6 +45,12 @@ OpenFile::Seek(unsigned position)
     seekPosition = position;
 }
 
+FileHeader*
+OpenFile::GetFileHeader()
+{
+    return hdr;
+}
+
 /// OpenFile::Read/Write
 ///
 /// Read/write a portion of a file, starting from `seekPosition`.  Return the
@@ -119,12 +125,14 @@ OpenFile::ReadAt(char *into, unsigned numBytes, unsigned position)
     unsigned firstSector, lastSector, numSectors;
     char *buf;
 
-    if (position >= fileLength) {
+    if (position > fileLength) {
+        DEBUG('f', "Position: %u, fileLength: %u\n", position, fileLength);
         return 0;  // Check request.
     }
-    if (position + numBytes > fileLength) {
-        numBytes = fileLength - position;
-    }
+   // if (position + numBytes > fileLength) {
+   //     numBytes = fileLength - position;
+   // }
+
     DEBUG('f', "Reading %u bytes at %u, from file of length %u.\n",
           numBytes, position, fileLength);
 
@@ -152,7 +160,7 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
     ASSERT(numBytes > 0);
 
     unsigned fileLength = hdr->FileLength();
-    unsigned firstSector, lastSector, numSectors;
+    unsigned firstSector, lastSector, numSectors, neededSectors;
     bool firstAligned, lastAligned;
     char *buf;
 
@@ -160,28 +168,45 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
         DEBUG('f', "Position: %d, fileLength: %d\n", position, fileLength);
         return 0;  // Check request.
     }
-    if (position + numBytes > fileLength && fileLength > 0) {
-        numBytes = fileLength - position;
-    }
+    
+   // if (position + numBytes > fileLength && fileLength > 0) {
+   //     numBytes = fileLength - position;
+   // }
+
     DEBUG('f', "Writing %u bytes at %u, from file of length %u.\n",
           numBytes, position, fileLength);
 
     firstSector = DivRoundDown(position, SECTOR_SIZE);
-    lastSector  = DivRoundDown(position + numBytes - 1, SECTOR_SIZE);
+    lastSector  = DivRoundDown(position + numBytes - 1, SECTOR_SIZE); // El -1 es porque cuenta la posición actual.
+    neededSectors = DivRoundUp(hdr->GetRaw()->numBytes + numBytes, SECTOR_SIZE) - hdr->GetRaw()->numSectors; // Capaz que acá hay un error.
     numSectors  = 1 + lastSector - firstSector;
 
     // Si escribo al final, tengo que hacer espacio.
     // La concurrencia se da ya que esto está atomizado por fuera.
     // El proceso que llama a WriteAt solo puede escribir si es 
     // el único manipulando el archivo.
-    if (lastSector > hdr->GetRaw()->numSectors || hdr->GetRaw()->numSectors == 0)
-        hdr->AddSectors(hdrSector, lastSector, numBytes);
+    DEBUG('f', "El ultimo sector es %u y la cantidad de sectores es %u\n", lastSector, hdr->GetRaw()->numSectors); 
+    
+    bool addedSectors = false;
+    if (neededSectors > 0 && hdrSector != 0){
+        DEBUG('f',"Agrego sectores ya que necesito %u sectores más\n", neededSectors);
+        hdr->AddSectors(hdrSector, neededSectors, numBytes);
+        hdr->ChangeLength(fileLength + numBytes);
+        hdr->WriteBack(hdrSector);
+        addedSectors = true;
+    }
+   
+
     buf = new char [numSectors * SECTOR_SIZE];
 
     firstAligned = position == firstSector * SECTOR_SIZE;
     lastAligned  = position + numBytes == (lastSector + 1) * SECTOR_SIZE;
+    
 
     // Read in first and last sector, if they are to be partially modified.
+    // Si no estan alineados el primero y/o el último los traigo enteros 
+    // para mantenerlos en la escritura.
+    // Fueron modificados parcialmente entones quiero mantener lo que tenían.
     if (!firstAligned) {
         ReadAt(buf, SECTOR_SIZE, firstSector * SECTOR_SIZE);
     }
@@ -199,6 +224,13 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
                                &buf[(i - firstSector) * SECTOR_SIZE]);
     }
     delete [] buf;
+    
+    // En el 0 está el FREE_MAP_SECTOR.
+    // No hay que cambiar el tamaño del bitmap.
+    if (hdrSector != 0 && !addedSectors){
+        hdr->ChangeLength(hdr->FileLength() + numBytes);
+        hdr->WriteBack(hdrSector);
+    }
     return numBytes;
 }
 

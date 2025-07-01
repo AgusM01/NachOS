@@ -132,6 +132,22 @@ FileHeader::Deallocate(Bitmap *freeMap)
    return; 
 }
 
+void
+FileHeader::GetEntireFile(char* to)
+{
+    unsigned sectorsLeft = raw.numSectors;
+    unsigned place = 0;
+    for(unsigned i = 0; i < NUM_INDIRECT && sectorsLeft > 0; i++){
+        for(unsigned j = 0; j < NUM_DIRECT && sectorsLeft > 0; j++){
+            for(unsigned k = 0; k < NUM_DIRECT && sectorsLeft > 0; k++){
+                synchDisk->ReadSector(raw_ind2[i][j].dataSectors[k], (char *) (to + place));
+                place += SECTOR_SIZE;
+                sectorsLeft -= 1;
+            }
+        }
+    }
+
+}
 /// Fetch contents of file header from disk.
 ///
 /// * `sector` is the disk sector containing the file header.
@@ -192,6 +208,7 @@ unsigned
 FileHeader::ByteToSector(unsigned offset)
 {
     DEBUG('f', "Trayendo el byte %u\n", offset);
+    DEBUG('f', "La cantidad de sectores es: %u\n", raw.numSectors);
     unsigned numDirect = offset / SECTOR_SIZE;
     
     DEBUG('f', "El byte está en el directo %u\n", numDirect);
@@ -221,13 +238,13 @@ FileHeader::ByteToSector(unsigned offset)
 }
 
 bool
-FileHeader::AddSectors(unsigned sector, unsigned lastSector, unsigned addBytes)
+FileHeader::AddSectors(unsigned sector, unsigned addSectors, unsigned addBytes)
 {
     Bitmap *freeMap = new Bitmap(NUM_SECTORS);
     freeMap->FetchFrom(fileTable->GetFile("freeMap"));
 
     // Primero traigo el fileHeader.
-    FetchFrom(sector);
+    //FetchFrom(sector);
     
     DEBUG('f', "Voy a agregar sectores\n");
 
@@ -237,8 +254,7 @@ FileHeader::AddSectors(unsigned sector, unsigned lastSector, unsigned addBytes)
     }
     
     // Calculo cuántos sectores tengo que agregar.
-    ASSERT(lastSector >= raw.numSectors);
-    unsigned newSectors = raw.numBytes != 0 ? lastSector - raw.numSectors : 1;
+    unsigned newSectors = addSectors;
     
     DEBUG('f', "El arhivo tiene %u bytes y debo agregar %u bytes, por eso debo agregar %u sectores\n", raw.numBytes, addBytes, newSectors);
 
@@ -271,9 +287,6 @@ FileHeader::AddSectors(unsigned sector, unsigned lastSector, unsigned addBytes)
     
     DEBUG('f', "El nivel de indirección 1 del último sector es %u.\n El nivel de indirección 2 del último sector es %u.\n El directo es el número %u, por lo que empiezo a agregar sectores en el %u.\n", indirecLevel1, indirecLevel2, direcInLevel, direcInLevel + 1);
 
-    if (raw.numBytes != 0)
-        direcInLevel += 1;
-
     unsigned newCantIndirects1 = DivRoundUp(raw.numSectors + newSectors, NUM_DIRECT*NUM_DIRECT);
     unsigned newCantIndirects2 = DivRoundUp(raw.numSectors + newSectors, NUM_DIRECT);
     unsigned leftSectors = newSectors;
@@ -290,8 +303,9 @@ FileHeader::AddSectors(unsigned sector, unsigned lastSector, unsigned addBytes)
                 ASSERT((int)(raw_ind[i].dataSectors[j] = freeMap->Find()) != -1);
                 DEBUG('f', "Agrego el sector %u en el segundo nivel de indirección %u\n", raw_ind[i].dataSectors[j], j);
             }
-            for (unsigned k = direcInLevel; k < NUM_DIRECT && leftSectors > 0; k++, leftSectors--){
+            for (unsigned k = direcInLevel; k < NUM_DIRECT && leftSectors > 0; k++){
                 ASSERT((int)(raw_ind2[i][j].dataSectors[k] =  freeMap->Find()) != -1);
+                leftSectors -= 1;
                 DEBUG('f', "Agrego el sector %u en el 1er nivel de indirección %u, 2do nivel de indirección %u y nivel directo %u\n", raw_ind2[i][j].dataSectors[k], i, j, k);
             }
             direcInLevel = 0;
@@ -300,10 +314,7 @@ FileHeader::AddSectors(unsigned sector, unsigned lastSector, unsigned addBytes)
     }
 
     raw.numSectors += newSectors;
-    raw.numBytes += addBytes;
 
-    // Mando todo a disco.
-    WriteBack(sector);
     freeMap->WriteBack(fileTable->GetFile("freeMap"));
     
     freeMap->Print();
@@ -317,6 +328,14 @@ FileHeader::AddSectors(unsigned sector, unsigned lastSector, unsigned addBytes)
 unsigned
 FileHeader::FileLength() const
 {
+    return raw.numBytes;
+}
+
+unsigned
+FileHeader::ChangeLength(unsigned newLength)
+{
+    DEBUG('f', "Cambio el tamaño del archivo a: %u\n", newLength);
+    raw.numBytes = newLength;
     return raw.numBytes;
 }
 

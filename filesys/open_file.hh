@@ -94,7 +94,10 @@ public:
 
     /// Close the file.
     ~OpenFile();
-
+    
+    /// Trae el FileHeader.
+    FileHeader* GetFileHeader();
+    
     /// Set the position from which to start reading/writing -- UNIX `lseek`.
     void Seek(unsigned position);
 

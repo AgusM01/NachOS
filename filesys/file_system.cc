@@ -44,6 +44,7 @@
 #include "directory.hh"
 #include "file_header.hh"
 
+#include "filesys/raw_file_header.hh"
 #include "threads/system.hh"
 #include <stdio.h>
 #include <string.h>
@@ -75,8 +76,10 @@ FileSystem::FileSystem(bool format)
         // Creamos un bitmap para ir llevando los sectores libres del disco.
         Bitmap     *freeMap = new Bitmap(NUM_SECTORS);
         
-        // Creamos un directorio vacío. -> Por el momento tenemos un único directorio.
-        Directory  *dir     = new Directory(NUM_DIR_ENTRIES);
+        // No creamos un directorio ya que no vamos a guardar nada.
+        // En el directorio se guarda unicamente la tabla de archivos que tiene.
+        // En este momento no tiene nada.
+        //Directory  *dir     = new Directory(NUM_DIR_ENTRIES);
         FileHeader *mapH    = new FileHeader;
         FileHeader *dirH    = new FileHeader;
 
@@ -114,14 +117,13 @@ FileSystem::FileSystem(bool format)
 
         OpenFile* freeMapFile   = new OpenFile(FREE_MAP_SECTOR);
         OpenFile* directoryFile = new OpenFile(DIRECTORY_SECTOR);
-        
+
         // Añadimos el freeMap a la fileTable
         fileTable->Add(freeMapFile, "freeMap");
 
         // Añadimos el directorio a la dirTable.
         dirTable->Add(directoryFile, "root", nullptr);
         
-
         // Once we have the files “open”, we can write the initial version of
         // each file back to disk.  The directory at this point is completely
         // empty; but the bitmap has been changed to reflect the fact that
@@ -130,15 +132,15 @@ FileSystem::FileSystem(bool format)
 
         DEBUG('f', "Writing bitmap and directory back to disk.\n");
         freeMap->WriteBack(fileTable->GetFile("freeMap"));     // flush changes to disk
-        // No tiene sentido escribir el directorio ya que inicialmente no tiene nada.
+        
         //dir->WriteBack(directoryFile);
 
         if (debug.IsEnabled('f')) {
             freeMap->Print();
-            dir->Print();
+            //dir->Print();
 
             delete freeMap;
-            delete dir;
+            //delete dir;
             delete mapH;
             delete dirH;
         }
@@ -152,34 +154,32 @@ FileSystem::FileSystem(bool format)
         // Añadimos el freeMap a la fileTable
         fileTable->Add(freeMapFile, "freeMap");
         
-        // Añadimos el directorio a la dirTable.
-        dirTable->Add(directoryFile, "root", nullptr);
-    
         // Creo un directorio con un tamaño máximo para poder conseguir
         // el tamaño real.
-        Directory* rootDir = new Directory(NUM_SECTORS);
-       
-        // Traigo el directorio y su crudo.
-        rootDir->FetchFrom(directoryFile);
-        const RawDirectory* raw = rootDir->GetRaw();
+        FileHeader* dirHdr = directoryFile->GetFileHeader();
+        char preTable[dirHdr->GetRaw()->numSectors*SECTOR_SIZE];
+        dirHdr->GetEntireFile(preTable);
+
+        DirectoryEntry table[dirHdr->GetRaw()->numBytes];
+        strncpy((char*)table, preTable,  dirHdr->GetRaw()->numBytes);
         
         // Calculo la cantidad de entradas válidas.
         unsigned dirEntries;
         DEBUG('f', "Creando el FileSystem. Root actual:\n");
-        for(unsigned i = 0; i < 5; i++){
-            DEBUG('f', "Archivo: %s\n", raw->table[i].name);
-            DEBUG('f', "Sector: %u\n", raw->table[i].sector);
-            DEBUG('f', "En uso: %u\n", raw->table[i].inUse);
+        for(unsigned i = 0; i < dirHdr->GetRaw()->numBytes / sizeof(DirectoryEntry); i++){
+            DEBUG('f', "Archivo: %s\n", table[i].name);
+            DEBUG('f', "Sector: %u\n",  table[i].sector);
+            DEBUG('f', "En uso: %u\n",  table[i].inUse);
         }
 
-        for (dirEntries = 0;raw->table[dirEntries].inUse;dirEntries++);
-
+        for (dirEntries = 0; dirEntries < dirHdr->GetRaw()->numBytes / sizeof(DirectoryEntry) && table[dirEntries].inUse;dirEntries++);
+        
+        // Añadimos el directorio a la dirTable.
+        dirTable->Add(directoryFile, "root", nullptr);
 
         // Seteo el número en la dirTable para usos posteriores.
         dirTable->SetNumEntries("root", dirEntries);
-        delete rootDir;
         DEBUG('f', "La cantidad de dirEntries es: %u\n", dirEntries);
-        
     }
 
     DEBUG('f', "End of creating FileSystem\n");
@@ -267,6 +267,7 @@ FileSystem::Create(const char *name, unsigned initialSize)
                 DEBUG('f', "Mando a disco el header del archivo %s\n", name);
                 h->WriteBack(sector);
                 DEBUG('f', "Mando a disco el directorio que contiene el archivo\n");
+                //dir->FetchFrom(dirTable->GetDir("root"));
                 dir->WriteBack(dirTable->GetDir("root"));
                 DEBUG('f', "Mando a disco el Bitmap\n");
                 // Lo traigo de nuevo para ver si hubo algún cambio.
@@ -274,7 +275,10 @@ FileSystem::Create(const char *name, unsigned initialSize)
                 freeMap->WriteBack(freeMapFile);
                 DEBUG('f', "Ahora quiero imprimir el Bitmap\n");
                 freeMap->Print();
-                
+               // DEBUG('f',"Escribo por las dudas:\n");
+               // dir->WriteBack(dirTable->GetDir("root"));
+               // DEBUG('f', "A ver que tal quedó:\n");
+               // dir->FetchFrom(dirTable->GetDir("root"));
             }
             else
                 DEBUG('f', "Error: No hay espacio en el disco para los datos del archivo %s\n", name);
