@@ -50,6 +50,7 @@
 #include <string.h>
 
 #define MIN(a,b) a < b ? a : b
+#define MAX_DIR_ENTRIES 50
 
 Lock* CreateLock = new Lock("FSCreateLock");
 /// Sectors containing the file headers for the bitmap of free sectors, and
@@ -154,26 +155,12 @@ FileSystem::FileSystem(bool format)
         // Añadimos el freeMap a la fileTable
         fileTable->Add(freeMapFile, "freeMap");
         
-        // Creo un directorio con un tamaño máximo para poder conseguir
-        // el tamaño real.
-        FileHeader* dirHdr = directoryFile->GetFileHeader();
-        char preTable[dirHdr->GetRaw()->numSectors*SECTOR_SIZE];
-        dirHdr->GetEntireFile(preTable);
-
-        DirectoryEntry table[dirHdr->GetRaw()->numBytes];
-        strncpy((char*)table, preTable,  dirHdr->GetRaw()->numBytes);
-        
-        // Calculo la cantidad de entradas válidas.
         unsigned dirEntries;
-        DEBUG('f', "Creando el FileSystem. Root actual:\n");
-        for(unsigned i = 0; i < dirHdr->GetRaw()->numBytes / sizeof(DirectoryEntry); i++){
-            DEBUG('f', "Archivo: %s\n", table[i].name);
-            DEBUG('f', "Sector: %u\n",  table[i].sector);
-            DEBUG('f', "En uso: %u\n",  table[i].inUse);
-        }
-
-        for (dirEntries = 0; dirEntries < dirHdr->GetRaw()->numBytes / sizeof(DirectoryEntry) && table[dirEntries].inUse;dirEntries++);
         
+        Directory* dir = new Directory(MAX_DIR_ENTRIES);
+        dir->FetchFrom(directoryFile);
+        for(dirEntries = 0; dir->GetRaw()->table[dirEntries].inUse;dirEntries++);
+
         // Añadimos el directorio a la dirTable.
         dirTable->Add(directoryFile, "root", nullptr);
 
