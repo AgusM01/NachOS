@@ -155,11 +155,13 @@ FileSystem::FileSystem(bool format)
         // Añadimos el freeMap a la fileTable
         fileTable->Add(freeMapFile, "freeMap");
         
-        unsigned dirEntries;
+       unsigned dirEntries = 0;
         
-        Directory* dir = new Directory(MAX_DIR_ENTRIES);
-        dir->FetchFrom(directoryFile);
-        for(dirEntries = 0; dir->GetRaw()->table[dirEntries].inUse;dirEntries++);
+       if (directoryFile->GetFileHeader()->GetRaw()->numSectors > 0){
+            Directory* dir = new Directory(MAX_DIR_ENTRIES);
+            dir->FetchFrom(directoryFile);
+            for(; dir->GetRaw()->table[dirEntries].inUse;dirEntries++);
+       }
 
         // Añadimos el directorio a la dirTable.
         dirTable->Add(directoryFile, "root", nullptr);
@@ -442,7 +444,9 @@ FileSystem::Remove(const char *name)
 
     freeMap->WriteBack(freeMapFile);  // Flush to disk.
     dir->WriteBack(directoryFile);    // Flush to disk.
-    dirTable->SetNumEntries("root", dirTable->GetNumEntries("root") - 1);
+    
+    // No hace falta decrementar el número de dirEntries ya que
+    // simplemente se marca como no en uso.
     dirTable->DirLock("root", RELEASE);
     delete fileH;
     delete dir;

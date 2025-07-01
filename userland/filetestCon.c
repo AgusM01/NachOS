@@ -28,11 +28,13 @@ main(void)
         }
     }
 
-    for (int i = 0; i < PROCS; i++)
-        res[i] = Join(pids[i]);
+  for (int i = 0; i < PROCS; i++)
+       res[i] = Join(pids[i]);
     
     Remove("FSTest1");
     Remove("FSTest2");
+
+    Open("FSTest1");
 
     return 0;
 }

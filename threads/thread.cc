@@ -94,7 +94,7 @@ Thread::Thread(const char *threadName, bool isJoin, int threadPriority)
 /// Nachos.
 Thread::~Thread()
 {
-    DEBUG('t', "Deleting thread \"%s\"\n", name);
+    DEBUG('f', "Deleting thread \"%s\"\n", name);
 
     delete waitToChild;
     free(chName);
@@ -103,10 +103,9 @@ Thread::~Thread()
     delete space;
     delete fileTableIds;
     #endif
-    
 
     ASSERT(this != currentThread);
-    if (stack != nullptr) {
+    if (stack != nullptr && name != nullptr && strcmp("main", name)) {
         SystemDep::DeallocBoundedArray((char *) stack,
                                        STACK_SIZE * sizeof *stack);
     }

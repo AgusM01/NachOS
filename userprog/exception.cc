@@ -691,17 +691,21 @@ SyscallHandler(ExceptionType _et)
             SpaceId childId = machine->ReadRegister(4); 
             int status = 0;
             Thread *child;
+
+            DEBUG('f', "Hago join al id: %d\n", childId);
             if (!(child = space_table->Get(childId))){
-                DEBUG('e', "Error: Unable to get the childId.\n");
+                DEBUG('f', "Error: Unable to get the childId.\n");
                 status = -1;
             }
             if (!status){
+                DEBUG('f', "Voy a sacar childId de la space-table\n");
                 space_table->Remove(childId);
+                DEBUG('f', "Llamo a Join\n");
                 status = child->Join();
             }
             
             machine->WriteRegister(2, status);
-          // printf("Hago JOIN, soy: %d\n", currentThread->GetPid());
+            DEBUG('f', "Hago JOIN, soy: %d\n", currentThread->GetPid());
             break;
         }
         default:

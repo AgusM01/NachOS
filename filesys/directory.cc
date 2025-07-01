@@ -103,11 +103,10 @@ Directory::FindIndex(const char *name)
     ASSERT(name != nullptr);
 
     for (unsigned i = 0; i < raw.tableSize; i++) {
-        if (raw.table[i].inUse)
+        if (raw.table[i].inUse){
             DEBUG('f', "Encontré %s y busco %s\n", raw.table[i].name, name);
-        if (raw.table[i].inUse
-              && !strncmp(raw.table[i].name, name, FILE_NAME_MAX_LEN)) {
-            return i;
+            if (!strncmp(raw.table[i].name, name, strlen(name)))
+                return i;
         }
     }
     return -1;  // name not in directory
@@ -175,18 +174,6 @@ Directory::Add(const char *name, int newSector)
     }
     
     return true;
-
-   // // Busca un lugar disponible en el directorio.
-   // // Cuando lo encuentra agrega el archivo.
-   // for (unsigned i = 0; i < raw.tableSize; i++) {
-   //     if (!raw.table[i].inUse) {
-   //         raw.table[i].inUse = true;
-   //         strncpy(raw.table[i].name, name, FILE_NAME_MAX_LEN);
-   //         raw.table[i].sector = newSector;
-   //         return true;
-   //     }
-   // }
-   // return false;  // no space.  Fix when we have extensible files.
 }
 
 /// Remove a file name from the directory.   Return true if successful;
