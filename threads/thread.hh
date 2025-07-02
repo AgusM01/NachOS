@@ -54,6 +54,7 @@ struct procFileInfo {
     int seek;
 };
 
+#include "lib/list.hh"
 #define MAX_DIRS 50
 #endif
 
@@ -201,6 +202,15 @@ private:
     
     #ifdef FILESYS
     Table <procFileInfo*> *fileTableIds;
+    
+    // Mantiene una lista con los nombres de los archivos que este thread tiene 
+    // abiertos.
+    // La idea es que cuando el thread termina, mande a cerrar todos los archivos.
+    // De no hacer esto, si termina de usar un archivo y no lo cierra,
+    // este no podrá ser cerrado nunca ya que aparece que este thread sigue 
+    // trabajando con él.
+    List <char*> *openFileNames;
+    
     #endif
 public:
 
@@ -214,6 +224,8 @@ public:
     AddressSpace *space;
     
     #ifdef FILESYS
+
+
     // Agrega un archivo a la tabla de arhivos abiertos del proceso.
     int AddFile(OpenFile* newFile, char* name);
     
@@ -240,6 +252,9 @@ public:
 
     // Función para obtener el directorio bajo el cual está trabajando este thread.
     char* GetDir();
+
+    // Función que devuelve el padre del directorio de este thread.
+    char* GetDirFather();
 
     // Cantidad de subdirecciones bajo las que está el thread.
     unsigned subDirectories;

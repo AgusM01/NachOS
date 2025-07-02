@@ -58,23 +58,54 @@ Thread::Thread(const char *threadName, bool isJoin, int threadPriority)
     space    = nullptr;
 
     #ifdef FILESYS
+    
+    // Creamos las estructuras útiles
     fileTableIds = new Table <procFileInfo*>;
+    openFileNames = new List <char*>;
+    
+    // Ver todo esto.
     OpenFile* in = nullptr;
     OpenFile* out = nullptr;
+
+    // Creamos la estructura del archivo para ir llevando registro en este thread.
     struct procFileInfo *newIn = new procFileInfo;
     struct procFileInfo *newOut = new procFileInfo;
     newIn->file = in;
     newIn->seek = 0;
+    newIn->name = new char[FILE_NAME_MAX_LEN];
+    newIn->name[0] = 'i';
+    newIn->name[1] = 'n';
+    newIn->name[2] = '\0';
     newOut->file = out;
     newOut->seek = 0;
+    newOut->name = new char[FILE_NAME_MAX_LEN];
+    newOut->name[0] = 'o';
+    newOut->name[1] = 'u';
+    newOut->name[2] = 't';
+    newOut->name[3] = '\0';
+
+    // Añadimos el archivo a la tabla de archivos abiertos del proceso.
     fileTableIds->Add(newIn);
     fileTableIds->Add(newOut);
+
+    // Añadimos los nombres a la lista de nombres de archivos que mantiene el proceso.
+    char* inListName = new char[3];
+    char* outListName = new char[4];
+    strcpy(inListName, newIn->name);
+    strcpy(outListName, newOut->name);
+    openFileNames->Append(inListName);
+    openFileNames->Append(outListName);
+
     // La cantidad de subdirecciones es 0 al inicio.
     subDirectories = 0;
+    path[subDirectories] = new char[FILE_NAME_MAX_LEN];
+    
     // Está en el directorio root.
     strcpy(path[0],"root");
+    
     // No hay subdirectorios.
     path[1] = nullptr;
+    
     #else
     fileTableIds = new Table<OpenFile*>;
     OpenFile* in = nullptr;
@@ -112,6 +143,11 @@ Thread::~Thread()
     #ifdef USER_PROGRAM
     delete space;
     delete fileTableIds;
+    #endif
+
+    #ifdef FILESYS
+    for (unsigned i = 0; i <= subDirectories; i++)
+        delete path[i];
     #endif
 
     ASSERT(this != currentThread);
@@ -220,6 +256,23 @@ Thread::Finish(int returnStatus)
             core_map->Clear(i);
     }
     #endif 
+
+    #ifdef FILESYS
+        char* nameToClose;
+        nameToClose = openFileNames->Pop();
+        while(nameToClose != nullptr){
+            fileTable->CloseOne(nameToClose);
+            nameToClose = openFileNames->Pop();
+        }
+    
+        // Salgo de todos los paths en los cuales estoy.
+        for (unsigned i = 0; i <=subDirectories; i++)
+        {
+            dirTable->DirLock(path[i], 0);
+            dirTable->removeThreadsIn(path[i]);
+            dirTable->DirLock(path[i],1);
+        }
+    #endif
     
     //JOIN IMPLEMENTATION
     if (join) {
@@ -438,6 +491,10 @@ Thread::AddFile(OpenFile* file, char* Filename)
     newFile->seek = 0;
     newFile->name = new char[FILE_NAME_MAX_LEN];
     strcpy(newFile->name, Filename);
+
+    char* nameToList = new char[FILE_NAME_MAX_LEN];
+    strcpy(nameToList,Filename);
+    openFileNames->Append(nameToList);
     
     return fileTableIds->Add(newFile);
 }
@@ -472,7 +529,14 @@ Thread::RemoveFile(int fd)
 {
     struct procFileInfo *fileInfoRem;
     fileInfoRem = fileTableIds->Remove(fd);
-    return fileInfoRem == nullptr ? nullptr : fileInfoRem->file;
+
+    if (fileInfoRem == nullptr)
+        return nullptr;
+    
+    if(openFileNames->Has(fileInfoRem->name))
+        openFileNames->Remove(fileInfoRem->name);
+
+    return fileInfoRem->file;
 }
 
 char*
@@ -525,6 +589,13 @@ Thread::ChangeDir(char* newDir)
                 return true;
             }
             
+            dirTable->DirLock(path[subDirectories], 0);
+            dirTable->removeThreadsIn(path[subDirectories]);
+            if (dirTable->getThreadsIn(path[subDirectories]) == 0)
+                dirTable->DirRemoveCondition(path[subDirectories],1);
+            dirTable->DirLock(path[subDirectories], 1);
+            delete path[subDirectories];
+            path[subDirectories] = nullptr;
             subDirectories -= 1;
             return true;
         }
@@ -556,20 +627,36 @@ Thread::ChangeDir(char* newDir)
             // si no está en la DirTable, agregarlo. Para esto
             // tomo el lock del directorio anterior (que seguro
             // está en la dirTable).
+            
+            bool inDirTable = false;
+            // Si llega a estar en la dir table me fijo que no haya sido eliminado.
+            if (dirTable->CheckDirInTable(dirNames[0]) != -1){
+                inDirTable = true;
+                dirTable->DirLock(dirNames[0], 0);
+                if (dirTable->getToDelete(dirNames[0])){
+                    DEBUG('f', "Error: Soy %d y el directorio %s está para ser eliminado.\n", pid, dirNames[0]);
+                    dirTable->DirLock(dirNames[0],1);
+                    return -1;
+                }
+                dirTable->DirLock(dirNames[0],1);
+            }
 
             // Cambio mi directorio.
             subDirectories += 1;
+            path[subDirectories] = new char[FILE_NAME_MAX_LEN];
             strcpy(path[subDirectories],dirNames[0]);
             path[subDirectories + 1] = nullptr;
 
             // Si el directorio no está en la tabla, es el primer
             // thread que lo abre. Por lo que tiene que recuperar
             // su archivo.
-            if (dirTable->CheckDirInTable(dirNames[0]) == -1){
+            if (!inDirTable){
                 DEBUG('f', "Soy thread %d, recupero el archivo de directorio %s\n", pid, path[subDirectories]);
                 fileSystem->AddDirFile(path, subDirectories);
             }
-            
+            dirTable->DirLock(path[subDirectories], 0);
+            dirTable->addThreadsIn(path[subDirectories]);
+            dirTable->DirLock(path[subDirectories],1);
             return true;
         }
         DEBUG('f', "Error: Thread %d. El directorio %s no forma parte del padre %s.\n", pid, dirNames[0], path[subDirectories]);
@@ -587,9 +674,39 @@ Thread::ChangeDir(char* newDir)
         return false;
     }
 
+    // Salgo de todos los paths en los cuales estoy.
+    // En cada uno, si soy el último, aviso.
+    for (unsigned i = 0; i <=subDirectories; i++)
+    {
+        dirTable->DirLock(path[i], 0);
+        dirTable->removeThreadsIn(path[i]);
+        if (dirTable->getThreadsIn(path[i]) == 0)
+            dirTable->DirRemoveCondition(path[i],1);
+        dirTable->DirLock(path[i],1);
+    }
+    
+    for (unsigned i = 0; i <= subDirectories; i++)
+        delete path[i];
+    
+    for (unsigned i = 0; i < subdirs; i++)
+    {
+        if(dirTable->CheckDirInTable(dirNames[i]) != -1){
+            dirTable->DirLock(dirNames[i], 0);
+            if(dirTable->getToDelete(dirNames[i]))
+            {
+                DEBUG('f',"Error: Soy %d y el directorio %s está para ser eliminado\n", pid, dirNames[i]);
+                dirTable->DirLock(dirNames[i],1);
+                return -1;
+            }
+            dirTable->DirLock(dirNames[i],1);
+        }
+    }
+
     // Cambio el path actual.
-    for(unsigned i = 0; i < subdirs;i++)
+    for(unsigned i = 0; i < subdirs;i++){
+        path[i] = new char[FILE_NAME_MAX_LEN];
         strcpy(path[i], dirNames[i]);
+    }
     
     path[subdirs] = nullptr;
     subDirectories = subdirs - 1;
@@ -604,8 +721,25 @@ Thread::ChangeDir(char* newDir)
                 fileSystem->AddDirFile(path, subDirectories);
         }
     }
+    
+    //Le agrego uno a todos los paths los cuales estoy.
+    for (unsigned i = 0; i <=subDirectories; i++)
+    {
+        dirTable->DirLock(path[i], 0);
+        dirTable->addThreadsIn(path[i]);
+        dirTable->DirLock(path[i],1);
+    }
 
     return true;
+}
+
+char*
+Thread::GetDirFather()
+{
+    if(subDirectories == 0)
+        return nullptr;
+
+    return path[subDirectories -1];
 }
 
 char*

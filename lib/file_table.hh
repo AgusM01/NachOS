@@ -150,6 +150,12 @@ private:
     // El índice actual para añadir un nuevo ítem.
     int current;
     
+    // Si cada thread que sale del archivo hace un signal, el semáforo de la
+    // condición crece.
+    // Es por eso que solo permito que se haga una sola vez.
+    // Las demás llamadas a signal no hacen nada si ya 1 hizo.
+    int numCondition;
+
     // Una lista que mantiene los índices de los elementos que fueron liberados
     // y no están entre los que tienen números altos, por lo que no es posible
     // modificar "current". En otras palabras, esto maneja la fragmentación externa.

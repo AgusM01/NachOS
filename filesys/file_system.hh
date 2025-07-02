@@ -139,6 +139,15 @@ public:
     /// Delete a file (UNIX `unlink`).
     bool Remove(const char *name);
 
+    /// Crea un nuevo directorio (UNIX 'mkdir').
+    bool MkDir(const char *name, unsigned initialSize);
+    
+    /// Elimima un directorio completo (UNIX 'rm -r \dir')
+    bool RemoveDir(const char *name);
+    
+    /// Lista todo lo del último directorio del path.
+    bool Ls(char* path);
+
     /// List all the files in the file system.
     void List();
 

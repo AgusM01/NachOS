@@ -28,9 +28,10 @@ struct dirStruct {
                       // Sirve para Ej4.
                       // Puede ser nullptr en caso que sea root.
     int numEntries;   // Cantidad de entradas que tiene.       
-    // Posiblemente se deban agregar más locks y quizás
-    // algún array que indique que directorios hijos tiene,
-    // así como también qué directorio padre.
+    unsigned threadsInIt; // Cantidad de hilos que tiene trabajando en el.
+    Condition *RemoveCondition; // Condición para eliminar el directorio.
+    bool toDelete; // Booleano para verificar está para ser eliminado.
+                   // Si está en true, el directorio no se puede abrir.
 };
 
 class DirTable {
@@ -74,6 +75,30 @@ class DirTable {
         // Devuelve true si sale todo bien, false en caso contrario.
         bool DirLock(const char *name, int op);
 
+        // Agrega un thread que está trabajando en el directorio.
+        // Esto se debe agregar cada vez que un thread hace un cd o se crea.
+        // Se debe sacar cada vez que se hace un cd .. o cuando se cambia de 
+        // path completo.
+        int addThreadsIn(const char* name);
+
+        // Baja uno a la cantidad de threads que estan trabajando
+        // en el directorio actual.
+        int removeThreadsIn(const char* name);
+        
+        // Trae la cantidad de archivos que estan trabajando bajo 
+        // este directorio.
+        int getThreadsIn(const char* name);
+
+        // Setea un directorio a ser eliminado.
+        int setToDelete(const char* name);
+
+        // Trae el estado de un directorio.
+        bool getToDelete(const char* name);
+
+        // Manejo de la condición en caso de que se quiera cerrar 
+        // el directorio.
+        bool DirRemoveCondition(const char* name, int op);
+
 private:
         
     // Elementos de la tabla
@@ -81,6 +106,11 @@ private:
     
     // El índice actual para añadir un nuevo ítem.
     int current;
+
+    // El número de P que tiene el semáforo de la condición.
+    // Debe ser siempre 1 en todo momento. No vale que un thread
+    // entre y salga de un directorio aumentando siempre el P.
+    int numCondition;
     
     // Una lista que mantiene los índices de los elementos que fueron liberados
     // y no están entre los que tienen números altos, por lo que no es posible

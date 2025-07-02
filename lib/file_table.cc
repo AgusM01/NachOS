@@ -68,6 +68,7 @@ FileTable::Add(OpenFile* file, const char *name)
     data[cur_ret].RemoveCondition = new Condition(conditionRemoveName, data[cur_ret].OpenRemoveLock);
     data[cur_ret].WriterCondition = new Condition(conditionWriteName, data[cur_ret].RdWrLock);
     data[cur_ret].ReadersSem = new Semaphore(readersSemName, 0);
+    numCondition = 0;
     return cur_ret;
 }
 
@@ -205,8 +206,11 @@ FileTable::CloseOne(const char *name)
 {
     int idx = CheckFileInTable(name);
     
-    ASSERT(idx != -1);
-    
+    if(idx == -1){
+        DEBUG('f', "El archivo %s se quiere cerrar de la FileTable y no está en la misma.\n", name);
+        return -1;
+    }
+
     if (data[idx].open == 1){
         DEBUG('f', "No puedo cerrar uno del archivo %s en la FileTable ya que soy el último que lo tiene abierto\n", name);
         return -1;
@@ -367,11 +371,15 @@ FileTable::FileRemoveCondition(const char *name, int op)
         case WAIT:
             DEBUG('f', "Hago wait sobre la FileRemoveCondition del archivo %s\n", name);
             (data[idx].RemoveCondition)->Wait();
+            numCondition = 0;
         break;
 
         case SIGNAL:
             DEBUG('f', "Hago signal sobre la FileRemoveCondition del archivo %s\n", name);
-            (data[idx].RemoveCondition)->Signal();
+            if (numCondition == 0){
+                (data[idx].RemoveCondition)->Signal();
+                numCondition = 1;
+            }
         break;
     
         case BROADCAST:
@@ -400,11 +408,15 @@ FileTable::FileWriterCondition(const char *name, int op)
         case WAIT:
             DEBUG('f', "Hago wait sobre la FileWriterCondition del archivo %s\n", name);
             (data[idx].WriterCondition)->Wait();
+            numCondition = 0;
         break;
 
         case SIGNAL:
             DEBUG('f', "Hago signal sobre la FileWriterCondition del archivo %s\n", name);
-            (data[idx].WriterCondition)->Signal();
+            if(numCondition == 0){
+                (data[idx].WriterCondition)->Signal();
+                numCondition = 1;
+            }
         break;
     
         case BROADCAST:

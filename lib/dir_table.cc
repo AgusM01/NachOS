@@ -59,8 +59,17 @@ DirTable::Add(OpenFile* file, const char* actName, const char* fatherName)
     data[cur_ret].numEntries = 0;
     
     char* actDirLockName = concat("DirLock.", actName);
+    char* removeConditionName = concat("RemoveCondition.",actName);
     data[cur_ret].actDirLock = new Lock(actDirLockName);
+    data[cur_ret].RemoveCondition = new Condition(removeConditionName, data[cur_ret].actDirLock);
     
+    // Cada vez que se haga un Cd tiene que sumar 1.
+    // Cuando sale, restar 1.
+    data[cur_ret].threadsInIt = 0;
+    data[cur_ret].toDelete = false;
+    
+    numCondition = 0;
+
     return cur_ret;
 }
 
@@ -107,6 +116,29 @@ DirTable::SetNumEntries(const char* name, int numEntries)
     return numEntries;
 }
 
+int 
+DirTable::setToDelete(const char* name)
+{
+    int idx = CheckDirInTable(name);
+
+    ASSERT(idx != -1);
+    
+    data[idx].toDelete = true;
+    return 0;
+
+}
+
+bool 
+DirTable::getToDelete(const char* name)
+{
+    int idx = CheckDirInTable(name);
+
+    ASSERT(idx != -1);
+    
+    return data[idx].toDelete;
+}
+
+
 bool 
 DirTable::DirLock(const char *name, int op)
 {
@@ -133,3 +165,80 @@ DirTable::DirLock(const char *name, int op)
     return true;
 }
 
+int
+DirTable::addThreadsIn(const char* name)
+{
+    int idx = CheckDirInTable(name);
+    
+    if (idx == -1){
+        DEBUG('f', "El directorio %s no forma parte de la DirTable\n",name);
+        return -1;
+    }
+
+    data[idx].threadsInIt += 1;
+    return data[idx].threadsInIt;
+}
+
+int 
+DirTable::removeThreadsIn(const char* name)
+{
+    int idx = CheckDirInTable(name);
+    
+    if (idx == -1){
+        DEBUG('f', "El directorio %s no forma parte de la DirTable\n",name);
+        return -1;
+    }
+    
+    unsigned actual = data[idx].threadsInIt;
+    data[idx].threadsInIt = actual == 0 ? 0 : actual - 1;
+    return data[idx].threadsInIt;
+}
+
+int
+DirTable::getThreadsIn(const char* name)
+{
+    int idx = CheckDirInTable(name);
+
+    if (idx == -1){
+        DEBUG('f', "El directorio %s no forma parte de la DirTable\n",name);
+        return -1;
+    }
+
+    return data[idx].threadsInIt;
+}
+
+// En caso de haber hecho Wait,
+// sale de la función con el lock adquirido.
+bool 
+DirTable::DirRemoveCondition(const char *name, int op)
+{
+    int idx = CheckDirInTable(name);
+
+    ASSERT(idx != -1);
+
+    switch (op) { 
+        case WAIT:
+            DEBUG('f', "Hago wait sobre la DirRemoveCondition del directorio %s\n", name);
+            (data[idx].RemoveCondition)->Wait();
+            numCondition = 0;
+        break;
+
+        case SIGNAL:
+            DEBUG('f', "Hago signal sobre la DirRemoveCondition del directorio %s\n", name);
+            if(numCondition == 0){
+                (data[idx].RemoveCondition)->Signal();
+                numCondition = 1;
+            }
+        break;
+    
+        case BROADCAST:
+            DEBUG('f', "Hago broadcast sobre la DirRemoveCondition del directorio %s\n", name);
+            (data[idx].RemoveCondition)->Broadcast();
+        break;
+
+        default:
+            return false;
+        break;
+    }
+    return true;
+}
