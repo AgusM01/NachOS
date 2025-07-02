@@ -122,6 +122,14 @@ public:
 
     ~FileSystem();
 
+    /// Checkea si un path tiene sentido.
+    /// Es decir, si efectivamente cada directorio va estando
+    /// dentro del anterior en el path.
+    bool CheckPath(char** dirNames, unsigned subdirs);
+    
+    /// Busca un archivo de directorio y lo agrega a la dirTable.
+    bool AddDirFile(char** path, unsigned subDirectories);
+
     /// Create a file (UNIX `creat`).
     bool Create(const char *name, unsigned initialSize);
 

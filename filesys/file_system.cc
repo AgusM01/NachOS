@@ -90,6 +90,8 @@ FileSystem::FileSystem(bool format)
         // (make sure no one else grabs these!)
         // Los FileHeaders del bitmap y del directorio principal están en los
         // sectores 0 y 1 respectivamente.
+        // Siempre habrá un directorio root.
+        // Los archivos/directorios se crean dentro de este.
         freeMap->Mark(FREE_MAP_SECTOR);
         freeMap->Mark(DIRECTORY_SECTOR);
 
@@ -182,6 +184,108 @@ FileSystem::~FileSystem()
     // Ver en el ejercicio 4 que pasa al remover directorios.
 }
 
+bool
+FileSystem::CheckPath(char** dirNames, unsigned subdirs)
+{
+   // // Acá deberiamos buscar el directorio donde se 
+   // // quiere crear el archivo.
+   // // Una ruta debe ser tipo:
+   // // "/subdir1/subdir2/subdir3"
+   // // Y hay que checkear que cada uno de ellos pertenezca a la 
+   // // anterior.
+   // //
+   // // Buscamos el lugar donde se quiere crear el archivo/directorio.
+   // char* dirNames[NUM_SECTORS];
+   // dirNames[0] = strtok(path, "/");
+
+   // // El primer directorio debe ser el actual.
+   // ASSERT(!strcmp(dirNames[0], "."));
+   // unsigned subdirs = 0;
+   // 
+   // // Voy metiendo los nombres.
+   // while(dirNames[subdirs] != NULL){
+   //     ASSERT(subdirs < NUM_SECTORS);
+   //     dirNames[subdirs + 1] = strtok(NULL, "/");
+   //     subdirs++;
+   // }
+    
+    if (strcmp(dirNames[0],"root") != 0)
+        return false;
+
+    // Ahora la cantidad de directorios es subdirs.
+    // Debo buscar que cada uno de ellos se encuentre dentro del anterior.
+    Directory* subDirs[subdirs];
+    int subDirSector;
+
+    // Checkeo que el path sea correcto.
+    // Es decir, checkeo que cada directorio pertenezca al anterior.
+    for (unsigned i = 0; i < subdirs; i++)
+    {
+        //dirTable->DirLock(dirNames[i], ACQUIRE);
+        subDirs[i] = new Directory(dirTable->GetNumEntries(dirNames[i]));
+        subDirs[i]->FetchFrom(dirTable->GetDir(dirNames[i]));
+        if(dirNames[i+1] != NULL)
+        {
+            // Busco el directorio donde quiero agregar el archivo.
+            // Si no existe, retorno error.
+            subDirSector = subDirs[i]->Find(dirNames[i+1]);
+            if(subDirSector == -1){
+                DEBUG('f', "Error: Directorio %s no existente\n", dirNames[i+1]);
+                return false;
+            }
+
+            // Acá ya sé que el directorio pertenece.
+            // Suelto el lock y elimino el actual.
+            // dirTable->DirLock(dirNames[i], RELEASE);
+            delete subDirs[i];
+        }
+    }
+    return true;
+}
+
+bool
+FileSystem::AddDirFile(char** path, unsigned subDirectories)
+{
+    // El primer directorio tiene que ser el root.
+    ASSERT(!strcpy(path[0],"root"));
+
+    // Luego solo me hace falta el penúltimo, ya que será
+    // el padre del último -> El que necesito.
+
+    dirTable->DirLock(path[subDirectories-1], ACQUIRE);
+    //Esta operación se hace con los locks correspondientes tomados.
+    Directory* dir = new Directory(dirTable->GetNumEntries(path[subDirectories-1]));
+    dir->FetchFrom(dirTable->GetDir(path[subDirectories-1]));
+    
+    
+    int sub_sector = dir->Find(path[subDirectories]);
+    // No tendría sentido que de -1 ya que antes de entrar a esta función
+    // ya corroboré que tenga sentido la cadena de directorios.
+    ASSERT(sub_sector != -1);
+    
+    OpenFile* entrySearched = new OpenFile(sub_sector);
+    dirTable->Add(entrySearched, path[subDirectories], path[subDirectories-1]);
+    dirTable->DirLock(path[subDirectories-1], RELEASE);
+    delete dir;
+
+    return true;
+    
+   // while(path[i+1] != nullptr){
+   //     
+   //     sub_sector = dir->Find(path[i+1]);
+   //     
+   //     // Ahora me tengo que meter dentro de ese directorio.
+   //     FileHeader* hdr;
+   //     hdr->FetchFrom(sub_sector);
+   //     DirectoryEntry* table;
+   //     table = (DirectoryEntry*)hdr->GetEntireFile();
+   //      
+   //     
+   // }
+
+
+}
+
 /// Create a file in the Nachos file system (similar to UNIX `create`).
 /// Since we cannot increase the size of files dynamically, we have to give
 /// `Create` the initial size of the file.
@@ -210,21 +314,27 @@ FileSystem::~FileSystem()
 bool
 FileSystem::Create(const char *name, unsigned initialSize)
 {
+    // Se podría usar esta misma Create para crear directorios (como MKDIR)
+    // ya que tienen la misma sintáxis y únicamente cambia la semántica que se le da.
+    // Ver bien eso.
+
     CreateLock->Acquire();
     ASSERT(name != nullptr);
     ASSERT(initialSize < MAX_FILE_SIZE);
-
-    DEBUG('f', "Creating file %s, size %u\n", name, initialSize);
     
-    dirTable->DirLock("root", ACQUIRE);
-    Directory *dir = new Directory(dirTable->GetNumEntries("root"));
-    // Cuando se haga el 4 debería ser algo del tipo:
-    // dir->FetchFrom(dirTable->GetDir(dirName));
-    // Dónde dirName es pasado por parámetro a Create.
-    // También habria que checkear que ese directorio
-    // que se pasa exista.
-    dir->FetchFrom(dirTable->GetDir("root"));
 
+    // Ahora tomamos el lock del directorio sobre el cual vamos a trabajar.
+    // En este caso es root.
+    // Podemos llevar una tabla con el path de trabajo del hilo actual
+    // y quedarnos con el último.
+    // Siempre verificando que ese path tiene sentido.
+    char* actDir = currentThread->GetDir();
+    ASSERT(actDir != nullptr);
+
+    dirTable->DirLock(actDir, ACQUIRE);
+    Directory *dir = new Directory(dirTable->GetNumEntries(actDir));
+    dir->FetchFrom(dirTable->GetDir(actDir));
+    
     bool success;
 
     if (dir->Find(name) != -1) {
@@ -289,7 +399,7 @@ FileSystem::Create(const char *name, unsigned initialSize)
     else
         DEBUG('f', "Archivo %s no pudo ser creado\n", name);
     
-    dirTable->DirLock("root", RELEASE);
+    dirTable->DirLock(actDir, RELEASE);
     return success;
 }
 
@@ -304,15 +414,15 @@ OpenFile *
 FileSystem::Open(const char *name)
 {
     ASSERT(name != nullptr);
-
-    Directory *dir = new Directory(dirTable->GetNumEntries("root"));
+    char* actDir = currentThread->GetDir();
+    Directory *dir = new Directory(dirTable->GetNumEntries(actDir));
     OpenFile  *openFile = nullptr;
 
     DEBUG('f', "Opening file %s\n", name);
-    dirTable->DirLock("root", ACQUIRE);
-    dir->FetchFrom(dirTable->GetDir("root"));
+    dirTable->DirLock(actDir, ACQUIRE);
+    dir->FetchFrom(dirTable->GetDir(actDir));
     int sector = dir->Find(name);
-    dirTable->DirLock("root", RELEASE);
+    dirTable->DirLock(actDir, RELEASE);
     if (sector >= 0) {
         
         // Primero debo checkear que el archivo no esté en la fileTable.
@@ -378,17 +488,24 @@ FileSystem::Open(const char *name)
 bool
 FileSystem::Remove(const char *name)
 {
+    // Acá si habría que hacer otra cosa en caso de eliminar directorios.
+    // Habría que poner en 0 el used de todos los archivos que contiene.
+    // Ver eso.
+
     ASSERT(name != nullptr);
     
     DEBUG('f', "El archivo %s va a ser removido\n", name);
     
-    dirTable->DirLock("root", ACQUIRE);
-    Directory *dir = new Directory(dirTable->GetNumEntries("root"));
-    OpenFile* directoryFile = dirTable->GetDir("root");
-    dir->FetchFrom(dirTable->GetDir("root"));
+    char* actDir = currentThread->GetDir();
+    ASSERT(actDir != nullptr);
+
+    dirTable->DirLock(actDir, ACQUIRE);
+    Directory *dir = new Directory(dirTable->GetNumEntries(actDir));
+    OpenFile* directoryFile = dirTable->GetDir(actDir);
+    dir->FetchFrom(dirTable->GetDir(actDir));
     int sector = dir->Find(name);
     if (sector == -1) {
-       dirTable->DirLock("root", RELEASE);
+       dirTable->DirLock(actDir, RELEASE);
        delete dir;
        return false;  // file not found
     }
@@ -416,10 +533,12 @@ FileSystem::Remove(const char *name)
         // Si soy el único proceso que lo mantenía abierto
         // no espero nada, suelto el lock y lo borro.
         if (fileTable->GetOpen(name) > 1){
+            dirTable->DirLock(actDir, RELEASE);
             // Debo esperar a que todos
             // los hilos que mantienen el archivo abierto lo
             // cierren para poder reclamar los sectores.
             fileTable->FileRemoveCondition(name, WAIT);
+            dirTable->DirLock(actDir, ACQUIRE);
         }
 
         // Para este punto puedo soltar el Lock ya que no permito
@@ -447,7 +566,7 @@ FileSystem::Remove(const char *name)
     
     // No hace falta decrementar el número de dirEntries ya que
     // simplemente se marca como no en uso.
-    dirTable->DirLock("root", RELEASE);
+    dirTable->DirLock(actDir, RELEASE);
     delete fileH;
     delete dir;
     delete freeMap;

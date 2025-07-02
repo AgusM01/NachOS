@@ -53,6 +53,8 @@ struct procFileInfo {
     char* name;
     int seek;
 };
+
+#define MAX_DIRS 50
 #endif
 
 #endif
@@ -229,6 +231,18 @@ public:
     
     // Devuelve el nombre de un archivo abierto por el proceso.
     char* GetFileName(int fd);
+
+    // Directorio sobre el cual este thread está trabajando.
+    char* path[MAX_DIRS];
+
+    // Función para cambiar el directorio sobre el cual estoy trabajando.
+    bool ChangeDir(char* newDir);
+
+    // Función para obtener el directorio bajo el cual está trabajando este thread.
+    char* GetDir();
+
+    // Cantidad de subdirecciones bajo las que está el thread.
+    unsigned subDirectories;
     #else
     Table <OpenFile*> *fileTableIds;
     #endif

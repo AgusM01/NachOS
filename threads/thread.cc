@@ -22,6 +22,10 @@
 #include "system.hh"
 #include "channel.hh"
 
+#ifdef FILESYS
+#include "filesys/file_system.hh"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -65,6 +69,12 @@ Thread::Thread(const char *threadName, bool isJoin, int threadPriority)
     newOut->seek = 0;
     fileTableIds->Add(newIn);
     fileTableIds->Add(newOut);
+    // La cantidad de subdirecciones es 0 al inicio.
+    subDirectories = 0;
+    // Está en el directorio root.
+    strcpy(path[0],"root");
+    // No hay subdirectorios.
+    path[1] = nullptr;
     #else
     fileTableIds = new Table<OpenFile*>;
     OpenFile* in = nullptr;
@@ -94,7 +104,7 @@ Thread::Thread(const char *threadName, bool isJoin, int threadPriority)
 /// Nachos.
 Thread::~Thread()
 {
-    DEBUG('f', "Deleting thread \"%s\"\n", name);
+    DEBUG('t', "Deleting thread \"%s\"\n", name);
 
     delete waitToChild;
     free(chName);
@@ -473,6 +483,138 @@ Thread::GetFileName(int fd)
 
     return fileInfo == nullptr ? nullptr : fileInfo->name;
 }
+
+bool
+Thread::ChangeDir(char* newDir)
+{
+    
+    char* dirNames[NUM_SECTORS];
+    dirNames[0] = strtok(newDir, "/");
+
+    // El primer directorio debe ser el actual.
+    if(!strcmp(dirNames[0], "root")){
+        DEBUG('f', "Error: Soy thread %d y el primer directorio del path ingresado no es root, es %s\n", pid, dirNames[0]);
+        return false;
+    }
+
+    unsigned subdirs = 0;
+    
+    // Voy metiendo los nombres.
+    while(dirNames[subdirs] != NULL){
+        ASSERT(subdirs < NUM_SECTORS);
+        dirNames[subdirs + 1] = strtok(NULL, "/");
+        subdirs++;
+    }
+    
+    ASSERT(subdirs < MAX_DIRS);
+
+    // Significa que quiero ir uno atrás o uno adelante.
+    // Tengo que tener en cuenta 3 casos:
+    // * Es el directorio ".." -> Bajo la cantidad de subdirecciones en 1.
+    // * Es un directorio cualquiera -> Quiero acceder a un nivel más de profundiad.
+    // Debo checkear si el camino tiene sentido. De tener sentido, lo agrego al
+    // path y aumento las subdirecciones. De no tener sentido retorno falso y aviso
+    // al usuario por medio de la syscall.
+    // * Es el directorio "." -> No hago nada.
+    if (subdirs == 1)
+    {
+        if (!strcmp(dirNames[0], ".."))
+        {
+            if (subDirectories == 0){
+                DEBUG('f', "Soy thread de pid %d. Permanezco en root\n", pid);
+                return true;
+            }
+            
+            subDirectories -= 1;
+            return true;
+        }
+
+        if (!strcmp(dirNames[0], ".")){
+            DEBUG('f', "Soy thread de pid %d. Me quedo en el directorio actual\n", pid);
+            return true;
+        }
+        
+        // En este caso quiero cambiar de directorio a uno siguiente.
+        // Tengo que checkear que el path esté bien antes de hacerlo.
+        
+        char* testPath[MAX_DIRS];
+        for (unsigned i = 0; i < subDirectories; i++)
+            strcpy(testPath[i],path[i]);
+        strcpy(testPath[subDirectories],dirNames[0]);
+        testPath[subDirectories + 1] = nullptr;
+
+        /////////////DEBUG////////////////////////////
+        DEBUG('f', "El testPath del thread %u es:\n");
+        for (unsigned i = 0; i <= subDirectories; i++)
+            DEBUG('f', "%s\n", testPath[i]);
+        //////////////////////////////////////////////
+        
+        if (fileSystem->CheckPath(testPath, subDirectories + 1))
+        {
+            // El directorio tiene sentido.
+            // Por lo tanto ahora debo cambiar mi directorio y,
+            // si no está en la DirTable, agregarlo. Para esto
+            // tomo el lock del directorio anterior (que seguro
+            // está en la dirTable).
+
+            // Cambio mi directorio.
+            subDirectories += 1;
+            strcpy(path[subDirectories],dirNames[0]);
+            path[subDirectories + 1] = nullptr;
+
+            // Si el directorio no está en la tabla, es el primer
+            // thread que lo abre. Por lo que tiene que recuperar
+            // su archivo.
+            if (dirTable->CheckDirInTable(dirNames[0]) == -1){
+                DEBUG('f', "Soy thread %d, recupero el archivo de directorio %s\n", pid, path[subDirectories]);
+                fileSystem->AddDirFile(path, subDirectories);
+            }
+            
+            return true;
+        }
+        DEBUG('f', "Error: Thread %d. El directorio %s no forma parte del padre %s.\n", pid, dirNames[0], path[subDirectories]);
+        return false;
+    }
+
+    DEBUG('f', "Soy %u, es cambio de directorio completo\n", pid);
+
+    // Ahora además de checkear todo el path, tengo que ver si cada uno 
+    // de los directorios puestos está en la tabla y si alguno no está, agregarlo.
+    // Empiezo de root que siempre está en la tabla.
+    
+    if(!fileSystem->CheckPath(dirNames, subdirs)){
+        DEBUG('f',"Error: Soy %d y el path nuevo es incorrecto\n");
+        return false;
+    }
+
+    // Cambio el path actual.
+    for(unsigned i = 0; i < subdirs;i++)
+        strcpy(path[i], dirNames[i]);
+    
+    path[subdirs] = nullptr;
+    subDirectories = subdirs - 1;
+
+    // Acá significa que el path es correcto. Debo ver que cada uno esté en la tabla
+    // y de no estarlo agregarlo.
+    for(unsigned i = 0; i <= subDirectories;i++){
+        if (i == 0)
+            ASSERT(dirTable->CheckDirInTable(dirNames[0]) != -1);
+        else{
+            if (dirTable->CheckDirInTable(dirNames[i]) == -1)
+                fileSystem->AddDirFile(path, subDirectories);
+        }
+    }
+
+    return true;
+}
+
+char*
+Thread::GetDir()
+{
+    return path[subDirectories];
+}
+
+
 #endif
 // --------------- PID----------------
 

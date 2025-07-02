@@ -33,6 +33,7 @@
 
 
 #include <ctype.h>
+#include <cstring>
 #include <stdio.h>
 
 
@@ -132,21 +133,28 @@ FileHeader::Deallocate(Bitmap *freeMap)
    return; 
 }
 
-void
-FileHeader::GetEntireFile(char* to)
+char*
+FileHeader::GetEntireFile()
 {
+    char all[raw.numSectors*SECTOR_SIZE];
+
     unsigned sectorsLeft = raw.numSectors;
     unsigned place = 0;
     for(unsigned i = 0; i < NUM_INDIRECT && sectorsLeft > 0; i++){
         for(unsigned j = 0; j < NUM_DIRECT && sectorsLeft > 0; j++){
             for(unsigned k = 0; k < NUM_DIRECT && sectorsLeft > 0; k++){
-                synchDisk->ReadSector(raw_ind2[i][j].dataSectors[k], (char *) (to + place));
+                synchDisk->ReadSector(raw_ind2[i][j].dataSectors[k], (char *) (all + place));
                 place += SECTOR_SIZE;
                 sectorsLeft -= 1;
             }
         }
     }
 
+    char* to = new char[raw.numBytes];
+    for(unsigned i = 0; i < raw.numBytes; i++)
+        to[i] = all[i];
+
+    return to;
 }
 /// Fetch contents of file header from disk.
 ///
