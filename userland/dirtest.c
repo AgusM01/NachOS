@@ -19,7 +19,9 @@ main(void)
     Close(fs1);
     Close(fs2);
     Remove("FSTest2");
+    LsDir(".");
     CDir("..");
     Remove("FSTest1");
+    LsDir(".");
     return 0;
 }

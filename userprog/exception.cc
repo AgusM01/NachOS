@@ -730,7 +730,6 @@ SyscallHandler(ExceptionType _et)
 
             machine->WriteRegister(2,status);
             DEBUG('f',"Creé el directorio %s, soy %d.\n", dirname, currentThread->GetPid());
-
             break;
         }
         
@@ -756,7 +755,6 @@ SyscallHandler(ExceptionType _et)
 
             machine->WriteRegister(2,status);
             DEBUG('f',"Eliminé el directorio %s, soy %d.\n", dirname, currentThread->GetPid());
-
             break;
 
         }
@@ -781,8 +779,7 @@ SyscallHandler(ExceptionType _et)
                 status = -1;
 
             machine->WriteRegister(2,status);
-            DEBUG('f',"Eliminé el directorio %s, soy %d.\n", dirname, currentThread->GetPid());
-
+            DEBUG('f',"Cambié al directorio %s, soy %d.\n", dirname, currentThread->GetPid());
             break;
         }
         case SC_LSDIR: {
@@ -806,7 +803,7 @@ SyscallHandler(ExceptionType _et)
                 status = -1;
 
             machine->WriteRegister(2,status);
-            DEBUG('f',"Eliminé el directorio %s, soy %d.\n", dirname, currentThread->GetPid());
+            DEBUG('f',"Listé el directorio %s, soy %d.\n", dirname, currentThread->GetPid());
 
             break;
         }

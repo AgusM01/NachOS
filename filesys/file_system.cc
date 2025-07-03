@@ -191,6 +191,12 @@ FileSystem::CheckPath(char** dirNames, unsigned subdirs)
 
     if (strcmp(dirNames[0],"root") != 0)
         return false;
+    
+    DEBUG('f', "Path a checkear:\n");
+    for (unsigned i = 0; i < subdirs; i++)
+    {
+        DEBUG('f', "%s/",dirNames[i]);
+    }
 
     // Ahora la cantidad de directorios es subdirs.
     // Debo buscar que cada uno de ellos se encuentre dentro del anterior.
@@ -227,7 +233,7 @@ bool
 FileSystem::AddDirFile(char** path, unsigned subDirectories)
 {
     // El primer directorio tiene que ser el root.
-    ASSERT(!strcpy(path[0],"root"));
+    ASSERT(!strcmp(path[0],"root"));
 
     // Luego solo me hace falta el penúltimo, ya que será
     // el padre del último -> El que necesito.
@@ -349,7 +355,7 @@ FileSystem::Create(const char *name, unsigned initialSize)
                 h->WriteBack(sector);
                 DEBUG('f', "Mando a disco el directorio que contiene el archivo\n");
                 //dir->FetchFrom(dirTable->GetDir("root"));
-                dir->WriteBack(dirTable->GetDir("root"));
+                dir->WriteBack(dirTable->GetDir(actDir));
                 DEBUG('f', "Mando a disco el Bitmap\n");
                 // Lo traigo de nuevo para ver si hubo algún cambio.
                 freeMap->FetchFrom(freeMapFile);
@@ -372,11 +378,11 @@ FileSystem::Create(const char *name, unsigned initialSize)
     //CreateLock->Release();
     if (success){
         DEBUG('f', "Archivo %s creado correctamente\n", name);
-        dirTable->SetNumEntries("root", dirTable->GetNumEntries("root") + 1);
-       // DEBUG('f', "Miro el directorio antes de salir:\n");
-       // Directory* testDir = new Directory(dirTable->GetNumEntries("root"));
-       // testDir->FetchFrom(dirTable->GetDir("root"));
-       // delete testDir;
+        dirTable->SetNumEntries(actDir, dirTable->GetNumEntries(actDir) + 1);
+        DEBUG('f', "Miro el directorio %s antes de salir:\n", actDir);
+        Directory* testDir = new Directory(dirTable->GetNumEntries(actDir));
+        testDir->FetchFrom(dirTable->GetDir(actDir));
+        delete testDir;
     }
     else
         DEBUG('f', "Archivo %s no pudo ser creado\n", name);
@@ -841,13 +847,9 @@ FileSystem::Ls(char* path)
     }
     
     ASSERT(subdirs > 0 && subdirs < MAX_DIRS);
-    char* name;
+    char* name = new char[FILE_NAME_MAX_LEN];
 
     if (subdirs == 1){
-        if (!strcmp(dirNames[0],"root")){
-            DEBUG('f', "Error: El directorio root no puede ser eliminado.\n");
-            return false;
-        }
         // Este caso es el más fácil. 
         // Ya sabemos que todo el directorio del thread tiene sentido y
         // por eso no hay que checkear nada más que el directorio
@@ -856,13 +858,31 @@ FileSystem::Ls(char* path)
             DEBUG('f', "Error: Pasar un path o el directorio actual \".\".\n");
             return false;
         }
-        name = dirNames[0];
+
         // Tengo que traer el directorio actual.
-        // Sumarle este a su path.
-        // Pasarle el path completo a AddDirFile.
-        if(dirTable->CheckDirInTable(name) == -1){
-            ASSERT(AddDirFile(dirNames, 0));
+
+        char* thPath[MAX_DIRS];
+        unsigned thQPaths = currentThread->subDirectories;
+        ASSERT(thQPaths < MAX_DIRS);
+        DEBUG('f', "thQPaths es: %u.\n", thQPaths);
+
+        for (unsigned i = 0; i <= thQPaths; i++)
+        { 
+            thPath[i] = new char[DIR_NAME_MAX_LEN];
+            strcpy(thPath[i], currentThread->path[i]);
+            DEBUG('f',"El dir %u es %s.\n", i, thPath[i]);
         }
+
+        strcpy(name,thPath[thQPaths]);
+        thPath[thQPaths+1] = nullptr;
+        
+        // Ahora tengo el directorio actual.
+        if(dirTable->CheckDirInTable(name) == -1){
+            ASSERT(AddDirFile(thPath, thQPaths));
+        }
+       
+        DEBUG('f', "Terminé de checkear y todo está en orden para continuar.\n");
+        for(unsigned i = 0; i <= thQPaths; i++, delete thPath[i]);
 
         ASSERT(name != nullptr);
     }
@@ -884,12 +904,16 @@ FileSystem::Ls(char* path)
                 ASSERT(AddDirFile(dirNames, i));
         }
     }
-
+    
+    DEBUG('f', "A punto de listar.\n");
     dirTable->DirLock(name, ACQUIRE);
     Directory *dir = new Directory (dirTable->GetNumEntries(name));
+    dir->FetchFrom(dirTable->GetDir(name));
     dir->List();
     dirTable->DirLock(name, RELEASE);
     delete dir;
+    delete [] name;
+    DEBUG('f', "Terminé de listar.\n");
     return true;
 }
 

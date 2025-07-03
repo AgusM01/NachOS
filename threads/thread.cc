@@ -603,10 +603,13 @@ Thread::ChangeDir(char* newDir)
         // Tengo que checkear que el path esté bien antes de hacerlo.
         
         char* testPath[MAX_DIRS];
-        for (unsigned i = 0; i < subDirectories; i++)
+        for (unsigned i = 0; i <= subDirectories; i++){
+            testPath[i] = new char [9];
             strcpy(testPath[i],path[i]);
-        strcpy(testPath[subDirectories],dirNames[0]);
-        testPath[subDirectories + 1] = nullptr;
+        }
+        testPath[subDirectories + 1] = new char [9];
+        strcpy(testPath[subDirectories + 1],dirNames[0]);
+        testPath[subDirectories + 2] = nullptr;
 
         /////////////DEBUG////////////////////////////
         DEBUG('f', "El testPath del thread %u es:\n");
@@ -614,7 +617,7 @@ Thread::ChangeDir(char* newDir)
             DEBUG('f', "%s\n", testPath[i]);
         //////////////////////////////////////////////
         
-        if (fileSystem->CheckPath(testPath, subDirectories + 1))
+        if (fileSystem->CheckPath(testPath, subDirectories + 2))
         {
             // El directorio tiene sentido.
             // Por lo tanto ahora debo cambiar mi directorio y,
@@ -651,6 +654,8 @@ Thread::ChangeDir(char* newDir)
             dirTable->DirLock(path[subDirectories], 0);
             dirTable->addThreadsIn(path[subDirectories]);
             dirTable->DirLock(path[subDirectories],1);
+
+            for (unsigned i = 0; i <= subDirectories;i++, delete testPath[i]);
             return true;
         }
         DEBUG('f', "Error: Thread %d. El directorio %s no forma parte del padre %s.\n", pid, dirNames[0], path[subDirectories]);

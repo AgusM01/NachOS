@@ -199,8 +199,10 @@ Directory::List() const
 {
     for (unsigned i = 0; i < raw.tableSize; i++) {
         if (raw.table[i].inUse) {
-            printf("%s\n", raw.table[i].name);
+            printf("> %s\n", raw.table[i].name);
         }
+        else
+            printf("> %s (Removed)\n", raw.table[i].name);
     }
 }
 
