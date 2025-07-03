@@ -48,6 +48,7 @@
 #include "threads/system.hh"
 #include <stdio.h>
 #include <string.h>
+#include <cstring>
 
 #define MIN(a,b) a < b ? a : b
 #define MAX_DIR_ENTRIES 50
@@ -555,18 +556,73 @@ FileSystem::Remove(const char *name)
     return true;
 }
 
+// Para eliminar un directorio se debe estar
+// dentro del directorio que lo contiene.
+// Para evitar esto se puede pasar directamente un char**
+// poniendo todos los directorios.
 bool
-FileSystem::RemoveDir(const char *name)
+FileSystem::RemoveDir(char *path)
 {
     // Voy a eliminar un directorio.
     // Los checkeos que sea válido y demás están en la función de threads.
+    ASSERT(path != nullptr);
+
+    char* dirNames[NUM_SECTORS];
+    dirNames[0] = strtok(path, "/");
+
+    unsigned subdirs = 0;
     
-    ASSERT(name != nullptr);
+    // Voy metiendo los nombres.
+    while(dirNames[subdirs] != NULL){
+        ASSERT(subdirs < NUM_SECTORS);
+        dirNames[subdirs + 1] = strtok(NULL, "/");
+        subdirs++;
+    }
     
+    ASSERT(subdirs > 0 && subdirs < MAX_DIRS);
+    char* actDir;
+    char* name;
+
+    if (subdirs == 1){
+        if (!strcmp(dirNames[0],"root")){
+            DEBUG('f', "Error: El directorio root no puede ser eliminado.\n");
+            return false;
+        }
+        // Este caso es el más fácil. 
+        // Ya sabemos que todo el directorio del thread tiene sentido y
+        // por eso no hay que checkear nada más que el directorio
+        // ingresado esté dentro del actual. Eso ya lo hace la función.
+
+        name = dirNames[0];
+        actDir = currentThread->GetDir();
+        ASSERT(actDir != nullptr);
+        
+
+    }
+    else // Acá debo checkear todo el path. 
+    {
+        if(!CheckPath(dirNames, subdirs))
+        {
+            DEBUG('f', "Error al eliminar el directorio. Path ingresado incorrecto.\n");
+            return false;
+        }
+        name = dirNames[subdirs-1];
+        actDir = dirNames[subdirs-2];
+        ASSERT(name != nullptr);
+        ASSERT(actDir != nullptr);
+
+        // Una vez que el path es válido, por las dudas, checkeo que todo 
+        // el path esté en la dirTable.
+        for (unsigned i = 0; i < subdirs; i++){
+            if(dirTable->CheckDirInTable(dirNames[i]) == -1)
+                ASSERT(AddDirFile(dirNames, i));
+        }
+
+    }
+    
+    // Acá estoy seguro que está todo en la dirTabe.
     DEBUG('f', "El directorio %s va a ser removido\n", name);
     
-    char* actDir = currentThread->GetDir();
-    ASSERT(actDir != nullptr);
 
     dirTable->DirLock(actDir, ACQUIRE);
     Directory *dir = new Directory(dirTable->GetNumEntries(actDir));
@@ -769,14 +825,11 @@ FileSystem::MkDir(const char *name, unsigned initialSize)
 bool
 FileSystem::Ls(char* path)
 {
+    DEBUG('f', "Voy a listar los directorios.\n");
+    ASSERT(path != nullptr);
+
     char* dirNames[NUM_SECTORS];
     dirNames[0] = strtok(path, "/");
-
-    // El primer directorio debe ser el actual.
-    if(!strcmp(dirNames[0], "root")){
-        DEBUG('f', "Error: Soy thread %d y el primer directorio del path ingresado no es root, es %s\n", currentThread->GetPid(), dirNames[0]);
-        return false;
-    }
 
     unsigned subdirs = 0;
     
@@ -786,24 +839,58 @@ FileSystem::Ls(char* path)
         dirNames[subdirs + 1] = strtok(NULL, "/");
         subdirs++;
     }
-    subdirs -= 1;
-    ASSERT(subdirs < MAX_DIRS);
-
-    if(!CheckPath(dirNames, subdirs))
-    {
-        DEBUG('f', "El path ingresado para listar no es válido\n");
-        return false;
-    }
     
-    // El directorio es válido, tengo que ver si está en la dirTable.
-    if(dirTable->CheckDirInTable(dirNames[subdirs]) == -1)
-        ASSERT(AddDirFile(dirNames, subdirs));
+    ASSERT(subdirs > 0 && subdirs < MAX_DIRS);
+    char* name;
 
-    dirTable->DirLock(dirNames[subdirs], ACQUIRE);
-    Directory *dir = new Directory (dirTable->GetNumEntries(dirNames[subdirs]));
+    if (subdirs == 1){
+        if (!strcmp(dirNames[0],"root")){
+            DEBUG('f', "Error: El directorio root no puede ser eliminado.\n");
+            return false;
+        }
+        // Este caso es el más fácil. 
+        // Ya sabemos que todo el directorio del thread tiene sentido y
+        // por eso no hay que checkear nada más que el directorio
+        // ingresado esté dentro del actual. Eso ya lo hace la función.
+        if(strcmp(dirNames[0], ".")){
+            DEBUG('f', "Error: Pasar un path o el directorio actual \".\".\n");
+            return false;
+        }
+        name = dirNames[0];
+        // Tengo que traer el directorio actual.
+        // Sumarle este a su path.
+        // Pasarle el path completo a AddDirFile.
+        if(dirTable->CheckDirInTable(name) == -1){
+            ASSERT(AddDirFile(dirNames, 0));
+        }
+
+        ASSERT(name != nullptr);
+    }
+    else // Acá debo checkear todo el path. 
+    {
+        if(!CheckPath(dirNames, subdirs))
+        {
+            DEBUG('f', "Error al listar el directorio. Path ingresado incorrecto.\n");
+            return false;
+        }
+
+        name = dirNames[subdirs-1];
+        ASSERT(name != nullptr);
+
+        // Una vez que el path es válido, por las dudas, checkeo que todo 
+        // el path esté en la dirTable.
+        for (unsigned i = 0; i < subdirs; i++){
+            if(dirTable->CheckDirInTable(dirNames[i]) == -1)
+                ASSERT(AddDirFile(dirNames, i));
+        }
+    }
+
+    dirTable->DirLock(name, ACQUIRE);
+    Directory *dir = new Directory (dirTable->GetNumEntries(name));
     dir->List();
-    dirTable->DirLock(dirNames[subdirs], RELEASE);
+    dirTable->DirLock(name, RELEASE);
     delete dir;
+    return true;
 }
 
 /// List all the files in the file system directory.

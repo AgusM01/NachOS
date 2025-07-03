@@ -31,8 +31,11 @@
 #define SC_CLOSE   13
 #define SC_READ    14
 #define SC_WRITE   15
-#define SC_EXEC2    16
-
+#define SC_EXEC2   16
+#define SC_MKDIR   17
+#define SC_RMDIR   18
+#define SC_LSDIR   19
+#define SC_CDIR    20
 
 #ifndef IN_ASM
 
@@ -126,6 +129,21 @@ int Read(char *buffer, int size, OpenFileId id);
 
 /// Close the file, we are done reading and writing to it.
 int Close(OpenFileId id);
+
+// Crea un nuevo directorio en el directorio actual
+// del thread.
+int MkDir(const char* name);
+
+// Elimina un directorio,
+// puede ser un nombre o un path.
+int RmDir(const char* name);
+
+// Lista el contenido del directorio actual.
+int LsDir();
+
+// Cambia el directorio,
+// puede ser un nombre o un path.
+int CDir(const char* name);
 
 
 #endif

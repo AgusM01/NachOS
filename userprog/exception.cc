@@ -708,6 +708,109 @@ SyscallHandler(ExceptionType _et)
             DEBUG('f', "Hago JOIN, soy: %d\n", currentThread->GetPid());
             break;
         }
+        #ifdef FILESYS
+        case SC_MKDIR: {
+            int dirNameAddr = machine->ReadRegister(4);
+            bool status = true;
+            char dirname[FILE_NAME_MAX_LEN + 1];
+            
+            DEBUG('f', "Creating a directory\n");
+
+            if (!ReadStringFromUser(dirNameAddr, 
+                                    dirname, sizeof dirname)){
+                 DEBUG('f', "Error: dirname string too long (maximum is %u bytes).\n",
+                      FILE_NAME_MAX_LEN);
+                status = false;
+            }
+            
+            if(fileSystem->MkDir(dirname,0))
+                status = 0;
+            else 
+                status = -1;
+
+            machine->WriteRegister(2,status);
+            DEBUG('f',"Creé el directorio %s, soy %d.\n", dirname, currentThread->GetPid());
+
+            break;
+        }
+        
+        case SC_RMDIR: {
+            
+            int dirNameAddr = machine->ReadRegister(4);
+            bool status = true;
+            char dirname[FILE_NAME_MAX_LEN + 1];
+            
+            DEBUG('f', "Removing a directory\n");
+
+            if (!ReadStringFromUser(dirNameAddr, 
+                                    dirname, sizeof dirname)){
+                 DEBUG('f', "Error: dirname string too long (maximum is %u bytes).\n",
+                      FILE_NAME_MAX_LEN);
+                status = false;
+            }
+            
+            if(fileSystem->RemoveDir(dirname))
+                status = 0;
+            else 
+                status = -1;
+
+            machine->WriteRegister(2,status);
+            DEBUG('f',"Eliminé el directorio %s, soy %d.\n", dirname, currentThread->GetPid());
+
+            break;
+
+        }
+        case SC_CDIR: {
+
+            int dirNameAddr = machine->ReadRegister(4);
+            bool status = true;
+            char dirname[FILE_NAME_MAX_LEN + 1];
+            
+            DEBUG('f', "Changing directory\n");
+
+            if (!ReadStringFromUser(dirNameAddr, 
+                                    dirname, sizeof dirname)){
+                 DEBUG('f', "Error: dirname string too long (maximum is %u bytes).\n",
+                      FILE_NAME_MAX_LEN);
+                status = false;
+            }
+            
+            if(currentThread->ChangeDir(dirname))
+                status = 0;
+            else 
+                status = -1;
+
+            machine->WriteRegister(2,status);
+            DEBUG('f',"Eliminé el directorio %s, soy %d.\n", dirname, currentThread->GetPid());
+
+            break;
+        }
+        case SC_LSDIR: {
+            
+            int dirNameAddr = machine->ReadRegister(4);
+            bool status = true;
+            char dirname[FILE_NAME_MAX_LEN + 1];
+            
+            DEBUG('f', "Listing directory\n");
+
+            if (!ReadStringFromUser(dirNameAddr, 
+                                    dirname, sizeof dirname)){
+                 DEBUG('f', "Error: dirname string too long (maximum is %u bytes).\n",
+                      FILE_NAME_MAX_LEN);
+                status = false;
+            }
+            
+            if(fileSystem->Ls(dirname))
+                status = 0;
+            else 
+                status = -1;
+
+            machine->WriteRegister(2,status);
+            DEBUG('f',"Eliminé el directorio %s, soy %d.\n", dirname, currentThread->GetPid());
+
+            break;
+        }
+        #endif
         default:
             fprintf(stderr, "Unexpected system call: id %d.\n", scid);
             ASSERT(false);

@@ -555,12 +555,6 @@ Thread::ChangeDir(char* newDir)
     char* dirNames[NUM_SECTORS];
     dirNames[0] = strtok(newDir, "/");
 
-    // El primer directorio debe ser el actual.
-    if(!strcmp(dirNames[0], "root")){
-        DEBUG('f', "Error: Soy thread %d y el primer directorio del path ingresado no es root, es %s\n", pid, dirNames[0]);
-        return false;
-    }
-
     unsigned subdirs = 0;
     
     // Voy metiendo los nombres.
@@ -664,6 +658,12 @@ Thread::ChangeDir(char* newDir)
     }
 
     DEBUG('f', "Soy %u, es cambio de directorio completo\n", pid);
+    
+    // El primer directorio debe ser el root.
+    if(!strcmp(dirNames[0], "root")){
+        DEBUG('f', "Error: Soy thread %d y el primer directorio del path ingresado no es root, es %s\n", pid, dirNames[0]);
+        return false;
+    }
 
     // Ahora además de checkear todo el path, tengo que ver si cada uno 
     // de los directorios puestos está en la tabla y si alguno no está, agregarlo.

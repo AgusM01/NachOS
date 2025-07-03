@@ -143,7 +143,7 @@ public:
     bool MkDir(const char *name, unsigned initialSize);
     
     /// Elimima un directorio completo (UNIX 'rm -r \dir')
-    bool RemoveDir(const char *name);
+    bool RemoveDir(char *name);
     
     /// Lista todo lo del último directorio del path.
     bool Ls(char* path);
