@@ -193,12 +193,14 @@ FileTable::SetClosed(const char *name, bool v)
 {
     int idx = CheckFileInTable(name);
 
-    if (idx != -1){
-        DEBUG('f', "Seteo el campo closed del archivo %s\n", name);
-        data[idx].closed = v;
-    }
+    ASSERT(idx != -1);
 
-    return idx == -1 ? -1 : 0;
+    DEBUG('f', "Seteo el campo closed del archivo %s\n", name);
+    data[idx].closed = v;
+    if(v)    
+        data[idx].open = 0;
+     
+    return idx;
 }
 
 int
@@ -371,15 +373,12 @@ FileTable::FileRemoveCondition(const char *name, int op)
         case WAIT:
             DEBUG('f', "Hago wait sobre la FileRemoveCondition del archivo %s\n", name);
             (data[idx].RemoveCondition)->Wait();
-            numCondition = 0;
         break;
 
         case SIGNAL:
             DEBUG('f', "Hago signal sobre la FileRemoveCondition del archivo %s\n", name);
-            if (numCondition == 0){
                 (data[idx].RemoveCondition)->Signal();
                 numCondition = 1;
-            }
         break;
     
         case BROADCAST:
@@ -408,15 +407,12 @@ FileTable::FileWriterCondition(const char *name, int op)
         case WAIT:
             DEBUG('f', "Hago wait sobre la FileWriterCondition del archivo %s\n", name);
             (data[idx].WriterCondition)->Wait();
-            numCondition = 0;
         break;
 
         case SIGNAL:
             DEBUG('f', "Hago signal sobre la FileWriterCondition del archivo %s\n", name);
-            if(numCondition == 0){
                 (data[idx].WriterCondition)->Signal();
                 numCondition = 1;
-            }
         break;
     
         case BROADCAST:

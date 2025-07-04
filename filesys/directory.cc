@@ -190,6 +190,18 @@ Directory::Remove(const char *name)
         return false;  // name not in directory
     }
     raw.table[i].inUse = false;
+
+    // Corro todos los de la tabla 1.
+  // for (unsigned j = i; j < raw.tableSize; j++)
+  // {
+  //     raw.table[j].inUse = raw.table[j+1].inUse;
+  //     strcpy(raw.table[j].name,raw.table[j+1].name);
+  //     raw.table[j].sector = raw.table[j+1].sector;
+  // }
+  // 
+  // raw.table[raw.tableSize].inUse = 0;
+
+  // raw.tableSize -= 1;
     return true;
 }
 

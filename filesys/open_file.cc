@@ -121,6 +121,11 @@ OpenFile::ReadAt(char *into, unsigned numBytes, unsigned position)
 
     ASSERT(numBytes > 0);
 
+    // Quizás el archivo fué creado pero nunca escrito.
+    // Por lo tanto no tengo nada para leer.
+    if (hdr->GetRaw()->numSectors == 0)
+        return 0;
+
     unsigned fileLength = hdr->FileLength();
     unsigned firstSector, lastSector, numSectors;
     char *buf;

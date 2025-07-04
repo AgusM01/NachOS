@@ -225,6 +225,7 @@ SyscallHandler(ExceptionType _et)
                 #ifndef FILESYS
                 status = currentThread->fileTableIds->Add(newFile);
                 #else
+                DEBUG('f', "Soy %d, abro el archivo %s, lo tienen abierto %d.\n", currentThread->GetPid(), filename, fileTable->GetOpen(filename));
                 status = currentThread->AddFile(newFile, filename);
                 #endif
             }
@@ -281,7 +282,7 @@ SyscallHandler(ExceptionType _et)
                 int opens = fileTable->GetOpen(filename);
                 
                 if (opens > 1){
-                    DEBUG('f', "Cierro el archivo %s y no soy el último\n", filename);
+                    DEBUG('f', "Soy %d, cierro el archivo %s y no soy el último, quedan %d\n", currentThread->GetPid(), filename, opens);
                     status = fileTable->CloseOne(filename);
                     if (status > 0)
                         status = 0;
@@ -498,9 +499,11 @@ SyscallHandler(ExceptionType _et)
                 fileTable->SetWriter(filename, true);
 
                 int readers = fileTable->GetReaders(filename);
-                
+               
+                DEBUG('f', "Por escribir en %s, soy %d.\n", filename, currentThread->GetPid());
                 if (readers > 0)
                     fileTable->FileWriterCondition(filename, WAIT);
+
                 // Cuando salga de acá, tiene el lock tomado y no hay lectores.
                 // Por lo tanto, escribo.
                 ReadBufferFromUser(bufferToRead, bufferTransfer, bytesToWrite);

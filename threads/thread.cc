@@ -258,10 +258,31 @@ Thread::Finish(int returnStatus)
     #endif 
 
     #ifdef FILESYS
+    DEBUG('f',"Me estoy yendo, soy %d\n", pid);
         char* nameToClose;
         nameToClose = openFileNames->Pop();
         while(nameToClose != nullptr){
-            fileTable->CloseOne(nameToClose);
+            if (!strcmp(nameToClose, "in") && !strcmp(nameToClose,"out")){
+                fileTable->FileORLock(nameToClose, 0);
+                fileTable->CloseOne(nameToClose);
+                DEBUG('f', "Al archivo %s lo tienen abierto %d theads\n", nameToClose, fileTable->GetOpen(nameToClose));
+                if (fileTable->GetOpen(nameToClose) == 1)
+                {
+                  if (fileTable->isDeleted(nameToClose))
+                  {
+                      // Soy el último y el archivo tiene que ser borrado.
+                      // Por lo tanto aviso al thread que estaba esperando para hacerlo.
+                      DEBUG('f', "Cierro último el archivo %s y debe ser eliminado\n", nameToClose);
+                      fileTable->FileRemoveCondition(nameToClose, SIGNAL);
+                  }
+                  
+                  DEBUG('f', "Deleteo %s\n", nameToClose);
+                  fileTable->SetClosed(nameToClose, true);
+                  
+                  delete fileTable->GetFile(nameToClose);
+                  fileTable->FileORLock(nameToClose, RELEASE);
+                }
+            }
             nameToClose = openFileNames->Pop();
         }
     
@@ -270,6 +291,8 @@ Thread::Finish(int returnStatus)
         {
             dirTable->DirLock(path[i], 0);
             dirTable->removeThreadsIn(path[i]);
+            if (dirTable->getThreadsIn(path[i]) == 0)
+                dirTable->DirRemoveCondition(path[i],1);
             dirTable->DirLock(path[i],1);
         }
     #endif
@@ -584,6 +607,7 @@ Thread::ChangeDir(char* newDir)
             }
             
             dirTable->DirLock(path[subDirectories], 0);
+            DEBUG('f', "Soy %d y salgo del directorio %s.\n", pid, path[subDirectories]);
             dirTable->removeThreadsIn(path[subDirectories]);
             if (dirTable->getThreadsIn(path[subDirectories]) == 0)
                 dirTable->DirRemoveCondition(path[subDirectories],1);
@@ -616,9 +640,10 @@ Thread::ChangeDir(char* newDir)
         for (unsigned i = 0; i <= subDirectories; i++)
             DEBUG('f', "%s\n", testPath[i]);
         //////////////////////////////////////////////
-        
+        dirTable->DirLock(path[subDirectories], 0); 
         if (fileSystem->CheckPath(testPath, subDirectories + 2))
         {
+            dirTable->DirLock(path[subDirectories],1);
             // El directorio tiene sentido.
             // Por lo tanto ahora debo cambiar mi directorio y,
             // si no está en la DirTable, agregarlo. Para esto
@@ -659,6 +684,7 @@ Thread::ChangeDir(char* newDir)
             return true;
         }
         DEBUG('f', "Error: Thread %d. El directorio %s no forma parte del padre %s.\n", pid, dirNames[0], path[subDirectories]);
+        dirTable->DirLock(path[subDirectories], 1);
         return false;
     }
 
@@ -674,10 +700,14 @@ Thread::ChangeDir(char* newDir)
     // de los directorios puestos está en la tabla y si alguno no está, agregarlo.
     // Empiezo de root que siempre está en la tabla.
     
+    // Acá no me queda otra que tomar el root.
+    dirTable->DirLock("root", 0);
     if(!fileSystem->CheckPath(dirNames, subdirs)){
         DEBUG('f',"Error: Soy %d y el path nuevo es incorrecto\n");
+        dirTable->DirLock("root",1);
         return false;
     }
+    dirTable->DirLock("root",1);
 
     // Salgo de todos los paths en los cuales estoy.
     // En cada uno, si soy el último, aviso.
@@ -689,10 +719,7 @@ Thread::ChangeDir(char* newDir)
             dirTable->DirRemoveCondition(path[i],1);
         dirTable->DirLock(path[i],1);
     }
-    
-    for (unsigned i = 0; i <= subDirectories; i++)
-        delete path[i];
-    
+     
     for (unsigned i = 0; i < subdirs; i++)
     {
         if(dirTable->CheckDirInTable(dirNames[i]) != -1){
@@ -707,7 +734,10 @@ Thread::ChangeDir(char* newDir)
         }
     }
 
-    // Cambio el path actual.
+   for (unsigned i = 0; i <= subDirectories; i++)
+       delete path[i];
+    
+   // Cambio el path actual.
     for(unsigned i = 0; i < subdirs;i++){
         path[i] = new char[FILE_NAME_MAX_LEN];
         strcpy(path[i], dirNames[i]);

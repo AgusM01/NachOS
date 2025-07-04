@@ -1,6 +1,7 @@
 #include "dir_table.hh"
 #include "filesys/directory_entry.hh"
 #include "lib/utility.hh"
+#include "threads/system.hh"
 
 #include <cstring>
 
@@ -148,12 +149,12 @@ DirTable::DirLock(const char *name, int op)
 
     switch (op) { 
         case ACQUIRE:
-            DEBUG('f', "Tomo el DirLock del directorio %s en la DirTable\n", name);
+            DEBUG('f', "Soy %d y tomo el DirLock del directorio %s en la DirTable\n",currentThread->GetPid(), name);
             (data[idx].actDirLock)->Acquire();
         break;
 
         case RELEASE:
-            DEBUG('f', "Suelto el DirLock del directorio %s en la DirTable\n", name);
+            DEBUG('f', "Soy %d y suelto el DirLock del directorio %s en la DirTable\n",currentThread->GetPid(), name);
             (data[idx].actDirLock)->Release();
         break;
 
@@ -218,17 +219,13 @@ DirTable::DirRemoveCondition(const char *name, int op)
 
     switch (op) { 
         case WAIT:
-            DEBUG('f', "Hago wait sobre la DirRemoveCondition del directorio %s\n", name);
+            DEBUG('f', "Soy %d y hago wait sobre la DirRemoveCondition del directorio %s\n",currentThread->GetPid(), name);
             (data[idx].RemoveCondition)->Wait();
-            numCondition = 0;
         break;
 
         case SIGNAL:
-            DEBUG('f', "Hago signal sobre la DirRemoveCondition del directorio %s\n", name);
-            if(numCondition == 0){
+            DEBUG('f', "Soy %d y hago signal sobre la DirRemoveCondition del directorio %s\n",currentThread->GetPid(), name);
                 (data[idx].RemoveCondition)->Signal();
-                numCondition = 1;
-            }
         break;
     
         case BROADCAST:

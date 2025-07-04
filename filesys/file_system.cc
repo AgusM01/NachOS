@@ -205,7 +205,7 @@ FileSystem::CheckPath(char** dirNames, unsigned subdirs)
 
     // Checkeo que el path sea correcto.
     // Es decir, checkeo que cada directorio pertenezca al anterior.
-    for (unsigned i = 0; i < subdirs; i++)
+    for (unsigned i = 0; i < subdirs-1; i++)
     {
         //dirTable->DirLock(dirNames[i], ACQUIRE);
         subDirs[i] = new Directory(dirTable->GetNumEntries(dirNames[i]));
@@ -573,6 +573,8 @@ FileSystem::RemoveDir(char *path)
     // Los checkeos que sea válido y demás están en la función de threads.
     ASSERT(path != nullptr);
 
+    DEBUG('f', "Voy a eliminar el directorio: %s\n", path);
+
     char* dirNames[NUM_SECTORS];
     dirNames[0] = strtok(path, "/");
 
@@ -584,7 +586,12 @@ FileSystem::RemoveDir(char *path)
         dirNames[subdirs + 1] = strtok(NULL, "/");
         subdirs++;
     }
-    
+    DEBUG('f', "El directorio actual del thread %d es %s\n", currentThread->GetPid(), currentThread->GetDir());
+    if (!strcmp(currentThread->GetDir(), dirNames[subdirs-1])){
+        DEBUG('f', "Error: No es posible eliminar el path donde está el thread %d\n", currentThread->GetPid());
+        return false;
+    }
+
     ASSERT(subdirs > 0 && subdirs < MAX_DIRS);
     char* actDir;
     char* name;
@@ -625,7 +632,7 @@ FileSystem::RemoveDir(char *path)
         }
 
     }
-    
+     
     // Acá estoy seguro que está todo en la dirTabe.
     DEBUG('f', "El directorio %s va a ser removido\n", name);
     
@@ -664,9 +671,15 @@ FileSystem::RemoveDir(char *path)
         dirTable->Add(delDirFile, name, actDir);
         dirTable->SetNumEntries(name, entries);
     }
-
-    delDir->FetchFrom(delDirFile);
     
+    DEBUG('f', "Soy %d, por tomar locks eliminando %s.\n", currentThread->GetPid(), name);
+    dirTable->DirLock(actDir,RELEASE);
+    dirTable->DirLock(name, ACQUIRE);
+    dirTable->setToDelete(name); 
+    
+    
+    delDir->FetchFrom(delDirFile);
+     
     Bitmap *freeMap = new Bitmap(NUM_SECTORS);
     OpenFile* freeMapFile = fileTable->GetFile("freeMap"); 
     freeMap->FetchFrom(freeMapFile);
@@ -674,7 +687,7 @@ FileSystem::RemoveDir(char *path)
     // Si nadie lo mantiene abierto puedo cerrarlo directamente.
     if(dirTable->getThreadsIn(name) == 0)
     
-    {
+    {   
        // Debo recorrer todo el directorio.
        // Si un archivo está en la tabla, lo puedo desmarcar todo ya que 
        // tengo la seguridad que ningún thread está en este directorio
@@ -684,47 +697,129 @@ FileSystem::RemoveDir(char *path)
        for (unsigned i = 0; i < cantEntriestoDel; i++){
             if(delDir->GetRaw()->table[i].inUse){    
                 if(fileTable->CheckFileInTable(delDir->GetRaw()->table[i].name) != -1){
+                        
+                        // Adquirimos su Lock.
+                        fileTable->FileORLock(delDir->GetRaw()->table[i].name, ACQUIRE);
+
+                        // Primero checkeamos que no esté eliminado.    
+                        if (fileTable->isDeleted(delDir->GetRaw()->table[i].name)){
+                            fileTable->FileORLock(delDir->GetRaw()->table[i].name, RELEASE);
+                        }
+                        else {
+
+                        // El archivo no ha sido eliminado.
                         fileTable->Delete(delDir->GetRaw()->table[i].name);
+                        
+                        // Si soy el único proceso que lo mantenía abierto
+                        // no espero nada, suelto el lock y lo borro.
+                        if (fileTable->GetOpen(delDir->GetRaw()->table[i].name) > 1){
+                            dirTable->DirLock(name, RELEASE);
+                            // Debo esperar a que todos
+                            // los hilos que mantienen el archivo abierto lo
+                            // cierren para poder reclamar los sectores.
+                            fileTable->FileRemoveCondition(delDir->GetRaw()->table[i].name, WAIT);
+                            dirTable->DirLock(name, ACQUIRE);
+                        }
+
+                        // Para este punto puedo soltar el Lock ya que no permito
+                        // más aberturas del archivo.
+                        fileTable->FileORLock(delDir->GetRaw()->table[i].name, RELEASE);
                         fileTable->Remove(delDir->GetRaw()->table[i].name);
+                    
+                        FileHeader* hdr = new FileHeader;
+                        hdr->FetchFrom(delDir->GetRaw()->table[i].sector);
+                        hdr->Deallocate(freeMap);
+                        freeMap->Clear(delDir->GetRaw()->table[i].sector);
+                        freeMap->WriteBack(freeMapFile);
+                        delDir->Remove(delDir->GetRaw()->table[i].name);
+                        delete hdr;
                     }
-                FileHeader* hdr = new FileHeader;
-                hdr->FetchFrom(delDir->GetRaw()->table[i].sector);
-                hdr->Deallocate(freeMap);
-                freeMap->Clear(delDir->GetRaw()->table[i].sector);
-                delDir->Remove(delDir->GetRaw()->table[i].name);
-                delete hdr;
+                }
+                else {
+                        FileHeader* hdr = new FileHeader;
+                        hdr->FetchFrom(delDir->GetRaw()->table[i].sector);
+                        hdr->Deallocate(freeMap);
+                        freeMap->Clear(delDir->GetRaw()->table[i].sector);
+                        freeMap->WriteBack(freeMapFile);
+                        delDir->Remove(delDir->GetRaw()->table[i].name);
+                        delete hdr;
+                }
             }
         }
     }
     else // Tengo que esperar que los threads estén fuera del directorio. 
     {
-        dirTable->setToDelete(name); 
+        DEBUG('f', "Soy %d, por hacer WAIT sobre condicion de dir %s.\n", currentThread->GetPid(), name);
         dirTable->DirRemoveCondition(name, WAIT);
-
+        DEBUG('f', "Soy %d, por adquirir el lock del subdir a eliminar %s.\n", currentThread->GetPid(), name);
         // Una vez acá puedo eliminar todo de forma segura.
 
        unsigned cantEntriestoDel = delDir->GetRaw()->tableSize;
        for (unsigned i = 0; i < cantEntriestoDel; i++){
             if(delDir->GetRaw()->table[i].inUse){    
                 if(fileTable->CheckFileInTable(delDir->GetRaw()->table[i].name) != -1){
+                        
+                        // Adquirimos su Lock.
+                        fileTable->FileORLock(delDir->GetRaw()->table[i].name, ACQUIRE);
+
+                        // Primero checkeamos que no esté eliminado.    
+                        if (fileTable->isDeleted(delDir->GetRaw()->table[i].name)){
+                            fileTable->FileORLock(delDir->GetRaw()->table[i].name, RELEASE);
+                        }
+                        else {
+
+                        // El archivo no ha sido eliminado.
                         fileTable->Delete(delDir->GetRaw()->table[i].name);
+                        
+                        // Si soy el único proceso que lo mantenía abierto
+                        // no espero nada, suelto el lock y lo borro.
+                        if (fileTable->GetOpen(delDir->GetRaw()->table[i].name) > 1){
+                            dirTable->DirLock(name, RELEASE);
+                            // Debo esperar a que todos
+                            // los hilos que mantienen el archivo abierto lo
+                            // cierren para poder reclamar los sectores.
+                            fileTable->FileRemoveCondition(delDir->GetRaw()->table[i].name, WAIT);
+                            dirTable->DirLock(name,ACQUIRE);
+                        }
+
+                        // Para este punto puedo soltar el Lock ya que no permito
+                        // más aberturas del archivo.
+                        fileTable->FileORLock(name, RELEASE);
+                        
                         fileTable->Remove(delDir->GetRaw()->table[i].name);
+                    
+                        FileHeader* hdr = new FileHeader;
+                        hdr->FetchFrom(delDir->GetRaw()->table[i].sector);
+                        hdr->Deallocate(freeMap);
+                        freeMap->Clear(delDir->GetRaw()->table[i].sector);
+                        freeMap->WriteBack(freeMapFile);
+                        delDir->Remove(delDir->GetRaw()->table[i].name);
+                        delete hdr;
                     }
-                FileHeader* hdr = new FileHeader;
-                hdr->FetchFrom(delDir->GetRaw()->table[i].sector);
-                hdr->Deallocate(freeMap);
-                freeMap->Clear(delDir->GetRaw()->table[i].sector);
-                delDir->Remove(delDir->GetRaw()->table[i].name);
-                delete hdr;
-                delDir->Remove(delDir->GetRaw()->table[i].name);
+                }
+                else {
+                        FileHeader* hdr = new FileHeader;
+                        hdr->FetchFrom(delDir->GetRaw()->table[i].sector);
+                        hdr->Deallocate(freeMap);
+                        freeMap->Clear(delDir->GetRaw()->table[i].sector);
+                        freeMap->WriteBack(freeMapFile);
+                        delDir->Remove(delDir->GetRaw()->table[i].name);
+                        delete hdr;
+                }
             }
-       } 
+        }
     }
 
     // Una vez que estoy acá ya eliminé todo y tengo que mandar los cambios a disco unicamente.
    
+    DEBUG('f', "Eliminé el directorio %s, procedo a limpiar\n", name);
+    dirTable->DirLock(name, RELEASE);
+    dirTable->DirLock(actDir, ACQUIRE);
     freeMap->WriteBack(freeMapFile);
-    delDir->WriteBack(delDirFile); 
+    dir->FetchFrom(directoryFile);
+    dir->Remove(name);
+    dir->WriteBack(directoryFile);
+    dirTable->SetNumEntries(actDir, dirTable->GetNumEntries(actDir) - 1);
     dirTable->DirLock(actDir, RELEASE);
     delete delDir;
     delete freeMap;
@@ -831,7 +926,7 @@ FileSystem::MkDir(const char *name, unsigned initialSize)
 bool
 FileSystem::Ls(char* path)
 {
-    DEBUG('f', "Voy a listar los directorios.\n");
+    DEBUG('f', "Voy a listar el directorio %s.\n", path);
     ASSERT(path != nullptr);
 
     char* dirNames[NUM_SECTORS];
@@ -904,16 +999,17 @@ FileSystem::Ls(char* path)
                 ASSERT(AddDirFile(dirNames, i));
         }
     }
-    
-    DEBUG('f', "A punto de listar.\n");
-    dirTable->DirLock(name, ACQUIRE);
-    Directory *dir = new Directory (dirTable->GetNumEntries(name));
-    dir->FetchFrom(dirTable->GetDir(name));
-    dir->List();
-    dirTable->DirLock(name, RELEASE);
-    delete dir;
+    if(!dirTable->getToDelete(name)){ 
+        DEBUG('f', "A punto de listar el directorio %s\n", name);
+        dirTable->DirLock(name, ACQUIRE);
+        Directory *dir = new Directory (dirTable->GetNumEntries(name));
+        dir->FetchFrom(dirTable->GetDir(name));
+        dir->List();
+        dirTable->DirLock(name, RELEASE);
+        delete dir;
+        DEBUG('f', "Terminé de listar.\n");
+    }
     delete [] name;
-    DEBUG('f', "Terminé de listar.\n");
     return true;
 }
 
