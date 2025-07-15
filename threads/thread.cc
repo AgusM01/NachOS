@@ -609,6 +609,7 @@ Thread::ChangeDir(char* newDir)
             dirTable->DirLock(path[subDirectories], 0);
             DEBUG('f', "Soy %d y salgo del directorio %s.\n", pid, path[subDirectories]);
             dirTable->removeThreadsIn(path[subDirectories]);
+            // TODO: Esto habria que hacerlo sii está para ser eliminado.
             if (dirTable->getThreadsIn(path[subDirectories]) == 0)
                 dirTable->DirRemoveCondition(path[subDirectories],1);
             dirTable->DirLock(path[subDirectories], 1);

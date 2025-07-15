@@ -150,6 +150,7 @@ Directory::Add(const char *name, int newSector)
     DirectoryEntry* newTable = new DirectoryEntry [raw.tableSize + 1];
 
     // Copiamos los contenidos de la tabla anterior a esta
+    // Se puede poner un if que si no está en uso, no copiarlo.
     for (unsigned i = 0; i < raw.tableSize; i++)
     {
         newTable[i] = raw.table[i];
@@ -191,17 +192,23 @@ Directory::Remove(const char *name)
     }
     raw.table[i].inUse = false;
 
-    // Corro todos los de la tabla 1.
-  // for (unsigned j = i; j < raw.tableSize; j++)
-  // {
-  //     raw.table[j].inUse = raw.table[j+1].inUse;
-  //     strcpy(raw.table[j].name,raw.table[j+1].name);
-  //     raw.table[j].sector = raw.table[j+1].sector;
-  // }
-  // 
-  // raw.table[raw.tableSize].inUse = 0;
+   // if(raw.tableSize > 1){
+   // DirectoryEntry* newTable = new DirectoryEntry [raw.tableSize];
+   // unsigned k = 0;
+   // for (unsigned j = 0; j < raw.tableSize; j++){
+   //     if(raw.table[j].inUse)
+   //     {    
+   //         newTable[k].inUse = true;
+   //         strncpy(newTable[k].name, raw.table[j].name, strlen(raw.table[j].name) + 1);
+   //         newTable[k].sector = raw.table[j].sector;
+   //         k++;
+   //     }
+   // }
+   // delete [] raw.table;
+   // raw.table = newTable;
+   // raw.tableSize -= 1;
+   // }
 
-  // raw.tableSize -= 1;
     return true;
 }
 

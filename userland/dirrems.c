@@ -21,7 +21,7 @@ main(void)
     Remove("FSTest2");
     LsDir(".");
     CDir("..");
-    RmDir("SubDir1");
+    //RmDir("SubDir1");
     Remove("FSTest1");
     LsDir(".");
     return 0;

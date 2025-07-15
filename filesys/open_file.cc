@@ -183,7 +183,7 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
 
     firstSector = DivRoundDown(position, SECTOR_SIZE);
     lastSector  = DivRoundDown(position + numBytes - 1, SECTOR_SIZE); // El -1 es porque cuenta la posición actual.
-    neededSectors = DivRoundUp(hdr->GetRaw()->numBytes + numBytes, SECTOR_SIZE) - hdr->GetRaw()->numSectors; // Capaz que acá hay un error.
+    neededSectors = DivRoundUp(hdr->GetRaw()->numBytes + numBytes, SECTOR_SIZE) - hdr->GetRaw()->numSectors; 
     numSectors  = 1 + lastSector - firstSector;
 
     // Si escribo al final, tengo que hacer espacio.

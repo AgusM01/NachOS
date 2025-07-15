@@ -23,5 +23,6 @@ main(void)
     CDir("..");
     Remove("FSTest1");
     LsDir(".");
+    RmDir("SubDir1");
     return 0;
 }

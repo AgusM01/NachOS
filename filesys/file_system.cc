@@ -342,7 +342,7 @@ FileSystem::Create(const char *name, unsigned initialSize)
             DEBUG('f', "Error: no hay espacio en directorio para archivo %s\n", name);
             success = false;  // No space in directory.
         } else {
-            FileHeader *h = new FileHeader;
+            FileHeader *h = new FileHeader; // Creo el i-nodo
             success = h->Allocate(freeMap, initialSize);
               // Fails if no space on disk for data.
             if (success) {
@@ -354,14 +354,13 @@ FileSystem::Create(const char *name, unsigned initialSize)
                 DEBUG('f', "Mando a disco el header del archivo %s\n", name);
                 h->WriteBack(sector);
                 DEBUG('f', "Mando a disco el directorio que contiene el archivo\n");
-                //dir->FetchFrom(dirTable->GetDir("root"));
                 dir->WriteBack(dirTable->GetDir(actDir));
                 DEBUG('f', "Mando a disco el Bitmap\n");
                 // Lo traigo de nuevo para ver si hubo algún cambio.
                 freeMap->FetchFrom(freeMapFile);
                 freeMap->WriteBack(freeMapFile);
-                DEBUG('f', "Ahora quiero imprimir el Bitmap\n");
-                freeMap->Print();
+               // DEBUG('f', "Ahora quiero imprimir el Bitmap\n");
+               // freeMap->Print();
                // DEBUG('f',"Escribo por las dudas:\n");
                // dir->WriteBack(dirTable->GetDir("root"));
                // DEBUG('f', "A ver que tal quedó:\n");
@@ -379,10 +378,10 @@ FileSystem::Create(const char *name, unsigned initialSize)
     if (success){
         DEBUG('f', "Archivo %s creado correctamente\n", name);
         dirTable->SetNumEntries(actDir, dirTable->GetNumEntries(actDir) + 1);
-        DEBUG('f', "Miro el directorio %s antes de salir:\n", actDir);
-        Directory* testDir = new Directory(dirTable->GetNumEntries(actDir));
-        testDir->FetchFrom(dirTable->GetDir(actDir));
-        delete testDir;
+       // DEBUG('f', "Miro el directorio %s antes de salir:\n", actDir);
+       // Directory* testDir = new Directory(dirTable->GetNumEntries(actDir));
+       // testDir->FetchFrom(dirTable->GetDir(actDir));
+       // delete testDir;
     }
     else
         DEBUG('f', "Archivo %s no pudo ser creado\n", name);
@@ -440,6 +439,7 @@ FileSystem::Open(const char *name)
             fileTable->Add(openFile, name);
             
             // Lo seteo como abierto.
+            // Si llegué acá es que el archivo está creado.
             fileTable->SetClosed(name, false);
             
             delete dir;
@@ -798,6 +798,7 @@ FileSystem::RemoveDir(char *path)
                     }
                 }
                 else {
+                    // TODO : Llamar recursiva con el path nuevo.
                         FileHeader* hdr = new FileHeader;
                         hdr->FetchFrom(delDir->GetRaw()->table[i].sector);
                         hdr->Deallocate(freeMap);
@@ -829,9 +830,6 @@ FileSystem::RemoveDir(char *path)
 bool
 FileSystem::MkDir(const char *name, unsigned initialSize)
 {
-    // Se podría usar esta misma Create para crear directorios (como MKDIR)
-    // ya que tienen la misma sintáxis y únicamente cambia la semántica que se le da.
-    // Ver bien eso.
 
     //CreateLock->Acquire();
     ASSERT(name != nullptr);
