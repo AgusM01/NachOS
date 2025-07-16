@@ -739,10 +739,10 @@ FileSystem::RemoveDir(char *path)
                         // Si es un directorio, debo llamar recursiva a la función.
                         DEBUG('f',"Eliminando subdirectorio: %s\n", delDir->GetRaw()->table[i].name);
                         char anterior[2] = {'.','.'};
-                        dirTable->unsetToDelete(name); 
+                      //  dirTable->unsetToDelete(name); 
                         dirTable->DirLock(name, RELEASE);
                         currentThread->ChangeDir(path);
-                        dirTable->setToDelete(name); 
+                       // dirTable->setToDelete(name); 
                         ASSERT(RemoveDir(delDir->GetRaw()->table[i].name));
                         currentThread->ChangeDir(anterior);
                         dirTable->DirLock(name, ACQUIRE);
@@ -814,10 +814,10 @@ FileSystem::RemoveDir(char *path)
                         // Si es un directorio, debo llamar recursiva a la función.
                         DEBUG('f',"Eliminando subdirectorio: %s\n", delDir->GetRaw()->table[i].name);
                         char anterior[2] = {'.','.'};
-                        dirTable->unsetToDelete(name);
+                       // dirTable->unsetToDelete(name);
                         dirTable->DirLock(name, RELEASE);
                         currentThread->ChangeDir(path);
-                        dirTable->setToDelete(name); 
+                      //  dirTable->setToDelete(name); 
                         ASSERT(RemoveDir(delDir->GetRaw()->table[i].name));
                         currentThread->ChangeDir(anterior);
                         dirTable->DirLock(name, ACQUIRE);

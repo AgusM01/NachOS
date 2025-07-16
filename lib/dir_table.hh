@@ -32,6 +32,7 @@ struct dirStruct {
     Condition *RemoveCondition; // Condición para eliminar el directorio.
     bool toDelete; // Booleano para verificar está para ser eliminado.
                    // Si está en true, el directorio no se puede abrir.
+    int pid_to_delete;
 };
 
 class DirTable {
@@ -95,6 +96,10 @@ class DirTable {
         // Des-Setea un directorio a ser eliminado.
         // Se usa para removeDir.
         int unsetToDelete(const char* name);
+        
+        // Devuelve el pid del thread que quiere
+        // eliminar el directorio.
+        int getPidToDelete(const char* name); 
         
         // Trae el estado de un directorio.
         bool getToDelete(const char* name);

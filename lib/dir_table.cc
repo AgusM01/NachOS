@@ -68,6 +68,7 @@ DirTable::Add(OpenFile* file, const char* actName, const char* fatherName)
     // Cuando sale, restar 1.
     data[cur_ret].threadsInIt = 0;
     data[cur_ret].toDelete = false;
+    data[cur_ret].pid_to_delete = -1;
     
     numCondition = 0;
 
@@ -124,12 +125,22 @@ DirTable::setToDelete(const char* name)
 
     ASSERT(idx != -1);
     
+    data[idx].pid_to_delete = currentThread->GetPid();
     data[idx].toDelete = true;
     return 0;
 
 }
 
 
+int
+DirTable::getPidToDelete(const char* name)
+{
+    int idx = CheckDirInTable(name);
+
+    ASSERT(idx != -1);
+    
+    return data[idx].pid_to_delete;
+}
 int 
 DirTable::unsetToDelete(const char* name)
 {

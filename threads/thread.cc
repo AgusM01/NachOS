@@ -656,7 +656,7 @@ Thread::ChangeDir(char* newDir)
             if (dirTable->CheckDirInTable(dirNames[0]) != -1){
                 inDirTable = true;
                 dirTable->DirLock(dirNames[0], 0);
-                if (dirTable->getToDelete(dirNames[0])){
+                if (dirTable->getToDelete(dirNames[0]) && dirTable->getPidToDelete(dirNames[0]) != currentThread->GetPid()){
                     DEBUG('f', "Error: Soy %d y el directorio %s está para ser eliminado.\n", pid, dirNames[0]);
                     dirTable->DirLock(dirNames[0],1);
                     return -1;
@@ -725,7 +725,7 @@ Thread::ChangeDir(char* newDir)
     {
         if(dirTable->CheckDirInTable(dirNames[i]) != -1){
             dirTable->DirLock(dirNames[i], 0);
-            if(dirTable->getToDelete(dirNames[i]))
+            if(dirTable->getToDelete(dirNames[i]) && dirTable->getPidToDelete(dirNames[i]) != currentThread->GetPid())
             {
                 DEBUG('f',"Error: Soy %d y el directorio %s está para ser eliminado\n", pid, dirNames[i]);
                 dirTable->DirLock(dirNames[i],1);
