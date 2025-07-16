@@ -736,6 +736,17 @@ FileSystem::RemoveDir(char *path)
                     }
                 }
                 else {
+                        // Si es un directorio, debo llamar recursiva a la función.
+                        DEBUG('f',"Eliminando subdirectorio: %s\n", delDir->GetRaw()->table[i].name);
+                        char anterior[2] = {'.','.'};
+                        dirTable->unsetToDelete(name); 
+                        dirTable->DirLock(name, RELEASE);
+                        currentThread->ChangeDir(path);
+                        dirTable->setToDelete(name); 
+                        ASSERT(RemoveDir(delDir->GetRaw()->table[i].name));
+                        currentThread->ChangeDir(anterior);
+                        dirTable->DirLock(name, ACQUIRE);
+                        
                         FileHeader* hdr = new FileHeader;
                         hdr->FetchFrom(delDir->GetRaw()->table[i].sector);
                         hdr->Deallocate(freeMap);
@@ -799,6 +810,18 @@ FileSystem::RemoveDir(char *path)
                 }
                 else {
                     // TODO : Llamar recursiva con el path nuevo.
+                        
+                        // Si es un directorio, debo llamar recursiva a la función.
+                        DEBUG('f',"Eliminando subdirectorio: %s\n", delDir->GetRaw()->table[i].name);
+                        char anterior[2] = {'.','.'};
+                        dirTable->unsetToDelete(name);
+                        dirTable->DirLock(name, RELEASE);
+                        currentThread->ChangeDir(path);
+                        dirTable->setToDelete(name); 
+                        ASSERT(RemoveDir(delDir->GetRaw()->table[i].name));
+                        currentThread->ChangeDir(anterior);
+                        dirTable->DirLock(name, ACQUIRE);
+                        
                         FileHeader* hdr = new FileHeader;
                         hdr->FetchFrom(delDir->GetRaw()->table[i].sector);
                         hdr->Deallocate(freeMap);
@@ -884,17 +907,17 @@ FileSystem::MkDir(const char *name, unsigned initialSize)
                 DEBUG('f', "Mando a disco el header del archivo %s\n", name);
                 h->WriteBack(sector);
                 DEBUG('f', "Mando a disco el directorio que contiene el archivo\n");
-                dir->WriteBack(dirTable->GetDir("root"));
+                dir->WriteBack(dirTable->GetDir(actDir));
                 DEBUG('f', "Mando a disco el Bitmap\n");
                 // Lo traigo de nuevo para ver si hubo algún cambio.
                 freeMap->FetchFrom(freeMapFile);
                 freeMap->WriteBack(freeMapFile);
                 DEBUG('f', "Ahora quiero imprimir el Bitmap\n");
                 freeMap->Print();
-               // DEBUG('f',"Escribo por las dudas:\n");
-               // dir->WriteBack(dirTable->GetDir("root"));
-               // DEBUG('f', "A ver que tal quedó:\n");
-               // dir->FetchFrom(dirTable->GetDir("root"));
+                DEBUG('f',"Escribo por las dudas:\n");
+                dir->WriteBack(dirTable->GetDir(actDir));
+                DEBUG('f', "A ver que tal quedó:\n");
+                dir->FetchFrom(dirTable->GetDir(actDir));
             }
             else
                 DEBUG('f', "Error: No hay espacio en el disco para los datos del archivo %s\n", name);
@@ -907,14 +930,14 @@ FileSystem::MkDir(const char *name, unsigned initialSize)
     //CreateLock->Release();
     if (success){
         DEBUG('f', "Directorio %s creado correctamente\n", name);
-        dirTable->SetNumEntries("root", dirTable->GetNumEntries("root") + 1);
+        dirTable->SetNumEntries(actDir, dirTable->GetNumEntries(actDir) + 1);
        // DEBUG('f', "Miro el directorio antes de salir:\n");
-       // Directory* testDir = new Directory(dirTable->GetNumEntries("root"));
+       // Directory* testDir = new Directory(dirTable->GetNumEntries(actDir));
        // testDir->FetchFrom(dirTable->GetDir("root"));
        // delete testDir;
     }
     else
-        DEBUG('f', "Archivo %s no pudo ser creado\n", name);
+        DEBUG('f', "Directorio %s no pudo ser creado\n", name);
     
     dirTable->DirLock(actDir, RELEASE);
     return success;

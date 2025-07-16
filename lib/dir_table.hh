@@ -91,7 +91,11 @@ class DirTable {
 
         // Setea un directorio a ser eliminado.
         int setToDelete(const char* name);
-
+        
+        // Des-Setea un directorio a ser eliminado.
+        // Se usa para removeDir.
+        int unsetToDelete(const char* name);
+        
         // Trae el estado de un directorio.
         bool getToDelete(const char* name);
 

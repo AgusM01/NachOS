@@ -129,6 +129,18 @@ DirTable::setToDelete(const char* name)
 
 }
 
+
+int 
+DirTable::unsetToDelete(const char* name)
+{
+    int idx = CheckDirInTable(name);
+
+    ASSERT(idx != -1);
+    
+    data[idx].toDelete = false;
+    return 0;
+
+}
 bool 
 DirTable::getToDelete(const char* name)
 {
