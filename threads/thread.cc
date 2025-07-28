@@ -291,7 +291,7 @@ Thread::Finish(int returnStatus)
         {
             dirTable->DirLock(path[i], 0);
             dirTable->removeThreadsIn(path[i]);
-            if (dirTable->getThreadsIn(path[i]) == 0)
+            if (dirTable->getToDelete(path[i]))
                 dirTable->DirRemoveCondition(path[i],1);
             dirTable->DirLock(path[i],1);
         }
