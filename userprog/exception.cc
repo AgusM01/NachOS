@@ -603,76 +603,70 @@ SyscallHandler(ExceptionType _et)
             int filenameAddr = machine->ReadRegister(4); 
             int argsVector = machine->ReadRegister(5);
             int join = machine->ReadRegister(6);
-            bool status = true;
             OpenFile *executable;
             Thread* newThread;            
             char** argv;
+            int newpid = -1;
             AddressSpace *space; 
             char filename[FILE_NAME_MAX_LEN + 1];
 
             if (filenameAddr == 0){
                 DEBUG('f', "Error: address to filename string is null. \n");
-                status = false;
+                machine->WriteRegister(2, newpid);
+                break;
             }
 
-            if (!status || argsVector == 0){
+            if (argsVector == 0){
                 DEBUG('f', "Error: address to argsVector is null. \n");
-                status = false;
+                machine->WriteRegister(2, newpid);
+                break;
             }
 
             if (!ReadStringFromUser(filenameAddr, 
-                                    filename, sizeof filename) || !status){
+                                    filename, sizeof filename)){
                  DEBUG('f', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
-                status = false;
+                machine->WriteRegister(2, newpid);
+                break;
             }
 
-            if (!(argv = SaveArgs(argsVector)) || !status){
+            if (!(argv = SaveArgs(argsVector))){
                  DEBUG('f', "Error: Unable to get User Args Vectors.\n",
                       FILE_NAME_MAX_LEN);
-                status = false;
+                machine->WriteRegister(2, newpid);
+                break;
             }
 
-            if (!(executable = fileSystem->Open(filename)) || !status) {
+            if (!(executable = fileSystem->Open(filename))) {
                 DEBUG('f', "Error: Unable to open file %s\n", filename);
-                status = false;
+                machine->WriteRegister(2, newpid);
+                break;
             }
 
-            if (!(newThread = new Thread(nullptr, join ? true : false)) || !status){
+            if (!(newThread = new Thread(nullptr, join ? true : false))) {
                 DEBUG('f', "Error: Unable to create a thread %s\n", filename);
-                status = false; 
+                machine->WriteRegister(2, newpid);
+                break;
             }
 
-            int newpid = -1;
-            if (status)
-                newpid = space_table->Add(newThread);
-            
-            if (newpid == -1 && status)
-            {
+            if ((newpid = space_table->Add(newThread)) == -1){
                 DEBUG('f', "Error: No se puede agregar el Thread a la space_table\n");
-                status = false;
+                delete newThread;
+                machine->WriteRegister(2, newpid);
+                break;
             }
 
-            if (!(space = new AddressSpace(executable, newpid)) || !status){
+            if (!(space = new AddressSpace(executable, newpid))){
                 DEBUG('f', "Error: Unable to create the address space \n");
-                status = false;
-            }
-
-            // Caso en que falló la creación del AddressSpace pero el thread se agregó a la tabla.
-            if (newpid != -1 && !status)
                 space_table->Remove(newpid);
+                delete newThread;
+                machine->WriteRegister(2, newpid);
+                break;
+            }
 
-            if (status){
-                newThread->SetPid(newpid);
-                newThread->space = space;
-                newThread->Fork(ProcessInitArgs, (void*)argv);
-            }
-            else{
-                if (newThread != nullptr)
-                    delete newThread;
-                if (space != nullptr)
-                    delete space;
-            }
+            newThread->SetPid(newpid);
+            newThread->space = space;
+            newThread->Fork(ProcessInitArgs, (void*)argv);
 
             machine->WriteRegister(2, newpid);
             break;
@@ -680,9 +674,6 @@ SyscallHandler(ExceptionType _et)
         case SC_EXIT: {
 
             int ret = machine->ReadRegister(4);            
-
-          //  delete currentThread->space;
-
 
             if (space_table->Get(0) == currentThread) // Main thread Exit
                 interrupt->Halt();

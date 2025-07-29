@@ -18,6 +18,16 @@ strlen(const char *s)
     return i;
 }
 
+static inline unsigned
+strcmp(const char *s1, const char *s2)
+{
+    while (*s1 && (*s1 == *s2)) {
+        s1++;
+        s2++;
+    }
+    return *s1 - *s2;
+}
+
 static inline void
 WritePrompt(OpenFileId output)
 {
@@ -122,6 +132,10 @@ main(void)
         // are given in the system call or not.
         SpaceId newProc ;
         int segundoPlano = 0;
+
+        if (strcmp(argv[0], "exit") == 0) {
+            return 0;
+        }
 
         if (argv[0][0] == '&' && argv[0][1] == '\0'){
             segundoPlano = 1;
