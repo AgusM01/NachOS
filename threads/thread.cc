@@ -249,13 +249,6 @@ Thread::Finish(int returnStatus)
 
     DEBUG('t', "Finishing thread \"%s\"\n", GetName());
     
-    // Borro mi lugar en el coremap.
-    #ifdef SWAP
-    for (unsigned i = 0; i < core_map->GetSize(); i++){
-        if (core_map->GetPid(i) == (unsigned int)pid)
-            core_map->Clear(i);
-    }
-    #endif 
 
     #ifdef FILESYS
     DEBUG('f',"Me estoy yendo, soy %d\n", pid);
@@ -302,6 +295,25 @@ Thread::Finish(int returnStatus)
         DEBUG('t', "Signal to father thread to continue with Join\n");
         waitToChild->Send(returnStatus); 
     }
+
+    // Borro mi lugar en el coremap.
+    #ifdef SWAP
+    for (unsigned i = 0; i < core_map->GetSize(); i++){
+        if (core_map->GetPid(i) == (unsigned int)pid)
+            core_map->Clear(i);
+    }
+    #endif 
+
+    #ifdef USER_PROGRAM
+
+    int id = currentThread->GetPid();
+
+    ASSERT(space_table->Remove(id) == currentThread);
+
+    if (space_table->IsEmpty()) {
+        interrupt->Halt();
+    }
+    #endif
 
     threadToBeDestroyed = currentThread;
 
