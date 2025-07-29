@@ -37,6 +37,7 @@ extern Timer *timer;                 ///< The hardware alarm clock.
 #include "userprog/synch_console.hh"
 #include "machine/machine.hh"
 #include "lib/bitmap.hh"
+#include "threads/thread_map.hh"
 #ifdef SWAP
 #include "lib/coremap.hh"
 extern CoreMap *core_map; 
@@ -44,7 +45,7 @@ extern CoreMap *core_map;
 extern Machine *machine;  // User program memory and registers.
 extern SynchConsole *synch_console;
 extern Bitmap *bit_map;
-extern Table <Thread*> *space_table;
+extern ThreadMap *space_table;  // Table of threads, indexed by pid.
 #ifdef FILESYS
 #include "lib/file_table.hh"
 #include "lib/dir_table.hh"

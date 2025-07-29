@@ -45,7 +45,7 @@ SynchConsole *synch_console;
 
 Bitmap *bit_map;
 
-Table <Thread*> *space_table;
+ThreadMap *space_table;
 #ifdef SWAP
 CoreMap *core_map;
 #endif
@@ -216,7 +216,7 @@ Initialize(int argc, char **argv)
     
     bit_map = new Bitmap(numPhysicalPages);
     
-    space_table = new Table <Thread*>;
+    space_table = new ThreadMap();
     
     int newpid;
     newpid = space_table->Add(currentThread);
@@ -259,6 +259,7 @@ Cleanup()
     delete bit_map;
     #endif
     
+    space_table->DelThreads();
     delete space_table;
 
     #ifdef FILESYS
