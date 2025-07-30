@@ -30,12 +30,7 @@ StartProcess(const char *filename)
         return;
     }
     
-
-    int newpid = -1;
-    newpid = space_table->Add(currentThread);
-    ASSERT(newpid != -1);
-
-    AddressSpace *space = new AddressSpace(executable, newpid);
+    AddressSpace *space = new AddressSpace(executable, currentThread->GetPid());
     currentThread->space = space;
 
     // No creo que tenga sentido borrar el ejecutable.

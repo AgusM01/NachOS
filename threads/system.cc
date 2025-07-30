@@ -258,17 +258,18 @@ Cleanup()
     #ifndef SWAP
     delete bit_map;
     #endif
-    
-    space_table->DelThreads();
+
+    Thread *thread = space_table->Remove(currentThread->GetPid());
+    ASSERT(thread == currentThread);
+    if (!space_table->IsEmpty()) {
+        space_table->DelThreads();
+    }
     delete space_table;
 
     #ifdef FILESYS
     delete fileTable;
     #endif
     
-   // #ifdef SWAP 
-   // delete core_map;
-   // #endif
 #endif
 
 #ifdef FILESYS_NEEDED

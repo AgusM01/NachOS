@@ -204,28 +204,28 @@ SyscallHandler(ExceptionType _et)
             DEBUG('f', "Opening a file\n");
 
             if (filenameAddr == 0){
-                DEBUG('f', "Error: address to filename string is null. \n");
+                DEBUG('e', "Error: address to filename string is null. \n");
                 status = -1;
             }
 
             if (!status && !ReadStringFromUser(filenameAddr, 
                                     filename, sizeof filename)){
-                 DEBUG('f', "Error: filename string too long (maximum is %u bytes).\n",
+                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
                 status = -1;
             }
         
             if (!status && !(newFile = fileSystem->Open(filename))){
-                DEBUG('f', "Cannot open file %s.\n", filename);
+                DEBUG('e', "Cannot open file %s.\n", filename);
                 status = -1; 
             }
 
             if (!status){
-                DEBUG('f', "`Open` requested for file `%s`.\n", filename);
+                DEBUG('e', "`Open` requested for file `%s`.\n", filename);
                 #ifndef FILESYS
                 status = currentThread->fileTableIds->Add(newFile);
                 #else
-                DEBUG('f', "Soy %d, abro el archivo %s, lo tienen abierto %d.\n", currentThread->GetPid(), filename, fileTable->GetOpen(filename));
+                DEBUG('e', "Soy %d, abro el archivo %s, lo tienen abierto %d.\n", currentThread->GetPid(), filename, fileTable->GetOpen(filename));
                 status = currentThread->AddFile(newFile, filename);
                 #endif
             }
@@ -246,18 +246,18 @@ SyscallHandler(ExceptionType _et)
             DEBUG('f', "`Close` requested for id %u.\n", fid);
 
             if (fid == 0 || fid == 1){
-                DEBUG('f', "Cannot close console fd id %u.\n", fid);
+                DEBUG('e', "Cannot close console fd id %u.\n", fid);
                 status = -1;
             }
             
             if (!status && fid < 0){
-                DEBUG('f', "Bad fd id %u.\n", fid);
+                DEBUG('e', "Bad fd id %u.\n", fid);
                 status = -1;
             }
             // Sacarlo de la tabla
             #ifndef FILESYS
             if (!status && !(file = currentThread->fileTableIds->Remove(fid))){
-                DEBUG('f', "Cannot found fd id %u in table.\n", fid);
+                DEBUG('e', "Cannot found fd id %u in table.\n", fid);
                 status = -1;
             }
             #else
@@ -457,24 +457,24 @@ SyscallHandler(ExceptionType _et)
             DEBUG('f', "Writing file of id: %d\n", id);
             
             if (id == 0){
-                DEBUG('f', "Error: File Descriptor Stdin");
+                DEBUG('e', "Error: File Descriptor Stdin");
                 status = -1;
             }
             
             if (!status && bufferToRead == 0){
-                DEBUG('f', "Error: Buffer to read is null. \n");
+                DEBUG('e', "Error: Buffer to read is null. \n");
                 status = -1;
             }
             
             if (!status && bytesToWrite <= 0) {
-                DEBUG('f', "Error: Bytes to write is non positive. \n");
+                DEBUG('e', "Error: Bytes to write is non positive. \n");
                 status = -1;
             }
             
             //Buscar id
             #ifndef FILESYS
             if(!status && id != 1 && !(file = currentThread->fileTableIds->Get(id))) {
-                DEBUG('f', "Error: File not found. \n");
+                DEBUG('e', "Error: File not found. \n");
                 status = -1;
             }
             #else
@@ -543,24 +543,24 @@ SyscallHandler(ExceptionType _et)
             char filename[FILE_NAME_MAX_LEN + 1];
 
             if (filenameAddr == 0){
-                DEBUG('f', "Error: address to filename string is null. \n");
+                DEBUG('e', "Error: address to filename string is null. \n");
                 status = false;
             }
 
             if (!ReadStringFromUser(filenameAddr, 
                                     filename, sizeof filename) || !status){
-                DEBUG('f', "Error: filename string too long (maximum is %u bytes).\n",
+                DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
                 status = false;
             }
 
             if (!(executable = fileSystem->Open(filename)) || !status) {
-                DEBUG('f', "Error: Unable to open file %s\n", filename);
+                DEBUG('e', "Error: Unable to open file %s\n", filename);
                 status = false;
             }
 
             if (!(newThread = new Thread(nullptr,join ? true : false)) || !status){
-                DEBUG('f', "Error: Unable to create a thread %s\n", filename);
+                DEBUG('e', "Error: Unable to create a thread %s\n", filename);
                 status = false; 
             }
             
@@ -570,12 +570,12 @@ SyscallHandler(ExceptionType _et)
             
             if (newpid == -1 && status)
             {
-                DEBUG('f', "Error: No se puede agregar el Thread a la space_table\n");
+                DEBUG('e', "Error: No se puede agregar el Thread a la space_table\n");
                 status = false;
             }
 
             if (!(space = new AddressSpace(executable, newpid)) || !status){
-                DEBUG('f', "Error: Unable to create the address space \n");
+                DEBUG('e', "Error: Unable to create the address space \n");
                 status = false;
             }
 
@@ -611,53 +611,53 @@ SyscallHandler(ExceptionType _et)
             char filename[FILE_NAME_MAX_LEN + 1];
 
             if (filenameAddr == 0){
-                DEBUG('f', "Error: address to filename string is null. \n");
+                DEBUG('e', "Error: address to filename string is null. \n");
                 machine->WriteRegister(2, newpid);
                 break;
             }
 
             if (argsVector == 0){
-                DEBUG('f', "Error: address to argsVector is null. \n");
+                DEBUG('e', "Error: address to argsVector is null. \n");
                 machine->WriteRegister(2, newpid);
                 break;
             }
 
             if (!ReadStringFromUser(filenameAddr, 
                                     filename, sizeof filename)){
-                 DEBUG('f', "Error: filename string too long (maximum is %u bytes).\n",
+                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
                 machine->WriteRegister(2, newpid);
                 break;
             }
 
             if (!(argv = SaveArgs(argsVector))){
-                 DEBUG('f', "Error: Unable to get User Args Vectors.\n",
+                 DEBUG('e', "Error: Unable to get User Args Vectors.\n",
                       FILE_NAME_MAX_LEN);
                 machine->WriteRegister(2, newpid);
                 break;
             }
 
             if (!(executable = fileSystem->Open(filename))) {
-                DEBUG('f', "Error: Unable to open file %s\n", filename);
+                DEBUG('e', "Error: Unable to open file %s\n", filename);
                 machine->WriteRegister(2, newpid);
                 break;
             }
 
             if (!(newThread = new Thread(nullptr, join ? true : false))) {
-                DEBUG('f', "Error: Unable to create a thread %s\n", filename);
+                DEBUG('e', "Error: Unable to create a thread %s\n", filename);
                 machine->WriteRegister(2, newpid);
                 break;
             }
 
             if ((newpid = space_table->Add(newThread)) == -1){
-                DEBUG('f', "Error: No se puede agregar el Thread a la space_table\n");
+                DEBUG('e', "Error: No se puede agregar el Thread a la space_table\n");
                 delete newThread;
                 machine->WriteRegister(2, newpid);
                 break;
             }
 
             if (!(space = new AddressSpace(executable, newpid))){
-                DEBUG('f', "Error: Unable to create the address space \n");
+                DEBUG('e', "Error: Unable to create the address space \n");
                 space_table->Remove(newpid);
                 delete newThread;
                 machine->WriteRegister(2, newpid);
