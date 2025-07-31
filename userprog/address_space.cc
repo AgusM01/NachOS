@@ -81,7 +81,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file, int newThreadPid)
     ASSERT(swapFile != nullptr);
 
     // Mediante el swapMap veo que páginas ya he escrito en swap.
-    swapMap = new bool[numPages];
+    swapMap = new bool[numPages]();
     ASSERT(swapMap != nullptr);
     #endif
     
@@ -640,7 +640,7 @@ AddressSpace::GetFromSwap(unsigned vpn)
 { 
     //puts("Traigo de SWAP");
     ASSERT(vpn <= numPages);
-    ASSERT(swapMap[vpn]);
+    ASSERT(swapMap[vpn] == true);
     
     ReadSwapFile(vpn, GetPagePhysicalPage(vpn));
     pageTable[vpn].valid = true;

@@ -26,6 +26,10 @@ CoreMap::CoreMap(unsigned nitems)
         fifo_ind = 0;
     #endif
 
+    #ifdef PRPOLICY_CLOCK
+        clock_ind = 0;
+    #endif
+
     numBits = nitems;
     map = new CoreStruct [numBits]; /// Crea un array con la cantidad de enteros que le dió 
     for (unsigned i = 0; i < numBits; i++) {
@@ -145,7 +149,7 @@ CoreMap::PickVictim()
     #ifdef PRPOLICY_CLOCK
     
     // Primera vuelta
-    int index;
+    int index = 0;
 
     for (unsigned i = 0; i < numBits; i++)
     {
