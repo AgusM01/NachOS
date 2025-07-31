@@ -319,18 +319,15 @@ AddressSpace::SaveState()
 //    printf("Guardo estado, soy %d\n", currentThread->GetPid());
     #ifdef USE_TLB
     // Defino una copia de la TLB así en un cambio de contexto no se cambian los valores.
-    TranslationEntry* tlbCopy = new TranslationEntry[TLB_SIZE];
-    memcpy(tlbCopy, machine->GetMMU()->tlb, sizeof(TranslationEntry) * TLB_SIZE);    
-    //TranslationEntry* tlb = machine->GetMMU()->tlb;
+    TranslationEntry* tlb = machine->GetMMU()->tlb;
     for (unsigned int i = 0; i < TLB_SIZE ; i++)
     {
-        if(tlbCopy[i].valid) 
+        if(tlb[i].valid) 
         {
-            pageTable[tlbCopy[i].virtualPage].dirty = tlbCopy[i].dirty;
-            pageTable[tlbCopy[i].virtualPage].use = tlbCopy[i].use;
+            pageTable[tlb[i].virtualPage].dirty = tlb[i].dirty;
+            pageTable[tlb[i].virtualPage].use = tlb[i].use;
         }
     }
-    delete [] tlbCopy;
     #endif
 }
 
@@ -610,8 +607,9 @@ AddressSpace::Swap(unsigned vpn_to_store)
                // Invalido la victima en la tlb.
                tlb[i].valid = false;
                 
-               // Actualizo la pageTable
-               pageTable[vpn].valid = false;
+               pageTable[vpn].dirty = tlb[i].dirty;
+               pageTable[vpn].use = tlb[i].use;
+
             }
         }
     }
