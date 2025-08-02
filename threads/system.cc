@@ -259,8 +259,10 @@ Cleanup()
     delete bit_map;
     #endif
 
-    Thread *thread = space_table->Remove(currentThread->GetPid());
-    ASSERT(thread == currentThread);
+    if (currentThread != NULL) { //Main thread already removed in Finish.
+        Thread *thread = space_table->Remove(currentThread->GetPid());
+        ASSERT(thread == currentThread);
+    }
     if (!space_table->IsEmpty()) {
         space_table->DelThreads();
     }

@@ -308,9 +308,12 @@ Thread::Finish(int returnStatus)
 
     int id = currentThread->GetPid();
 
+
     ASSERT(space_table->Remove(id) == currentThread);
 
     if (space_table->IsEmpty()) {
+        if (pid == 0) // Assuming pid 0 is the main thread.
+            currentThread = NULL; // Set currentThread to NULL so that Cleanup does not try to remove it.
         interrupt->Halt();
     }
     #endif
