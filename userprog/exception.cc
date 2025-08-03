@@ -366,22 +366,26 @@ SyscallHandler(ExceptionType _et)
             
             if (id == 1){
                 DEBUG('e', "Error: File Descriptor Stdout");
-                status = -1;
+                machine->WriteRegister(2, -1);
+                break;
             }
 
-            if (!status && bufferToWrite == 0){
+            if (bufferToWrite == 0){
                 DEBUG('e', "Error: Buffer to write is null. \n");
-                status = -1;
+                machine->WriteRegister(2, -1);
+                break;
             }
 
-            if (!status && bytesToRead < 0) {
+            if (bytesToRead < 0) {
                 DEBUG('e', "Error: Bytes to read is negative. \n");
-                status = -1;
+                machine->WriteRegister(2, -1);
+                break;
             }
             
             #ifndef FILESYS
             DEBUG('f', "Reading file not FILESYS\n");
-            if(!status && id != 0 && !(file = currentThread->fileTableIds->Get(id))) {
+            file = currentThread->fileTableIds->Get(id);
+            if(id != 0 && file == NULL) {
                 DEBUG('e', "Error: File not found. \n");
                 status = -1;
             }
@@ -398,8 +402,8 @@ SyscallHandler(ExceptionType _et)
             
             DEBUG('f', "Reading file %s\n", filename);
 
-            // Si está todo bien y no estoy escribiendo a consola.
-            if (status != -1 && id != 0) {
+            // Si no estoy leyendo la consola.
+            if (id != 0) {
                 
                 // Aumento la cantidad de lectores
                 // y de paso checkeo que no se esté escribiendo el archivo.
@@ -427,20 +431,28 @@ SyscallHandler(ExceptionType _et)
                 
                 machine->WriteRegister(2,status);
                 break;
+            } else { 
+               // Estoy leyendo de la consola.
+                DEBUG('f', "Reading from console\n");
+                // No tengo que hacer nada con el lock.
+                // Solo leer el buffer y escribirlo.
+                status = bytesToRead;
+                synch_console->ReadNBytes(bufferTransfer, bytesToRead); 
+                WriteBufferToUser(bufferTransfer, bufferToWrite, status);
+                machine->WriteRegister(2, status);
+                break;
             }
             #endif
             
-            if (!status) {
-                if (id == 0){
-                    status = bytesToRead;
-                    synch_console->ReadNBytes(bufferTransfer, bytesToRead);
-                }
-                else
-                    status = file->Read(bufferTransfer, bytesToRead);
-                
-                if (status != 0) // NO estoy en EOF
-                    WriteBufferToUser(bufferTransfer, bufferToWrite, status);
+            if (id == 0){
+                status = bytesToRead;
+                synch_console->ReadNBytes(bufferTransfer, bytesToRead);
             }
+            else
+                status = file->Read(bufferTransfer, bytesToRead);
+            
+            if (status != 0) // NO estoy en EOF
+                WriteBufferToUser(bufferTransfer, bufferToWrite, status);
             
             machine->WriteRegister(2, status);
             break;       
@@ -450,37 +462,44 @@ SyscallHandler(ExceptionType _et)
             int bufferToRead = machine->ReadRegister(4);
             int bytesToWrite = machine->ReadRegister(5);
             OpenFileId id = machine->ReadRegister(6);
-            int status = 0;            
             OpenFile *file;            
+            int status = 0;
             char bufferTransfer[bytesToWrite];
             
             DEBUG('f', "Writing file of id: %d\n", id);
             
             if (id == 0){
                 DEBUG('e', "Error: File Descriptor Stdin");
-                status = -1;
+                machine->WriteRegister(2, -1);
+                break;
             }
             
-            if (!status && bufferToRead == 0){
+            if (bufferToRead == 0){
                 DEBUG('e', "Error: Buffer to read is null. \n");
-                status = -1;
+                machine->WriteRegister(2, -1);
+                break;
             }
             
-            if (!status && bytesToWrite <= 0) {
+            if (bytesToWrite <= 0) {
                 DEBUG('e', "Error: Bytes to write is non positive. \n");
-                status = -1;
+                machine->WriteRegister(2, -1);
+                break;
             }
             
             //Buscar id
             #ifndef FILESYS
-            if(!status && id != 1 && !(file = currentThread->fileTableIds->Get(id))) {
+            file = currentThread->fileTableIds->Get(id);
+            if( id != 1 && file == NULL) {
                 DEBUG('e', "Error: File not found. \n");
-                status = -1;
+                machine->WriteRegister(2, -1);
+                break;
             }
             #else
-            if(!status && id != 1 && !(file = currentThread->GetFile(id))) {
+            file = currentThread->GetFile(id);
+            if(id != 1 && file == NULL) {
                 DEBUG('f', "Error: File not found. \n");
-                status = -1;
+                machine->WriteRegister(2, -1);
+                break;
             }
             
             char* filename = currentThread->GetFileName(id);
@@ -492,7 +511,7 @@ SyscallHandler(ExceptionType _et)
             ASSERT(file == fileTable->GetFile(filename));
             
             // Si está todo bien y no estoy escribiendo a consola.
-            if (status != -1 && id != 1) {
+            if (id != 1) {
                 // Tengo el Lock, tengo que checkear que no haya ecritores.
                 fileTable->FileWrLock(filename, ACQUIRE);
                 fileTable->FileRdWrLock(filename, ACQUIRE);
@@ -515,18 +534,26 @@ SyscallHandler(ExceptionType _et)
                 fileTable->FileRdWrLock(filename, RELEASE);
                 fileTable->FileWrLock(filename, RELEASE);
                 break;
+            } else {
+                // Estoy escribiendo a consola.
+                // No tengo que hacer nada con el lock.
+                // Solo leer el buffer y escribirlo.
+                DEBUG('f', "Escribiendo a consola\n");
+                ReadBufferFromUser(bufferToRead, bufferTransfer, bytesToWrite);
+                status = bytesToWrite;
+                synch_console->WriteNBytes(bufferTransfer, bytesToWrite);
+                machine->WriteRegister(2, status);
+                break;
             }
             #endif
             
             DEBUG('f', "Con FS activado, si leo esto es porque o status es -1 o estoy escribiendo a STDOUT. Status: %d, fd: %d\n", status, id);
-            if (!status) {
-                ReadBufferFromUser(bufferToRead, bufferTransfer, bytesToWrite);
-                if (id == 1){
-                    status = bytesToWrite;
-                    synch_console->WriteNBytes(bufferTransfer, bytesToWrite); 
-                }
-                else 
-                    status = file->Write(bufferTransfer, bytesToWrite); 
+            ReadBufferFromUser(bufferToRead, bufferTransfer, bytesToWrite);
+            if (id == 1){
+                status = bytesToWrite;
+                synch_console->WriteNBytes(bufferTransfer, bytesToWrite); 
+            } else {
+                status = file->Write(bufferTransfer, bytesToWrite); 
             }
 
             machine->WriteRegister(2, status);
