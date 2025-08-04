@@ -274,6 +274,14 @@ AddressSpace::~AddressSpace()
     #ifdef DEMAND_LOADING
         delete exe;
     #endif
+    #ifdef SWAP
+    // Si tengo swap, elimino el archivo de swap.
+    if (swapFile != nullptr) {
+        fileSystem->Remove(swapName);
+        delete [] swapMap;
+        delete swapFile;
+    }
+    #endif
     delete [] pageTable;
 }
 

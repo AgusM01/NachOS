@@ -38,4 +38,5 @@ main(int argc, char *argv[])
         PrintString(argv[i]);
     }
     PrintChar('\n');
+    return 0;
 }

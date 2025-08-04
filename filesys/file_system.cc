@@ -318,7 +318,7 @@ FileSystem::Create(const char *name, unsigned initialSize)
     char* actDir = currentThread->GetDir();
     ASSERT(actDir != nullptr);
     
-    DEBUG('f', "Voy a crear el archivo %s en el directorio %s\n.", name, actDir);
+    DEBUG('f', "Voy a crear el archivo %s en el directorio %s\n", name, actDir);
     dirTable->DirLock(actDir, ACQUIRE);
     Directory *dir = new Directory(dirTable->GetNumEntries(actDir));
     dir->FetchFrom(dirTable->GetDir(actDir));
@@ -327,7 +327,7 @@ FileSystem::Create(const char *name, unsigned initialSize)
 
     if (dir->Find(name) != -1) {
         DEBUG('f', "El archivo %s ya está en el directorio\n", name);
-        success = false;  // File is already in directory.
+        success = true;  // File is already in directory.
     } else {
         
         Bitmap *freeMap = new Bitmap(NUM_SECTORS);

@@ -118,8 +118,9 @@ Scheduler::Run(Thread *nextThread)
     // now (for example, in `Thread::Finish`), because up to this point, we
     // were still running on the old thread's stack!
     if (threadToBeDestroyed != nullptr) {
-        delete threadToBeDestroyed;
-        threadToBeDestroyed = nullptr;
+        Thread *del = threadToBeDestroyed;
+        threadToBeDestroyed = nullptr;  // Clear the global variable.
+        delete del;
     }
 
 #ifdef USER_PROGRAM

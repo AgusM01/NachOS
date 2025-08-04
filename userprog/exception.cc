@@ -387,18 +387,23 @@ SyscallHandler(ExceptionType _et)
             file = currentThread->fileTableIds->Get(id);
             if(id != 0 && file == NULL) {
                 DEBUG('e', "Error: File not found. \n");
-                status = -1;
+                machine->WriteRegister(2, -1);
             }
             #else
-            if(!status && id != 0 && !(file = currentThread->GetFile(id))) {
+            file = currentThread->GetFile(id);
+            if(id != 0 && file == NULL) {
                 DEBUG('e', "Error: File not found. \n");
-                status = -1;
+                machine->WriteRegister(2, -1);
+                break;
             }
             
             char* filename = currentThread->GetFileName(id);
 
-            if (filename == nullptr)
-                status = -1;
+            if (filename == NULL) {
+                DEBUG('f', "Error: File not found in file table. \n");
+                machine->WriteRegister(2, -1);
+                break;
+            }
             
             DEBUG('f', "Reading file %s\n", filename);
 
@@ -504,8 +509,11 @@ SyscallHandler(ExceptionType _et)
             
             char* filename = currentThread->GetFileName(id);
             
-            if (filename == nullptr)
-            status = -1;
+            if (filename == nullptr) {
+                DEBUG('f', "Error: File not found in file table. \n");
+                machine->WriteRegister(2, -1);
+                break;
+            }
             
             DEBUG('f', "Writing file %s\n", filename);
             ASSERT(file == fileTable->GetFile(filename));
