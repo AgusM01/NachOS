@@ -141,6 +141,37 @@ Close:
         j       $31
         .end    Close
 
+        .globl  MkDir
+        .ent    MkDir
+MkDir:
+        addiu   $2, $0, SC_MKDIR
+        syscall
+        j       $31
+        .end    MkDir
+        
+        .globl  RmDir
+        .ent    RmDir
+RmDir:
+        addiu   $2, $0, SC_RMDIR
+        syscall
+        j       $31
+        .end    RmDir
+
+        .globl  LsDir
+        .ent    LsDir
+LsDir:
+        addiu   $2, $0, SC_LSDIR
+        syscall
+        j       $31
+        .end    LsDir
+
+        .globl  CDir
+        .ent    CDir
+CDir:
+        addiu   $2, $0, SC_CDIR
+        syscall
+        j       $31
+        .end    CDir
 /// Dummy function to keep gcc happy.
         .globl  __main
         .ent    __main

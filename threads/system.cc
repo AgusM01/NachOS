@@ -15,7 +15,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-
+#include <stdio.h>
 
 /// This defines *all* of the global data structures used by Nachos.
 ///
@@ -42,8 +42,19 @@ SynchDisk *synchDisk;
 #ifdef USER_PROGRAM  // Requires either *FILESYS* or *FILESYS_STUB*.
 Machine *machine;  ///< User program memory and registers.
 SynchConsole *synch_console;
+
 Bitmap *bit_map;
-Table <Thread*> *space_table;
+
+ThreadMap *space_table;
+#ifdef SWAP
+CoreMap *core_map;
+#endif
+
+#ifdef FILESYS
+FileTable *fileTable;
+DirTable *dirTable;
+#endif
+
 #endif
 
 // External definition, to allow us to take a pointer to this function.
@@ -191,7 +202,7 @@ Initialize(int argc, char **argv)
     // En un SO real ya viene un hilo dado por defecto desde la CPU que es donde corre el kernel.
     currentThread = new Thread("main", false);
     currentThread->SetStatus(RUNNING);
-
+    
     interrupt->Enable();
     SystemDep::CallOnUserAbort(Cleanup);  // If user hits ctl-C...
 
@@ -202,11 +213,25 @@ Initialize(int argc, char **argv)
     machine = new Machine(d, numPhysicalPages);  // This must come first.
     
     synch_console = new SynchConsole(nullptr,nullptr);
-
+    
     bit_map = new Bitmap(numPhysicalPages);
     
-    space_table = new Table <Thread*>;
-
+    space_table = new ThreadMap();
+    
+    int newpid;
+    newpid = space_table->Add(currentThread);
+    currentThread->SetPid(newpid);
+    ASSERT(newpid != -1);
+    
+    #ifdef SWAP
+    core_map = new CoreMap(numPhysicalPages);
+    #endif
+    
+    #ifdef FILESYS
+    fileTable = new FileTable();
+    dirTable = new DirTable();
+    #endif
+    
     SetExceptionHandlers();
 #endif
 
@@ -229,8 +254,24 @@ Cleanup()
 #ifdef USER_PROGRAM
     delete machine;
     delete synch_console;
+    
+    #ifndef SWAP
     delete bit_map;
+    #endif
+
+    if (currentThread != NULL) { //Main thread already removed in Finish.
+        Thread *thread = space_table->Remove(currentThread->GetPid());
+        ASSERT(thread == currentThread);
+    }
+    if (!space_table->IsEmpty()) {
+        space_table->DelThreads();
+    }
     delete space_table;
+
+    #ifdef FILESYS
+    delete fileTable;
+    #endif
+    
 #endif
 
 #ifdef FILESYS_NEEDED

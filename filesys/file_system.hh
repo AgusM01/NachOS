@@ -35,9 +35,7 @@
 #ifndef NACHOS_FILESYS_FILESYSTEM__HH
 #define NACHOS_FILESYS_FILESYSTEM__HH
 
-
 #include "open_file.hh"
-
 
 #ifdef FILESYS_STUB  // Temporarily implement file system calls as calls to
                      // UNIX, until the real file system implementation is
@@ -100,7 +98,14 @@ public:
 /// supports extensible files, the directory size sets the maximum number of
 /// files that can be loaded onto the disk.
 static const unsigned FREE_MAP_FILE_SIZE = NUM_SECTORS / BITS_IN_BYTE;
-static const unsigned NUM_DIR_ENTRIES = 10;
+
+// Con archivos extensibles podemos hacer esto 0.
+//static const unsigned NUM_DIR_ENTRIES = 10;
+static const unsigned NUM_DIR_ENTRIES = 0;
+
+// Con archivos extensibles esto será 0.
+// Se va incrementando a medida que ingresamos archivos
+// al directorio.
 static const unsigned DIRECTORY_FILE_SIZE
   = sizeof (DirectoryEntry) * NUM_DIR_ENTRIES;
 
@@ -117,6 +122,14 @@ public:
 
     ~FileSystem();
 
+    /// Checkea si un path tiene sentido.
+    /// Es decir, si efectivamente cada directorio va estando
+    /// dentro del anterior en el path.
+    bool CheckPath(char** dirNames, unsigned subdirs);
+    
+    /// Busca un archivo de directorio y lo agrega a la dirTable.
+    bool AddDirFile(char** path, unsigned subDirectories);
+
     /// Create a file (UNIX `creat`).
     bool Create(const char *name, unsigned initialSize);
 
@@ -125,6 +138,15 @@ public:
 
     /// Delete a file (UNIX `unlink`).
     bool Remove(const char *name);
+
+    /// Crea un nuevo directorio (UNIX 'mkdir').
+    bool MkDir(const char *name, unsigned initialSize);
+    
+    /// Elimima un directorio completo (UNIX 'rm -r \dir')
+    bool RemoveDir(char *name);
+    
+    /// Lista todo lo del último directorio del path.
+    bool Ls(char* path);
 
     /// List all the files in the file system.
     void List();
@@ -136,10 +158,11 @@ public:
     void Print();
 
 private:
-    OpenFile *freeMapFile;  ///< Bit map of free disk blocks, represented as a
+    //OpenFile *freeMapFile;  ///< Bit map of free disk blocks, represented as a
                             ///< file.
-    OpenFile *directoryFile;  ///< “Root” directory -- list of file names,
+    //OpenFile *directoryFile;  ///< “Root” directory -- list of file names,
                               ///< represented as a file.
+
 };
 
 #endif

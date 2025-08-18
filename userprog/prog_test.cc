@@ -29,13 +29,14 @@ StartProcess(const char *filename)
         printf("Unable to open file %s\n", filename);
         return;
     }
-
-    AddressSpace *space = new AddressSpace(executable);
+    
+    AddressSpace *space = new AddressSpace(executable, currentThread->GetPid());
     currentThread->space = space;
 
-    space_table->Add(currentThread);
-
-    delete executable;
+    // No creo que tenga sentido borrar el ejecutable.
+    #ifndef DEMAND_LOADING
+    //delete executable;
+    #endif
 
     space->InitRegisters();  // Set the initial register values.
     space->RestoreState();   // Load page table register.

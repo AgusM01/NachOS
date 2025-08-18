@@ -7,7 +7,7 @@
 
 
 #include "syscall.h"
-
+#include "./lib.c"
 
 /// Sum total of the arrays does not fit in physical memory.
 #define DIM  20
@@ -39,6 +39,14 @@ main(void)
         }
     }
 
+    Create("ResMult");
+    OpenFileId o = Open("ResMult");
+    char result[5];
+    itoa(C[DIM-1][DIM-1], result);
+    Write(result, strlen(result), o);
+    Close(o);
+
+    //puts("Termino\n");
     // And then we are done.
     return C[DIM - 1][DIM - 1];
 }

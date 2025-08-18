@@ -1,12 +1,11 @@
 /// Copyright (c) 2016-2021 Docentes de la Universidad Nacional de Rosario.
-/// All rights reserved.  See `copyright.h` for copyright notice and
+/// All rights reserved.  See copyright.h for copyright notice and
 /// limitation of liability and disclaimer of warranty provisions.
 
 
 #include "transfer.hh"
 #include "machine/machine.hh"
 #include "threads/system.hh"
-#include <stdio.h>
 
 #include <string.h>
 
@@ -27,7 +26,13 @@ bool CountArgsToSave(int address, unsigned *count)
     int val;
     unsigned c = 0;
     do {
+#ifdef USE_TLB
+        int i;
+        for(i = 0; i < NUM_EXCEPTION_TYPES && !machine->ReadMem(address + 4 * c, 4, &val); i++);
+        ASSERT(i != NUM_EXCEPTION_TYPES);
+#else
         machine->ReadMem(address + 4 * c, 4, &val);
+#endif
         c++;
     } while (c < MAX_ARG_COUNT && val != 0);
     if (c == MAX_ARG_COUNT && val != 0) {
@@ -53,7 +58,7 @@ SaveArgs(int address)
     DEBUG('e', "Saving %u command line arguments from parent process.\n",
           count);
 
-    // Allocate an array of `count` pointers.  We know that `count` will
+    // Allocate an array of count pointers.  We know that count will
     // always be at least 1.
     char **args = new char * [count + 1];
 
@@ -61,7 +66,13 @@ SaveArgs(int address)
         args[i] = new char [MAX_ARG_LENGTH];
         int strAddr;
         // For each pointer, read the corresponding string.
+#ifdef USE_TLB
+        int status;
+        for(status = 0; status < NUM_EXCEPTION_TYPES && !machine->ReadMem(address + i * 4, 4, &strAddr); status++);
+        ASSERT(status != NUM_EXCEPTION_TYPES);
+#else
         machine->ReadMem(address + i * 4, 4, &strAddr);
+#endif
         ReadStringFromUser(strAddr, args[i], MAX_ARG_LENGTH);
     }
     args[count] = nullptr;  // Write the trailing null.
@@ -95,13 +106,24 @@ WriteArgs(char **args)
     ASSERT(c < MAX_ARG_COUNT);
 
     sp -= sp % 4;     // Align the stack to a multiple of four.
-    sp -= c * 4 + 4;  // Make room for `argv`, including the trailing null.
+    sp -= c * 4 + 4;  // Make room for argv, including the trailing null.
     // Write each argument's address.
     for (unsigned i = 0; i < c; i++) {
+#ifdef USE_TLB
+        int status;
+        for(status = 0; status < NUM_EXCEPTION_TYPES && !machine->WriteMem(sp + 4 * i, 4, argsAddress[i]); status++)
+        ASSERT(status != NUM_EXCEPTION_TYPES);
+#else
         machine->WriteMem(sp + 4 * i, 4, argsAddress[i]);
+#endif
     }
-    machine->WriteMem(sp + 4 * c, 4, 0);  // The last is null.
-
+    #ifdef USE_TLB
+    int status;
+    for(status = 0; status < NUM_EXCEPTION_TYPES && !machine->WriteMem(sp + 4 * c, 4, 0)/*The last is null*/; status++)
+    ASSERT(status != NUM_EXCEPTION_TYPES);
+#else
+    machine->WriteMem(sp + 4 * c, 4, 0)/*The last is null*/;
+#endif
     machine->WriteRegister(STACK_REG, sp);
     return c;
 }

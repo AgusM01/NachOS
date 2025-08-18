@@ -41,16 +41,19 @@
 /// All rights reserved.  See `copyright.h` for copyright notice and
 /// limitation of liability and disclaimer of warranty provisions.
 
-
-#include "file_system.hh"
 #include "directory.hh"
 #include "file_header.hh"
-#include "lib/bitmap.hh"
 
+#include "filesys/raw_file_header.hh"
+#include "threads/system.hh"
 #include <stdio.h>
 #include <string.h>
+#include <cstring>
 
+#define MIN(a,b) a < b ? a : b
+#define MAX_DIR_ENTRIES 50
 
+Lock* CreateLock = new Lock("FSCreateLock");
 /// Sectors containing the file headers for the bitmap of free sectors, and
 /// the directory of files.  These file headers are placed in well-known
 /// sectors, so that they can be located on boot-up.
@@ -69,9 +72,16 @@ static const unsigned DIRECTORY_SECTOR = 1;
 FileSystem::FileSystem(bool format)
 {
     DEBUG('f', "Initializing the file system.\n");
+    // Debemos inicializar el disco (de 0)
     if (format) {
+        
+        // Creamos un bitmap para ir llevando los sectores libres del disco.
         Bitmap     *freeMap = new Bitmap(NUM_SECTORS);
-        Directory  *dir     = new Directory(NUM_DIR_ENTRIES);
+        
+        // No creamos un directorio ya que no vamos a guardar nada.
+        // En el directorio se guarda unicamente la tabla de archivos que tiene.
+        // En este momento no tiene nada.
+        //Directory  *dir     = new Directory(NUM_DIR_ENTRIES);
         FileHeader *mapH    = new FileHeader;
         FileHeader *dirH    = new FileHeader;
 
@@ -79,20 +89,28 @@ FileSystem::FileSystem(bool format)
 
         // First, allocate space for FileHeaders for the directory and bitmap
         // (make sure no one else grabs these!)
+        // Los FileHeaders del bitmap y del directorio principal están en los
+        // sectores 0 y 1 respectivamente.
+        // Siempre habrá un directorio root.
+        // Los archivos/directorios se crean dentro de este.
         freeMap->Mark(FREE_MAP_SECTOR);
         freeMap->Mark(DIRECTORY_SECTOR);
 
         // Second, allocate space for the data blocks containing the contents
         // of the directory and bitmap files.  There better be enough space!
-
+        
+        DEBUG('f', "Hago espacio para los datos del bitmap\n");
         ASSERT(mapH->Allocate(freeMap, FREE_MAP_FILE_SIZE));
+        DEBUG('f', "Hago espacio para los datos del directorio\n");
         ASSERT(dirH->Allocate(freeMap, DIRECTORY_FILE_SIZE));
 
         // Flush the bitmap and directory `FileHeader`s back to disk.
         // We need to do this before we can `Open` the file, since open reads
         // the file header off of disk (and currently the disk has garbage on
         // it!).
-
+        
+        // Esto permite eliminar mapH y dirH ya que la información importante
+        // (RawFileHeader) la mando a disco. Una unidad estática.
         DEBUG('f', "Writing headers back to disk.\n");
         mapH->WriteBack(FREE_MAP_SECTOR);
         dirH->WriteBack(DIRECTORY_SECTOR);
@@ -101,9 +119,15 @@ FileSystem::FileSystem(bool format)
         // The file system operations assume these two files are left open
         // while Nachos is running.
 
-        freeMapFile   = new OpenFile(FREE_MAP_SECTOR);
-        directoryFile = new OpenFile(DIRECTORY_SECTOR);
+        OpenFile* freeMapFile   = new OpenFile(FREE_MAP_SECTOR);
+        OpenFile* directoryFile = new OpenFile(DIRECTORY_SECTOR);
 
+        // Añadimos el freeMap a la fileTable
+        fileTable->Add(freeMapFile, "freeMap");
+
+        // Añadimos el directorio a la dirTable.
+        dirTable->Add(directoryFile, "root", nullptr);
+        
         // Once we have the files “open”, we can write the initial version of
         // each file back to disk.  The directory at this point is completely
         // empty; but the bitmap has been changed to reflect the fact that
@@ -111,15 +135,16 @@ FileSystem::FileSystem(bool format)
         // to hold the file data for the directory and bitmap.
 
         DEBUG('f', "Writing bitmap and directory back to disk.\n");
-        freeMap->WriteBack(freeMapFile);     // flush changes to disk
-        dir->WriteBack(directoryFile);
+        freeMap->WriteBack(fileTable->GetFile("freeMap"));     // flush changes to disk
+        
+        //dir->WriteBack(directoryFile);
 
         if (debug.IsEnabled('f')) {
             freeMap->Print();
-            dir->Print();
+            //dir->Print();
 
             delete freeMap;
-            delete dir;
+            //delete dir;
             delete mapH;
             delete dirH;
         }
@@ -127,15 +152,119 @@ FileSystem::FileSystem(bool format)
         // If we are not formatting the disk, just open the files
         // representing the bitmap and directory; these are left open while
         // Nachos is running.
-        freeMapFile   = new OpenFile(FREE_MAP_SECTOR);
-        directoryFile = new OpenFile(DIRECTORY_SECTOR);
+        OpenFile* freeMapFile   = new OpenFile(FREE_MAP_SECTOR);
+        OpenFile* directoryFile = new OpenFile(DIRECTORY_SECTOR);
+        
+        // Añadimos el freeMap a la fileTable
+        fileTable->Add(freeMapFile, "freeMap");
+        
+       unsigned dirEntries = 0;
+        
+       if (directoryFile->GetFileHeader()->GetRaw()->numSectors > 0){
+            Directory* dir = new Directory(MAX_DIR_ENTRIES);
+            dir->FetchFrom(directoryFile);
+            for(; dir->GetRaw()->table[dirEntries].inUse;dirEntries++);
+       }
+
+        // Añadimos el directorio a la dirTable.
+        dirTable->Add(directoryFile, "root", nullptr);
+
+        // Seteo el número en la dirTable para usos posteriores.
+        dirTable->SetNumEntries("root", dirEntries);
+        DEBUG('f', "La cantidad de dirEntries es: %u\n", dirEntries);
     }
+
+    DEBUG('f', "End of creating FileSystem\n");
 }
 
 FileSystem::~FileSystem()
 {
-    delete freeMapFile;
-    delete directoryFile;
+    delete fileTable->GetFile("freeMap");
+    delete dirTable->GetDir("root");
+    //fileTable->Remove("freeMap");
+    // Ver en el ejercicio 4 que pasa al remover directorios.
+}
+
+bool
+FileSystem::CheckPath(char** dirNames, unsigned subdirs)
+{
+
+    if (strcmp(dirNames[0],"root") != 0)
+        return false;
+    
+    DEBUG('f', "Path a checkear:\n");
+    for (unsigned i = 0; i < subdirs; i++)
+    {
+        DEBUG('f', "%s/",dirNames[i]);
+    }
+
+    // Ahora la cantidad de directorios es subdirs.
+    // Debo buscar que cada uno de ellos se encuentre dentro del anterior.
+    Directory* subDirs[subdirs];
+    int subDirSector;
+
+    // Checkeo que el path sea correcto.
+    // Es decir, checkeo que cada directorio pertenezca al anterior.
+    for (unsigned i = 0; i < subdirs-1; i++)
+    {
+        //dirTable->DirLock(dirNames[i], ACQUIRE);
+        subDirs[i] = new Directory(dirTable->GetNumEntries(dirNames[i]));
+        subDirs[i]->FetchFrom(dirTable->GetDir(dirNames[i]));
+        if(dirNames[i+1] != NULL)
+        {
+            // Busco el directorio donde quiero agregar el archivo.
+            // Si no existe, retorno error.
+            subDirSector = subDirs[i]->Find(dirNames[i+1]);
+            if(subDirSector == -1){
+                DEBUG('f', "Error: Directorio %s no existente\n", dirNames[i+1]);
+                return false;
+            }
+
+            // Acá ya sé que el directorio pertenece.
+            // Suelto el lock y elimino el actual.
+            // dirTable->DirLock(dirNames[i], RELEASE);
+            delete subDirs[i];
+        }
+    }
+    return true;
+}
+
+bool
+FileSystem::AddDirFile(char** path, unsigned subDirectories)
+{
+    // El primer directorio tiene que ser el root.
+    ASSERT(!strcmp(path[0],"root"));
+
+    // Luego solo me hace falta el penúltimo, ya que será
+    // el padre del último -> El que necesito.
+
+    dirTable->DirLock(path[subDirectories-1], ACQUIRE);
+    //Esta operación se hace con los locks correspondientes tomados.
+    Directory* dir = new Directory(dirTable->GetNumEntries(path[subDirectories-1]));
+    dir->FetchFrom(dirTable->GetDir(path[subDirectories-1]));
+    
+    
+    int sub_sector = dir->Find(path[subDirectories]);
+    // No tendría sentido que de -1 ya que antes de entrar a esta función
+    // ya corroboré que tenga sentido la cadena de directorios.
+    ASSERT(sub_sector != -1);
+    
+    OpenFile* entrySearched = new OpenFile(sub_sector);
+
+    Directory* subDir = new Directory(MAX_DIR_ENTRIES);
+    subDir->FetchFrom(entrySearched);
+    
+    unsigned numSubDirEntries = 0;
+    if(entrySearched->GetFileHeader()->GetRaw()->numSectors != 0)
+        for(;subDir->GetRaw()->table[numSubDirEntries].inUse;numSubDirEntries++);
+    dirTable->Add(entrySearched, path[subDirectories], path[subDirectories-1]);
+    dirTable->SetNumEntries(path[subDirectories], numSubDirEntries);
+    dirTable->DirLock(path[subDirectories-1], RELEASE);
+    delete subDir;
+    delete dir;
+    
+
+    return true;
 }
 
 /// Create a file in the Nachos file system (similar to UNIX `create`).
@@ -166,42 +295,98 @@ FileSystem::~FileSystem()
 bool
 FileSystem::Create(const char *name, unsigned initialSize)
 {
+    // Se podría usar esta misma Create para crear directorios (como MKDIR)
+    // ya que tienen la misma sintáxis y únicamente cambia la semántica que se le da.
+    // Ver bien eso.
+
+    //CreateLock->Acquire();
+
+    // No hace falta hacer una copia del nombre ya que 
+    // para lo único que se usa es para agregarlo a la dirTable
+    // y esta en su función Add ya realiza la copia.
     ASSERT(name != nullptr);
+    unsigned nameLen = strlen(name);
+    ASSERT(nameLen < FILE_NAME_MAX_LEN);
     ASSERT(initialSize < MAX_FILE_SIZE);
+    
 
-    DEBUG('f', "Creating file %s, size %u\n", name, initialSize);
-
-    Directory *dir = new Directory(NUM_DIR_ENTRIES);
-    dir->FetchFrom(directoryFile);
-
+    // Ahora tomamos el lock del directorio sobre el cual vamos a trabajar.
+    // En este caso es root.
+    // Podemos llevar una tabla con el path de trabajo del hilo actual
+    // y quedarnos con el último.
+    // Siempre verificando que ese path tiene sentido.
+    char* actDir = currentThread->GetDir();
+    ASSERT(actDir != nullptr);
+    
+    DEBUG('f', "Voy a crear el archivo %s en el directorio %s\n", name, actDir);
+    dirTable->DirLock(actDir, ACQUIRE);
+    Directory *dir = new Directory(dirTable->GetNumEntries(actDir));
+    dir->FetchFrom(dirTable->GetDir(actDir));
+    
     bool success;
 
     if (dir->Find(name) != -1) {
-        success = false;  // File is already in directory.
+        DEBUG('f', "El archivo %s ya está en el directorio\n", name);
+        success = true;  // File is already in directory.
     } else {
+        
         Bitmap *freeMap = new Bitmap(NUM_SECTORS);
+        OpenFile* freeMapFile = fileTable->GetFile("freeMap");
         freeMap->FetchFrom(freeMapFile);
         int sector = freeMap->Find();
           // Find a sector to hold the file header.
         if (sector == -1) {
+            DEBUG('f', "Error: no hay lugar para el header del archivo %s\n", name);
             success = false;  // No free block for file header.
         } else if (!dir->Add(name, sector)) {
+            DEBUG('f', "Error: no hay espacio en directorio para archivo %s\n", name);
             success = false;  // No space in directory.
         } else {
-            FileHeader *h = new FileHeader;
+            FileHeader *h = new FileHeader; // Creo el i-nodo
             success = h->Allocate(freeMap, initialSize);
               // Fails if no space on disk for data.
             if (success) {
-                // Everything worked, flush all changes back to disk.
-                h->WriteBack(sector);
-                dir->WriteBack(directoryFile);
+                DEBUG('f', "Creación del archivo %s exitosa, mandando a disco todo\n", name);
+                // Escribo el bitmap así se actualiza el sector que le dí al archivo.
                 freeMap->WriteBack(freeMapFile);
+
+                // Everything worked, flush all changes back to disk.
+                DEBUG('f', "Mando a disco el header del archivo %s\n", name);
+                h->WriteBack(sector);
+                DEBUG('f', "Mando a disco el directorio que contiene el archivo\n");
+                dir->WriteBack(dirTable->GetDir(actDir));
+                DEBUG('f', "Mando a disco el Bitmap\n");
+                // Lo traigo de nuevo para ver si hubo algún cambio.
+                freeMap->FetchFrom(freeMapFile);
+                freeMap->WriteBack(freeMapFile);
+               // DEBUG('f', "Ahora quiero imprimir el Bitmap\n");
+               // freeMap->Print();
+               // DEBUG('f',"Escribo por las dudas:\n");
+               // dir->WriteBack(dirTable->GetDir("root"));
+               // DEBUG('f', "A ver que tal quedó:\n");
+               // dir->FetchFrom(dirTable->GetDir("root"));
             }
+            else
+                DEBUG('f', "Error: No hay espacio en el disco para los datos del archivo %s\n", name);
+
             delete h;
         }
         delete freeMap;
     }
     delete dir;
+    //CreateLock->Release();
+    if (success){
+        DEBUG('f', "Archivo %s creado correctamente\n", name);
+        dirTable->SetNumEntries(actDir, dirTable->GetNumEntries(actDir) + 1);
+       // DEBUG('f', "Miro el directorio %s antes de salir:\n", actDir);
+       // Directory* testDir = new Directory(dirTable->GetNumEntries(actDir));
+       // testDir->FetchFrom(dirTable->GetDir(actDir));
+       // delete testDir;
+    }
+    else
+        DEBUG('f', "Archivo %s no pudo ser creado\n", name);
+    
+    dirTable->DirLock(actDir, RELEASE);
     return success;
 }
 
@@ -216,17 +401,64 @@ OpenFile *
 FileSystem::Open(const char *name)
 {
     ASSERT(name != nullptr);
-
-    Directory *dir = new Directory(NUM_DIR_ENTRIES);
+    char* actDir = currentThread->GetDir();
+    Directory *dir = new Directory(dirTable->GetNumEntries(actDir));
     OpenFile  *openFile = nullptr;
 
     DEBUG('f', "Opening file %s\n", name);
-    dir->FetchFrom(directoryFile);
+    dirTable->DirLock(actDir, ACQUIRE);
+    dir->FetchFrom(dirTable->GetDir(actDir));
     int sector = dir->Find(name);
+    dirTable->DirLock(actDir, RELEASE);
     if (sector >= 0) {
+        
+        // Primero debo checkear que el archivo no esté en la fileTable.
+        if (fileTable->CheckFileInTable(name) != -1){
+            DEBUG('f', "Archivo nuevo %s, en la FileTable\n", name);
+            fileTable->FileORLock(name, ACQUIRE);
+
+            // El archivo ha sido eliminado, no puede abrirse.
+            if (fileTable->isDeleted(name)){
+                DEBUG('f', "El archivo %s ha sido eliminado y no puede abrirse\n", name);
+                delete dir;
+                fileTable->FileORLock(name, RELEASE);
+                return nullptr;
+            }
+            
+            // Si el archivo fué cerrado. Debo crearlo de nuevo.
+            if (fileTable->GetClosed(name)){
+                openFile = new OpenFile(sector);
+            }
+            else
+                openFile = fileTable->GetFile(name);
+
+            // Lo agrego a la FileTable.
+            // Si no fué cerrado simplemente aumenta en 1 la cantidad de abiertos.
+            // Si fué cerrado, reemplaza el openFile por este nuevo.
+            // Acá no hace falta hacer una copia del nombre ya que se hace internamente en Add.
+            fileTable->Add(openFile, name);
+            
+            // Lo seteo como abierto.
+            // Si llegué acá es que el archivo está creado.
+            fileTable->SetClosed(name, false);
+            
+            delete dir;
+            fileTable->FileORLock(name, RELEASE);
+            return openFile;
+        }
+        DEBUG('f', "Archivo nuevo %s, no en la FileTable\n", name);        
+        // En este caso el archivo está siendo abierto por primera vez
+        // por lo que no es necesario tomar medidas de concurrencia.
         openFile = new OpenFile(sector);  // `name` was found in directory.
+        fileTable->Add(openFile, name); 
     }
+    else
+        DEBUG('f', "Archivo %s no encontrado, no se puede abrir\n", name);
+
     delete dir;
+   // DEBUG('f', "Testeando el directorio al abrir el archivo %s\n", name);
+   // Directory *test = new Directory(dirTable->GetNumEntries("root"));
+   // test->FetchFrom(dirTable->GetDir("root"));
     return openFile;  // Return null if not found.
 }
 
@@ -245,19 +477,73 @@ FileSystem::Open(const char *name)
 bool
 FileSystem::Remove(const char *name)
 {
-    ASSERT(name != nullptr);
+    // Acá si habría que hacer otra cosa en caso de eliminar directorios.
+    // Habría que poner en 0 el used de todos los archivos que contiene.
+    // Ver eso.
 
-    Directory *dir = new Directory(NUM_DIR_ENTRIES);
-    dir->FetchFrom(directoryFile);
+    ASSERT(name != nullptr);
+    
+    DEBUG('f', "El archivo %s va a ser removido\n", name);
+    
+    char* actDir = currentThread->GetDir();
+    ASSERT(actDir != nullptr);
+
+    dirTable->DirLock(actDir, ACQUIRE);
+    Directory *dir = new Directory(dirTable->GetNumEntries(actDir));
+    OpenFile* directoryFile = dirTable->GetDir(actDir);
+    dir->FetchFrom(dirTable->GetDir(actDir));
     int sector = dir->Find(name);
     if (sector == -1) {
+       dirTable->DirLock(actDir, RELEASE);
        delete dir;
        return false;  // file not found
     }
+    
+    // Encontró el archivo.
+
+    // Si el archivo no fué abierto por nadie se puede eliminar directamente.
+    if (fileTable->CheckFileInTable(name) != -1){
+        // El archivo ha sido abierto, entonces está en la tabla.
+        
+        // Adquirimos su Lock.
+        fileTable->FileORLock(name, ACQUIRE);
+
+        // Primero checkeamos que no esté eliminado.    
+        if (fileTable->isDeleted(name)){
+            fileTable->FileORLock(name, RELEASE);
+            return false;
+        }
+
+        // El archivo no ha sido eliminado.
+
+        // Lo marco como eliminado.
+        ASSERT(fileTable->Delete(name) != -1);
+        
+        // Si soy el único proceso que lo mantenía abierto
+        // no espero nada, suelto el lock y lo borro.
+        if (fileTable->GetOpen(name) > 1){
+            dirTable->DirLock(actDir, RELEASE);
+            // Debo esperar a que todos
+            // los hilos que mantienen el archivo abierto lo
+            // cierren para poder reclamar los sectores.
+            fileTable->FileRemoveCondition(name, WAIT);
+            dirTable->DirLock(actDir, ACQUIRE);
+        }
+
+        // Para este punto puedo soltar el Lock ya que no permito
+        // más aberturas del archivo.
+        fileTable->FileORLock(name, RELEASE);
+    
+        // Elimino el archivo de la fileTable.
+        fileTable->Remove(name);
+    }
+    
+    // Para este punto el archivo se puede eliminar de manera segura.
     FileHeader *fileH = new FileHeader;
     fileH->FetchFrom(sector);
-
+    
     Bitmap *freeMap = new Bitmap(NUM_SECTORS);
+    OpenFile* freeMapFile = fileTable->GetFile("freeMap"); 
     freeMap->FetchFrom(freeMapFile);
 
     fileH->Deallocate(freeMap);  // Remove data blocks.
@@ -266,9 +552,485 @@ FileSystem::Remove(const char *name)
 
     freeMap->WriteBack(freeMapFile);  // Flush to disk.
     dir->WriteBack(directoryFile);    // Flush to disk.
+    
+    // No hace falta decrementar el número de dirEntries ya que
+    // simplemente se marca como no en uso.
+    dirTable->DirLock(actDir, RELEASE);
     delete fileH;
     delete dir;
     delete freeMap;
+    return true;
+}
+
+// Para eliminar un directorio se debe estar
+// dentro del directorio que lo contiene.
+// Para evitar esto se puede pasar directamente un char**
+// poniendo todos los directorios.
+bool
+FileSystem::RemoveDir(char *path)
+{
+    // Voy a eliminar un directorio.
+    // Los checkeos que sea válido y demás están en la función de threads.
+    ASSERT(path != nullptr);
+
+    DEBUG('f', "Voy a eliminar el directorio: %s\n", path);
+
+    char* dirNames[NUM_SECTORS];
+    dirNames[0] = strtok(path, "/");
+
+    unsigned subdirs = 0;
+    
+    // Voy metiendo los nombres.
+    while(dirNames[subdirs] != NULL){
+        ASSERT(subdirs < NUM_SECTORS);
+        dirNames[subdirs + 1] = strtok(NULL, "/");
+        subdirs++;
+    }
+    DEBUG('f', "El directorio actual del thread %d es %s\n", currentThread->GetPid(), currentThread->GetDir());
+    if (!strcmp(currentThread->GetDir(), dirNames[subdirs-1])){
+        DEBUG('f', "Error: No es posible eliminar el path donde está el thread %d\n", currentThread->GetPid());
+        return false;
+    }
+
+    ASSERT(subdirs > 0 && subdirs < MAX_DIRS);
+    char* actDir;
+    char* name;
+
+    if (subdirs == 1){
+        if (!strcmp(dirNames[0],"root")){
+            DEBUG('f', "Error: El directorio root no puede ser eliminado.\n");
+            return false;
+        }
+        // Este caso es el más fácil. 
+        // Ya sabemos que todo el directorio del thread tiene sentido y
+        // por eso no hay que checkear nada más que el directorio
+        // ingresado esté dentro del actual. Eso ya lo hace la función.
+
+        name = dirNames[0];
+        actDir = currentThread->GetDir();
+        ASSERT(actDir != nullptr);
+        
+
+    }
+    else // Acá debo checkear todo el path. 
+    {
+        if(!CheckPath(dirNames, subdirs))
+        {
+            DEBUG('f', "Error al eliminar el directorio. Path ingresado incorrecto.\n");
+            return false;
+        }
+        name = dirNames[subdirs-1];
+        actDir = dirNames[subdirs-2];
+        ASSERT(name != nullptr);
+        ASSERT(actDir != nullptr);
+
+        // Una vez que el path es válido, por las dudas, checkeo que todo 
+        // el path esté en la dirTable.
+        for (unsigned i = 0; i < subdirs; i++){
+            if(dirTable->CheckDirInTable(dirNames[i]) == -1)
+                ASSERT(AddDirFile(dirNames, i));
+        }
+
+    }
+     
+    // Acá estoy seguro que está todo en la dirTabe.
+    DEBUG('f', "El directorio %s va a ser removido\n", name);
+    
+
+    dirTable->DirLock(actDir, ACQUIRE);
+    Directory *dir = new Directory(dirTable->GetNumEntries(actDir));
+    OpenFile* directoryFile = dirTable->GetDir(actDir);
+    dir->FetchFrom(directoryFile);
+    int sector = dir->Find(name);
+    
+    if (sector == -1) {
+       dirTable->DirLock(actDir, RELEASE);
+       delete dir;
+       DEBUG('f', "Error: El directorio a eliminar %s no fué encontrado.\n", name);
+       return false;  // file not found
+    }
+
+    // El directorio existe y está dentro del directorio actual,
+    // pero no tiene una entrada en la tabla. Hay que crearla así pueden
+    // ser eliminados los contenidos del mismo.
+    OpenFile* delDirFile = new OpenFile(sector);
+    Directory* delDir;
+    if (dirTable->CheckDirInTable(name) != -1)
+    {
+        delDir = new Directory(dirTable->GetNumEntries(name));
+    }
+    else 
+    {
+        Directory* preDir = new Directory(MAX_DIR_ENTRIES);
+        preDir->FetchFrom(delDirFile);
+        unsigned entries = 0;
+        if (delDirFile->GetFileHeader()->GetRaw()->numSectors != 0)
+            for(;preDir->GetRaw()->table[entries].inUse;entries++);
+        delete preDir;
+        delDir = new Directory(entries);
+        dirTable->Add(delDirFile, name, actDir);
+        dirTable->SetNumEntries(name, entries);
+    }
+    
+    DEBUG('f', "Soy %d, por tomar locks eliminando %s.\n", currentThread->GetPid(), name);
+    dirTable->DirLock(actDir,RELEASE);
+    dirTable->DirLock(name, ACQUIRE);
+    dirTable->setToDelete(name); 
+    
+    
+    delDir->FetchFrom(delDirFile);
+     
+    Bitmap *freeMap = new Bitmap(NUM_SECTORS);
+    OpenFile* freeMapFile = fileTable->GetFile("freeMap"); 
+    freeMap->FetchFrom(freeMapFile);
+    
+    // Si nadie lo mantiene abierto puedo cerrarlo directamente.
+    if(dirTable->getThreadsIn(name) == 0)
+    
+    {   
+       // Debo recorrer todo el directorio.
+       // Si un archivo está en la tabla, lo puedo desmarcar todo ya que 
+       // tengo la seguridad que ningún thread está en este directorio
+       // ni en los siguientes.
+       // Eso significa que no hay nadie trabajando con el archivo actualmente.
+       unsigned cantEntriestoDel = delDir->GetRaw()->tableSize;
+       for (unsigned i = 0; i < cantEntriestoDel; i++){
+            if(delDir->GetRaw()->table[i].inUse){    
+                if(fileTable->CheckFileInTable(delDir->GetRaw()->table[i].name) != -1){
+                        
+                        // Adquirimos su Lock.
+                        fileTable->FileORLock(delDir->GetRaw()->table[i].name, ACQUIRE);
+
+                        // Primero checkeamos que no esté eliminado.    
+                        if (fileTable->isDeleted(delDir->GetRaw()->table[i].name)){
+                            fileTable->FileORLock(delDir->GetRaw()->table[i].name, RELEASE);
+                        }
+                        else {
+
+                        // El archivo no ha sido eliminado.
+                        fileTable->Delete(delDir->GetRaw()->table[i].name);
+                        
+                        // Si soy el único proceso que lo mantenía abierto
+                        // no espero nada, suelto el lock y lo borro.
+                        if (fileTable->GetOpen(delDir->GetRaw()->table[i].name) > 1){
+                            dirTable->DirLock(name, RELEASE);
+                            // Debo esperar a que todos
+                            // los hilos que mantienen el archivo abierto lo
+                            // cierren para poder reclamar los sectores.
+                            fileTable->FileRemoveCondition(delDir->GetRaw()->table[i].name, WAIT);
+                            dirTable->DirLock(name, ACQUIRE);
+                        }
+
+                        // Para este punto puedo soltar el Lock ya que no permito
+                        // más aberturas del archivo.
+                        fileTable->FileORLock(delDir->GetRaw()->table[i].name, RELEASE);
+                        fileTable->Remove(delDir->GetRaw()->table[i].name);
+                    
+                        FileHeader* hdr = new FileHeader;
+                        hdr->FetchFrom(delDir->GetRaw()->table[i].sector);
+                        hdr->Deallocate(freeMap);
+                        freeMap->Clear(delDir->GetRaw()->table[i].sector);
+                        freeMap->WriteBack(freeMapFile);
+                        delDir->Remove(delDir->GetRaw()->table[i].name);
+                        delete hdr;
+                    }
+                }
+                else {
+                        // Si es un directorio, debo llamar recursiva a la función.
+                        DEBUG('f',"Eliminando subdirectorio: %s\n", delDir->GetRaw()->table[i].name);
+                        char anterior[2] = {'.','.'};
+                      //  dirTable->unsetToDelete(name); 
+                        dirTable->DirLock(name, RELEASE);
+                        currentThread->ChangeDir(path);
+                       // dirTable->setToDelete(name); 
+                        ASSERT(RemoveDir(delDir->GetRaw()->table[i].name));
+                        currentThread->ChangeDir(anterior);
+                        dirTable->DirLock(name, ACQUIRE);
+                        
+                        FileHeader* hdr = new FileHeader;
+                        hdr->FetchFrom(delDir->GetRaw()->table[i].sector);
+                        hdr->Deallocate(freeMap);
+                        freeMap->Clear(delDir->GetRaw()->table[i].sector);
+                        freeMap->WriteBack(freeMapFile);
+                        delDir->Remove(delDir->GetRaw()->table[i].name);
+                        delete hdr;
+                }
+            }
+        }
+    }
+    else // Tengo que esperar que los threads estén fuera del directorio. 
+    {
+        DEBUG('f', "Soy %d, por hacer WAIT sobre condicion de dir %s.\n", currentThread->GetPid(), name);
+        dirTable->DirRemoveCondition(name, WAIT);
+        DEBUG('f', "Soy %d, por adquirir el lock del subdir a eliminar %s.\n", currentThread->GetPid(), name);
+        // Una vez acá puedo eliminar todo de forma segura.
+
+       unsigned cantEntriestoDel = delDir->GetRaw()->tableSize;
+       for (unsigned i = 0; i < cantEntriestoDel; i++){
+            if(delDir->GetRaw()->table[i].inUse){    
+                if(fileTable->CheckFileInTable(delDir->GetRaw()->table[i].name) != -1){
+                        
+                        // Adquirimos su Lock.
+                        fileTable->FileORLock(delDir->GetRaw()->table[i].name, ACQUIRE);
+
+                        // Primero checkeamos que no esté eliminado.    
+                        if (fileTable->isDeleted(delDir->GetRaw()->table[i].name)){
+                            fileTable->FileORLock(delDir->GetRaw()->table[i].name, RELEASE);
+                        }
+                        else {
+
+                        // El archivo no ha sido eliminado.
+                        fileTable->Delete(delDir->GetRaw()->table[i].name);
+                        
+                        // Si soy el único proceso que lo mantenía abierto
+                        // no espero nada, suelto el lock y lo borro.
+                        if (fileTable->GetOpen(delDir->GetRaw()->table[i].name) > 1){
+                            dirTable->DirLock(name, RELEASE);
+                            // Debo esperar a que todos
+                            // los hilos que mantienen el archivo abierto lo
+                            // cierren para poder reclamar los sectores.
+                            fileTable->FileRemoveCondition(delDir->GetRaw()->table[i].name, WAIT);
+                            dirTable->DirLock(name,ACQUIRE);
+                        }
+
+                        // Para este punto puedo soltar el Lock ya que no permito
+                        // más aberturas del archivo.
+                        fileTable->FileORLock(name, RELEASE);
+                        
+                        fileTable->Remove(delDir->GetRaw()->table[i].name);
+                    
+                        FileHeader* hdr = new FileHeader;
+                        hdr->FetchFrom(delDir->GetRaw()->table[i].sector);
+                        hdr->Deallocate(freeMap);
+                        freeMap->Clear(delDir->GetRaw()->table[i].sector);
+                        freeMap->WriteBack(freeMapFile);
+                        delDir->Remove(delDir->GetRaw()->table[i].name);
+                        delete hdr;
+                    }
+                }
+                else {
+                    // TODO : Llamar recursiva con el path nuevo.
+                        
+                        // Si es un directorio, debo llamar recursiva a la función.
+                        DEBUG('f',"Eliminando subdirectorio: %s\n", delDir->GetRaw()->table[i].name);
+                        char anterior[2] = {'.','.'};
+                       // dirTable->unsetToDelete(name);
+                        dirTable->DirLock(name, RELEASE);
+                        currentThread->ChangeDir(path);
+                      //  dirTable->setToDelete(name); 
+                        ASSERT(RemoveDir(delDir->GetRaw()->table[i].name));
+                        currentThread->ChangeDir(anterior);
+                        dirTable->DirLock(name, ACQUIRE);
+                        
+                        FileHeader* hdr = new FileHeader;
+                        hdr->FetchFrom(delDir->GetRaw()->table[i].sector);
+                        hdr->Deallocate(freeMap);
+                        freeMap->Clear(delDir->GetRaw()->table[i].sector);
+                        freeMap->WriteBack(freeMapFile);
+                        delDir->Remove(delDir->GetRaw()->table[i].name);
+                        delete hdr;
+                }
+            }
+        }
+    }
+
+    // Una vez que estoy acá ya eliminé todo y tengo que mandar los cambios a disco unicamente.
+   
+    DEBUG('f', "Eliminé el directorio %s, procedo a limpiar\n", name);
+    dirTable->DirLock(name, RELEASE);
+    dirTable->DirLock(actDir, ACQUIRE);
+    freeMap->WriteBack(freeMapFile);
+    dir->FetchFrom(directoryFile);
+    dir->Remove(name);
+    dir->WriteBack(directoryFile);
+    dirTable->SetNumEntries(actDir, dirTable->GetNumEntries(actDir) - 1);
+    dirTable->DirLock(actDir, RELEASE);
+    delete delDir;
+    delete freeMap;
+    return true;
+}
+
+bool
+FileSystem::MkDir(const char *name, unsigned initialSize)
+{
+
+    //CreateLock->Acquire();
+    ASSERT(name != nullptr);
+    ASSERT(strlen(name) < DIR_NAME_MAX_LEN);
+    ASSERT(initialSize < MAX_FILE_SIZE);
+    
+    // Ahora tomamos el lock del directorio sobre el cual vamos a trabajar.
+    // En este caso es root.
+    // Podemos llevar una tabla con el path de trabajo del hilo actual
+    // y quedarnos con el último.
+    // Siempre verificando que ese path tiene sentido.
+    char* actDir = currentThread->GetDir();
+    ASSERT(actDir != nullptr);
+    
+    DEBUG('f', "Voy a crear el subdirectorio %s en el directorio %s\n.", name, actDir);
+    dirTable->DirLock(actDir, ACQUIRE);
+    Directory *dir = new Directory(dirTable->GetNumEntries(actDir));
+    dir->FetchFrom(dirTable->GetDir(actDir));
+    
+    bool success;
+
+    if (dir->Find(name) != -1) {
+        DEBUG('f', "El directorio %s ya está en el directorio\n", name);
+        success = false;  // File is already in directory.
+    } else {
+        
+        Bitmap *freeMap = new Bitmap(NUM_SECTORS);
+        OpenFile* freeMapFile = fileTable->GetFile("freeMap");
+        freeMap->FetchFrom(freeMapFile);
+        int sector = freeMap->Find();
+          // Find a sector to hold the file header.
+        if (sector == -1) {
+            DEBUG('f', "Error: no hay lugar para el header del archivo %s\n", name);
+            success = false;  // No free block for file header.
+        } else if (!dir->Add(name, sector)) {
+            DEBUG('f', "Error: no hay espacio en directorio para archivo %s\n", name);
+            success = false;  // No space in directory.
+        } else {
+            FileHeader *h = new FileHeader;
+            success = h->Allocate(freeMap, initialSize);
+              // Fails if no space on disk for data.
+            if (success) {
+
+                OpenFile* newDirFile = new OpenFile(sector);
+                dirTable->Add(newDirFile, name, actDir);
+
+                DEBUG('f', "Creación del directorio %s exitosa, mandando a disco todo\n", name);
+                // Escribo el bitmap así se actualiza el sector que le dí al archivo.
+                freeMap->WriteBack(freeMapFile);
+
+                // Everything worked, flush all changes back to disk.
+                DEBUG('f', "Mando a disco el header del archivo %s\n", name);
+                h->WriteBack(sector);
+                DEBUG('f', "Mando a disco el directorio que contiene el archivo\n");
+                dir->WriteBack(dirTable->GetDir(actDir));
+                DEBUG('f', "Mando a disco el Bitmap\n");
+                // Lo traigo de nuevo para ver si hubo algún cambio.
+                freeMap->FetchFrom(freeMapFile);
+                freeMap->WriteBack(freeMapFile);
+                DEBUG('f', "Ahora quiero imprimir el Bitmap\n");
+                freeMap->Print();
+                DEBUG('f',"Escribo por las dudas:\n");
+                dir->WriteBack(dirTable->GetDir(actDir));
+                DEBUG('f', "A ver que tal quedó:\n");
+                dir->FetchFrom(dirTable->GetDir(actDir));
+            }
+            else
+                DEBUG('f', "Error: No hay espacio en el disco para los datos del archivo %s\n", name);
+
+            delete h;
+        }
+        delete freeMap;
+    }
+    delete dir;
+    //CreateLock->Release();
+    if (success){
+        DEBUG('f', "Directorio %s creado correctamente\n", name);
+        dirTable->SetNumEntries(actDir, dirTable->GetNumEntries(actDir) + 1);
+       // DEBUG('f', "Miro el directorio antes de salir:\n");
+       // Directory* testDir = new Directory(dirTable->GetNumEntries(actDir));
+       // testDir->FetchFrom(dirTable->GetDir("root"));
+       // delete testDir;
+    }
+    else
+        DEBUG('f', "Directorio %s no pudo ser creado\n", name);
+    
+    dirTable->DirLock(actDir, RELEASE);
+    return success;
+}
+
+// Lista todos los contenidos de un directorio dado.
+bool
+FileSystem::Ls(char* path)
+{
+    DEBUG('f', "Voy a listar el directorio %s.\n", path);
+    ASSERT(path != nullptr);
+
+    char* dirNames[NUM_SECTORS];
+    dirNames[0] = strtok(path, "/");
+
+    unsigned subdirs = 0;
+    
+    // Voy metiendo los nombres.
+    while(dirNames[subdirs] != NULL){
+        ASSERT(subdirs < NUM_SECTORS);
+        dirNames[subdirs + 1] = strtok(NULL, "/");
+        subdirs++;
+    }
+    
+    ASSERT(subdirs > 0 && subdirs < MAX_DIRS);
+    char* name = new char[FILE_NAME_MAX_LEN];
+
+    if (subdirs == 1){
+        // Este caso es el más fácil. 
+        // Ya sabemos que todo el directorio del thread tiene sentido y
+        // por eso no hay que checkear nada más que el directorio
+        // ingresado esté dentro del actual. Eso ya lo hace la función.
+        if(strcmp(dirNames[0], ".")){
+            DEBUG('f', "Error: Pasar un path o el directorio actual \".\".\n");
+            return false;
+        }
+
+        // Tengo que traer el directorio actual.
+
+        char* thPath[MAX_DIRS];
+        unsigned thQPaths = currentThread->subDirectories;
+        ASSERT(thQPaths < MAX_DIRS);
+        DEBUG('f', "thQPaths es: %u.\n", thQPaths);
+
+        for (unsigned i = 0; i <= thQPaths; i++)
+        { 
+            thPath[i] = new char[DIR_NAME_MAX_LEN];
+            strcpy(thPath[i], currentThread->path[i]);
+            DEBUG('f',"El dir %u es %s.\n", i, thPath[i]);
+        }
+
+        strcpy(name,thPath[thQPaths]);
+        thPath[thQPaths+1] = nullptr;
+        
+        // Ahora tengo el directorio actual.
+        if(dirTable->CheckDirInTable(name) == -1){
+            ASSERT(AddDirFile(thPath, thQPaths));
+        }
+       
+        DEBUG('f', "Terminé de checkear y todo está en orden para continuar.\n");
+        for(unsigned i = 0; i <= thQPaths; i++, delete thPath[i]);
+
+        ASSERT(name != nullptr);
+    }
+    else // Acá debo checkear todo el path. 
+    {
+        if(!CheckPath(dirNames, subdirs))
+        {
+            DEBUG('f', "Error al listar el directorio. Path ingresado incorrecto.\n");
+            return false;
+        }
+
+        name = dirNames[subdirs-1];
+        ASSERT(name != nullptr);
+
+        // Una vez que el path es válido, por las dudas, checkeo que todo 
+        // el path esté en la dirTable.
+        for (unsigned i = 0; i < subdirs; i++){
+            if(dirTable->CheckDirInTable(dirNames[i]) == -1)
+                ASSERT(AddDirFile(dirNames, i));
+        }
+    }
+    if(!dirTable->getToDelete(name)){ 
+        DEBUG('f', "A punto de listar el directorio %s\n", name);
+        dirTable->DirLock(name, ACQUIRE);
+        Directory *dir = new Directory (dirTable->GetNumEntries(name));
+        dir->FetchFrom(dirTable->GetDir(name));
+        dir->List();
+        dirTable->DirLock(name, RELEASE);
+        delete dir;
+        DEBUG('f', "Terminé de listar.\n");
+    }
+    delete [] name;
     return true;
 }
 
@@ -276,10 +1038,12 @@ FileSystem::Remove(const char *name)
 void
 FileSystem::List()
 {
-    Directory *dir = new Directory(NUM_DIR_ENTRIES);
+    dirTable->DirLock("root", ACQUIRE);
+    Directory *dir = new Directory(dirTable->GetNumEntries("root"));
 
-    dir->FetchFrom(directoryFile);
+    dir->FetchFrom(dirTable->GetDir("root"));
     dir->List();
+    dirTable->DirLock("root", RELEASE);
     delete dir;
 }
 
@@ -329,12 +1093,27 @@ CheckFileHeader(const RawFileHeader *rh, unsigned num, Bitmap *shadowMap)
     error |= CheckForError(rh->numSectors >= DivRoundUp(rh->numBytes,
                                                         SECTOR_SIZE),
                            "sector count not compatible with file size.");
-    error |= CheckForError(rh->numSectors < NUM_DIRECT,
+    error |= CheckForError(rh->numSectors < NUM_INDIRECT * NUM_DIRECT,
                            "too many blocks.");
-    for (unsigned i = 0; i < rh->numSectors; i++) {
-        unsigned s = rh->dataSectors[i];
-        error |= CheckSector(s, shadowMap);
+
+
+    unsigned cantIndirects = DivRoundUp(rh->numSectors, NUM_DIRECT);
+    unsigned located = 0;
+    unsigned sectorsLeft = rh->numSectors;
+    RawIndirectNode rind;
+    for (unsigned i = 0; i < cantIndirects; i++) 
+    {
+        located = MIN(NUM_DIRECT, sectorsLeft);
+        synchDisk->ReadSector(rh->dataSectors[i], (char *) &rind);
+        for (unsigned j = 0; j < located; j++)
+        {
+            unsigned s = rind.dataSectors[j];
+            error |= CheckSector(s, shadowMap);
+        }
+        sectorsLeft -= located;
+        located = 0;
     }
+
     return error;
 }
 
@@ -356,12 +1135,14 @@ CheckDirectory(const RawDirectory *rd, Bitmap *shadowMap)
 {
     ASSERT(rd != nullptr);
     ASSERT(shadowMap != nullptr);
-
+    
+    dirTable->DirLock("root", ACQUIRE);
+    unsigned dirEntries = dirTable->GetNumEntries("root");
     bool error = false;
     unsigned nameCount = 0;
-    const char *knownNames[NUM_DIR_ENTRIES];
+    const char *knownNames[dirEntries];
 
-    for (unsigned i = 0; i < NUM_DIR_ENTRIES; i++) {
+    for (unsigned i = 0; i < dirEntries; i++) {
         DEBUG('f', "Checking direntry: %u.\n", i);
         const DirectoryEntry *e = &rd->table[i];
 
@@ -401,6 +1182,7 @@ CheckDirectory(const RawDirectory *rd, Bitmap *shadowMap)
             delete h;
         }
     }
+    dirTable->DirLock("root", RELEASE);
     return error;
 }
 
@@ -409,8 +1191,9 @@ FileSystem::Check()
 {
     DEBUG('f', "Performing filesystem check\n");
     bool error = false;
-
+    
     Bitmap *shadowMap = new Bitmap(NUM_SECTORS);
+    
     shadowMap->Mark(FREE_MAP_SECTOR);
     shadowMap->Mark(DIRECTORY_SECTOR);
 
@@ -439,12 +1222,15 @@ FileSystem::Check()
     delete dirH;
 
     Bitmap *freeMap = new Bitmap(NUM_SECTORS);
+    OpenFile* freeMapFile = fileTable->GetFile("freeMap");
     freeMap->FetchFrom(freeMapFile);
-    Directory *dir = new Directory(NUM_DIR_ENTRIES);
+    dirTable->DirLock("root", ACQUIRE);
+    Directory *dir = new Directory(dirTable->GetNumEntries("root"));
     const RawDirectory *rdir = dir->GetRaw();
-    dir->FetchFrom(directoryFile);
+    dir->FetchFrom(dirTable->GetDir("root"));
     error |= CheckDirectory(rdir, shadowMap);
     delete dir;
+    dirTable->DirLock("root", RELEASE);
 
     // The two bitmaps should match.
     DEBUG('f', "Checking bitmap consistency.\n");
@@ -469,13 +1255,18 @@ FileSystem::Print()
 {
     FileHeader *bitH    = new FileHeader;
     FileHeader *dirH    = new FileHeader;
+    
     Bitmap     *freeMap = new Bitmap(NUM_SECTORS);
-    Directory  *dir     = new Directory(NUM_DIR_ENTRIES);
+    OpenFile* freeMapFile = fileTable->GetFile("freeMap");
+    
+    dirTable->DirLock("root", ACQUIRE);
+    Directory   *dir = new Directory(dirTable->GetNumEntries("root"));
+    OpenFile* directoryFile = dirTable->GetDir("root");
 
     printf("--------------------------------\n");
     bitH->FetchFrom(FREE_MAP_SECTOR);
     bitH->Print("Bitmap");
-
+    
     printf("--------------------------------\n");
     dirH->FetchFrom(DIRECTORY_SECTOR);
     dirH->Print("Directory");
@@ -493,4 +1284,5 @@ FileSystem::Print()
     delete dirH;
     delete freeMap;
     delete dir;
+    dirTable->DirLock("root", RELEASE);
 }

@@ -11,9 +11,7 @@
 #ifndef NACHOS_LIB_LIST__HH
 #define NACHOS_LIB_LIST__HH
 
-
 #include "utility.hh"
-
 
 /// The following class defines a “list element” -- which is used to keep
 /// track of one item on a list.

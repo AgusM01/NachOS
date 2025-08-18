@@ -49,6 +49,7 @@ THREAD_HDR = threads/channel.hh                             \
              threads/thread_test_join.hh                    \
              threads/thread_test_scheduler.hh               \
              threads/thread_test_garden.hh    				\
+             threads/thread_map.hh           				\
 			 threads/thread_test_garden_semaphores.hh	    \
              threads/thread_test_prod_cons.hh               \
              threads/thread_test_simple.hh    				\
@@ -72,6 +73,7 @@ THREAD_SRC = threads/main.cc                  				\
              threads/system.cc                				\
              threads/switch.S                 				\
              threads/thread.cc                				\
+             threads/thread_map.cc                    \
              threads/thread_test.cc           				\
              threads/thread_test_join.cc                    \
              threads/thread_test_scheduler.cc               \
@@ -94,10 +96,11 @@ USERPROG_HDR = userprog/address_space.hh            	\
                userprog/debugger_command_manager.hh 	\
                userprog/executable.hh               	\
                userprog/transfer.hh                 	\
-							 userprog/synch_console.hh								\
+			   userprog/synch_console.hh				\
                filesys/file_system.hh               	\
                filesys/open_file.hh                 	\
                lib/bitmap.hh                        	\
+			   lib/coremap.hh							\
                machine/console.hh                   	\
                machine/encoding.hh                  	\
                machine/endianness.hh                	\
@@ -114,9 +117,10 @@ USERPROG_SRC = userprog/address_space.cc            	\
                userprog/exception.cc                	\
                userprog/prog_test.cc                	\
                userprog/transfer.cc                 	\
-							 userprog/synch_console.cc								\
+			   userprog/synch_console.cc				\
                lib/bitmap.cc                        	\
-               machine/console.cc                   	\
+               lib/coremap.cc							\
+			   machine/console.cc                   	\
                machine/encoding.cc                  	\
                machine/endianness.cc                	\
                machine/exception_type.cc            	\
@@ -136,6 +140,10 @@ FILESYS_HDR = filesys/directory.hh       \
               filesys/raw_directory.hh   \
               filesys/raw_file_header.hh \
               filesys/synch_disk.hh      \
+              lib/file_table.hh          \
+							lib/dir_table.hh           \
+							filesys/indirect_node.hh	 \
+							filesys/raw_indirect_node.hh \
               machine/disk.hh
 FILESYS_SRC = filesys/directory.cc   \
               filesys/file_header.cc \
@@ -143,6 +151,9 @@ FILESYS_SRC = filesys/directory.cc   \
               filesys/fs_test.cc     \
               filesys/open_file.cc   \
               filesys/synch_disk.cc  \
+              lib/file_table.cc      \
+							lib/dir_table.cc       \
+							filesys/indirect_node.cc \
               machine/disk.cc
 
 # Assemble the expected paths by prepending `BASE_DIR`.  You do not need to

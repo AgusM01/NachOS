@@ -8,13 +8,14 @@
 #define NACHOS_LIB_TABLE__HH
 
 
-#include "list.hh"
+#include "lib/list.hh"
 
 
 template <class T>
 class Table {
 public:
-    static const unsigned SIZE = 20;
+    // El tamaño original es 20. Lo aumenté para FileSystem.
+    static const unsigned SIZE = 50;
 
     /// Construct an empty table.
     Table();

@@ -13,6 +13,7 @@
 #define NACHOS_FILESYS_FILEHEADER__HH
 
 
+#include "raw_indirect_node.hh"
 #include "raw_file_header.hh"
 #include "lib/bitmap.hh"
 
@@ -50,10 +51,22 @@ public:
     /// Convert a byte offset into the file to the disk sector containing the
     /// byte.
     unsigned ByteToSector(unsigned offset);
+    
+    // Agrega sectores a un archivo ya creado para poder hacerlo extensible.
+    bool AddSectors(unsigned sector, unsigned newSectors, unsigned addBytes);
 
     /// Return the length of the file in bytes
     unsigned FileLength() const;
 
+    /// Cambia el tamaño del archivo.
+    /// Devuelve el nuevo tamaño.
+    /// Necesario para archivos extensibles.
+    unsigned ChangeLength(unsigned newLength);
+    
+    // Trae todos los sectores que tiene y los guarda en to.
+    // Usado para poder saber la cantidad de entradas en un directorio.
+    char* GetEntireFile();
+    
     /// Print the contents of the file.
     void Print(const char *title);
 
@@ -65,6 +78,13 @@ public:
 
 private:
     RawFileHeader raw;
+    // El raw además tiene que contener:
+    // numBytes 
+    // numSectors <- NUM_INDIRECT
+    // Los otros pueden tener:
+    // SECTOR_SIZE / sizeof(int) <- NUM_DIRECT
+    RawIndirectNode raw_ind[NUM_INDIRECT];
+    RawIndirectNode raw_ind2[NUM_INDIRECT][NUM_DIRECT];
 };
 
 

@@ -22,7 +22,6 @@
 
 #include "lib/utility.hh"
 
-
 #ifdef FILESYS_STUB  // Temporarily implement calls to Nachos file system as
                      // calls to UNIX!  See definitions listed under `#else`.
 class OpenFile {
@@ -95,7 +94,10 @@ public:
 
     /// Close the file.
     ~OpenFile();
-
+    
+    /// Trae el FileHeader.
+    FileHeader* GetFileHeader();
+    
     /// Set the position from which to start reading/writing -- UNIX `lseek`.
     void Seek(unsigned position);
 
@@ -117,6 +119,7 @@ public:
   private:
     FileHeader *hdr;  ///< Header for this file.
     unsigned seekPosition;  ///< Current position within the file.
+    unsigned hdrSector; ///< Sector donde está el header del archivo.
 };
 
 #endif

@@ -31,6 +31,8 @@
 #include "mmu.hh"
 #include "machine.hh"
 #include "endianness.hh"
+#include "statistics.hh"
+#include "threads/system.hh"
 
 #include <stdio.h>
 extern Machine* machine;
@@ -199,11 +201,13 @@ MMU::RetrievePageEntry(unsigned vpn, TranslationEntry **entry) const
             TranslationEntry *e = &tlb[i];
             if (e->valid && e->virtualPage == vpn) {
                 *entry = e;  // FOUND!
+                stats->numPageHits++;
                 return NO_EXCEPTION;
             }
         }
 
         // Not found.
+        stats->numPageFaults++;
         DEBUG_CONT('a', "no valid TLB entry found for this virtual page!\n");
         return PAGE_FAULT_EXCEPTION;  // Really, this is a TLB fault, the
                                       // page may be in memory, but not in

@@ -32,6 +32,7 @@
 
 #include <stdio.h>
 
+unsigned IndexTLB = 0;
 
 static void
 IncrementPC()
@@ -58,11 +59,21 @@ static void
 DefaultHandler(ExceptionType et) /// Cambia por PageFaultHandler. No incrementar el PC. Cuestion es: de donde sacar la dirección => VPN que fallo? De un registro simulado machine->register[BadVAddr]
 {
     int exceptionArg = machine->ReadRegister(2);
-
+    printf("Di error, soy: %d\n", currentThread->GetPid());
     fprintf(stderr, "Unexpected user mode exception: %s, arg %d.\n",
             ExceptionTypeToString(et), exceptionArg);
     ASSERT(false);
 }
+
+#ifdef USE_TLB
+static void
+PageFaultHandler(ExceptionType et) 
+{
+    unsigned badVAddr = machine->ReadRegister(BAD_VADDR_REG);
+    currentThread->space->UpdateTLB(IndexTLB, badVAddr);
+    IndexTLB = (IndexTLB + 1) % TLB_SIZE;
+}
+#endif
 
 /// Run a user program.
 ///
@@ -71,6 +82,12 @@ void
 ProcessInitArgs(void* arg)
 {
     int sp;
+    
+    int newpid;
+    newpid = space_table->Add(currentThread);
+    currentThread->SetPid(newpid);
+    //printf("newpid en ProcessInitArgs: %d\n", newpid);
+    ASSERT(newpid != -1);
 
     currentThread->space->InitRegisters();  // Set the initial register values.
     currentThread->space->RestoreState();   // Load page table register.
@@ -96,6 +113,12 @@ ProcessInitArgs(void* arg)
 void
 ProcessInit(void* arg)
 {
+    int newpid;
+    newpid = space_table->Add(currentThread);
+    currentThread->SetPid(newpid);
+    //printf("newpid en ProcessInit: %d\n", newpid);
+    ASSERT(newpid != -1);
+    
     currentThread->space->InitRegisters();  // Set the initial register values.
     currentThread->space->RestoreState();   // Load page table register.
 
@@ -154,7 +177,16 @@ SyscallHandler(ExceptionType _et)
             if (!status){
             DEBUG('e', "`Create` requested for file `%s`.\n", filename);
             
-            unsigned initialSize = machine->ReadRegister(5);
+            // unsigned initialSize = machine->ReadRegister(5);
+            
+            // Dado que todavía el FileSistem no permite archivos extensibles, le damos
+            // un tamaño inicial.
+            // El tamaño máximo es 121KiB.
+            // Esto es ya que se utilizan 8KiB para guardar más estructuras que 
+            // los datos del arhivo en sí.
+            // Lo ponemos en 0 para el ejercicio 3. 
+            // Será un archivo extensible.
+            unsigned initialSize = 0;
             status = fileSystem->Create(filename, initialSize) ? 0 : -1;
             }
             
@@ -168,6 +200,8 @@ SyscallHandler(ExceptionType _et)
             int status = 0;
             OpenFile *newFile;
             char filename[FILE_NAME_MAX_LEN + 1];
+            
+            DEBUG('f', "Opening a file\n");
 
             if (filenameAddr == 0){
                 DEBUG('e', "Error: address to filename string is null. \n");
@@ -188,7 +222,12 @@ SyscallHandler(ExceptionType _et)
 
             if (!status){
                 DEBUG('e', "`Open` requested for file `%s`.\n", filename);
+                #ifndef FILESYS
                 status = currentThread->fileTableIds->Add(newFile);
+                #else
+                DEBUG('e', "Soy %d, abro el archivo %s, lo tienen abierto %d.\n", currentThread->GetPid(), filename, fileTable->GetOpen(filename));
+                status = currentThread->AddFile(newFile, filename);
+                #endif
             }
             machine->WriteRegister(2, status);
             break;
@@ -198,8 +237,13 @@ SyscallHandler(ExceptionType _et)
             
             OpenFileId fid = machine->ReadRegister(4);
             OpenFile *file;
+
+            #ifdef FILESYS
+            char* filename;
+            #endif
+
             int status = 0;
-            DEBUG('e', "`Close` requested for id %u.\n", fid);
+            DEBUG('f', "`Close` requested for id %u.\n", fid);
 
             if (fid == 0 || fid == 1){
                 DEBUG('e', "Cannot close console fd id %u.\n", fid);
@@ -211,16 +255,78 @@ SyscallHandler(ExceptionType _et)
                 status = -1;
             }
             // Sacarlo de la tabla
+            #ifndef FILESYS
             if (!status && !(file = currentThread->fileTableIds->Remove(fid))){
                 DEBUG('e', "Cannot found fd id %u in table.\n", fid);
                 status = -1;
             }
+            #else
+            filename = currentThread->GetFileName(fid);
             
+            // El archivo no está abierto.
+            if (filename == nullptr)
+                status = -1;
+
+            if (!status && !(file = currentThread->RemoveFile(fid))){
+                DEBUG('f', "Cannot found fd id %u in table.\n", fid);
+                status = -1;
+            }
+            
+            if(status != -1) {
+                // El archivo fué cerrado.
+                // Hay que eliminarlo unicamente si el proceso es el último
+                // en tenerlo abierto.
+                
+                fileTable->FileORLock(filename, ACQUIRE);
+                
+                int opens = fileTable->GetOpen(filename);
+                
+                if (opens > 1){
+                    DEBUG('f', "Soy %d, cierro el archivo %s y no soy el último, quedan %d\n", currentThread->GetPid(), filename, opens);
+                    status = fileTable->CloseOne(filename);
+                    if (status > 0)
+                        status = 0;
+                    machine->WriteRegister(2,status);
+                    fileTable->FileORLock(filename, RELEASE);
+                    break;
+                }
+
+                // Soy el último proceso que tiene abierto el archivo.
+                if (opens == 1) 
+                {
+                    DEBUG('f', "Soy el último, cerrando completamente el archivo %s\n", filename);
+                    fileTable->CloseOne(filename);
+
+                    if (fileTable->isDeleted(filename))
+                    {
+                        // Soy el último y el archivo tiene que ser borrado.
+                        // Por lo tanto aviso al thread que estaba esperando para hacerlo.
+                        DEBUG('f', "Cierro último el archivo %s y debe ser eliminado\n", filename);
+                        fileTable->FileRemoveCondition(filename, SIGNAL);
+                    }
+                    
+
+                    DEBUG('f', "Deleteo %s\n", filename);
+                    fileTable->SetClosed(filename, true);
+                    
+                    delete file;
+
+                    machine->WriteRegister(2,status);
+                    fileTable->FileORLock(filename, RELEASE);
+                    break;
+                }
+                
+                // Si llegó acá es porque opens no tiene un valor válido.
+                status = -1;
+            }
+            #endif
+            
+            DEBUG('f', "NO TENGO QUE ESTAR ACA\n");
             // Sacarlo de memoria 
             if (!status)
                 delete file;
 
-            machine->WriteRegister(2, 0);
+            machine->WriteRegister(2, status);
             break;
         } 
         
@@ -260,35 +366,98 @@ SyscallHandler(ExceptionType _et)
             
             if (id == 1){
                 DEBUG('e', "Error: File Descriptor Stdout");
-                status = -1;
+                machine->WriteRegister(2, -1);
+                break;
             }
 
-            if (!status && bufferToWrite == 0){
+            if (bufferToWrite == 0){
                 DEBUG('e', "Error: Buffer to write is null. \n");
-                status = -1;
+                machine->WriteRegister(2, -1);
+                break;
             }
 
-            if (!status && bytesToRead < 0) {
+            if (bytesToRead < 0) {
                 DEBUG('e', "Error: Bytes to read is negative. \n");
-                status = -1;
+                machine->WriteRegister(2, -1);
+                break;
             }
             
-            if(!status && id != 0 && !(file = currentThread->fileTableIds->Get(id))) {
+            #ifndef FILESYS
+            DEBUG('f', "Reading file not FILESYS\n");
+            file = currentThread->fileTableIds->Get(id);
+            if(id != 0 && file == NULL) {
                 DEBUG('e', "Error: File not found. \n");
-                status = -1;
+                machine->WriteRegister(2, -1);
+            }
+            #else
+            file = currentThread->GetFile(id);
+            if(id != 0 && file == NULL) {
+                DEBUG('e', "Error: File not found. \n");
+                machine->WriteRegister(2, -1);
+                break;
             }
             
-            if (!status) {
-                if (id == 0){
-                    status = bytesToRead;
-                    synch_console->ReadNBytes(bufferTransfer, bytesToRead);
-                }
-                else
-                    status = file->Read(bufferTransfer, bytesToRead);
-                
-                if (status != 0) // NO estoy en EOF
-                    WriteBufferToUser(bufferTransfer, bufferToWrite, status);
+            char* filename = currentThread->GetFileName(id);
+
+            if (filename == NULL) {
+                DEBUG('f', "Error: File not found in file table. \n");
+                machine->WriteRegister(2, -1);
+                break;
             }
+            
+            DEBUG('f', "Reading file %s\n", filename);
+
+            // Si no estoy leyendo la consola.
+            if (id != 0) {
+                
+                // Aumento la cantidad de lectores
+                // y de paso checkeo que no se esté escribiendo el archivo.
+                fileTable->FileRdWrLock(filename, ACQUIRE);
+                fileTable->AddReader(filename);
+                fileTable->FileRdWrLock(filename, RELEASE);
+                
+                status = file->ReadAt(bufferTransfer, bytesToRead, currentThread->GetFileSeek(id));
+                
+                DEBUG('f', "Leí %s con una cantidad de bytes de %d en el archivo %s. Offset actual: %d\n", bufferTransfer, status, filename, currentThread->GetFileSeek(id));
+                // PARA TESTEAR YA QUE NO HAY READ_AT
+                //status = file->ReadAt(bufferTransfer, bytesToRead, 0);
+                
+                if (status != 0){ // NO estoy en EOF
+                    WriteBufferToUser(bufferTransfer, bufferToWrite, status);
+                    currentThread->AddFileSeek(id, bytesToRead); 
+                }
+
+                fileTable->FileRdWrLock(filename, ACQUIRE);
+                fileTable->RemoveReader(filename);
+                if (fileTable->GetReaders(filename) == 0 && fileTable->GetWriter(filename))
+                    fileTable->FileWriterCondition(filename, SIGNAL);
+
+                fileTable->FileRdWrLock(filename, RELEASE);
+                
+                machine->WriteRegister(2,status);
+                break;
+            } else { 
+               // Estoy leyendo de la consola.
+                DEBUG('f', "Reading from console\n");
+                // No tengo que hacer nada con el lock.
+                // Solo leer el buffer y escribirlo.
+                status = bytesToRead;
+                synch_console->ReadNBytes(bufferTransfer, bytesToRead); 
+                WriteBufferToUser(bufferTransfer, bufferToWrite, status);
+                machine->WriteRegister(2, status);
+                break;
+            }
+            #endif
+            
+            if (id == 0){
+                status = bytesToRead;
+                synch_console->ReadNBytes(bufferTransfer, bytesToRead);
+            }
+            else
+                status = file->Read(bufferTransfer, bytesToRead);
+            
+            if (status != 0) // NO estoy en EOF
+                WriteBufferToUser(bufferTransfer, bufferToWrite, status);
             
             machine->WriteRegister(2, status);
             break;       
@@ -298,39 +467,101 @@ SyscallHandler(ExceptionType _et)
             int bufferToRead = machine->ReadRegister(4);
             int bytesToWrite = machine->ReadRegister(5);
             OpenFileId id = machine->ReadRegister(6);
-            int status = 0;            
             OpenFile *file;            
+            int status = 0;
             char bufferTransfer[bytesToWrite];
-
+            
+            DEBUG('f', "Writing file of id: %d\n", id);
+            
             if (id == 0){
                 DEBUG('e', "Error: File Descriptor Stdin");
-                status = -1;
+                machine->WriteRegister(2, -1);
+                break;
             }
-                
-            if (!status && bufferToRead == 0){
+            
+            if (bufferToRead == 0){
                 DEBUG('e', "Error: Buffer to read is null. \n");
-                status = -1;
+                machine->WriteRegister(2, -1);
+                break;
             }
-
-            if (!status && bytesToWrite <= 0) {
+            
+            if (bytesToWrite <= 0) {
                 DEBUG('e', "Error: Bytes to write is non positive. \n");
-                status = -1;
+                machine->WriteRegister(2, -1);
+                break;
             }
             
             //Buscar id
-            if(!status && id != 1 && !(file = currentThread->fileTableIds->Get(id))) {
+            #ifndef FILESYS
+            file = currentThread->fileTableIds->Get(id);
+            if( id != 1 && file == NULL) {
                 DEBUG('e', "Error: File not found. \n");
-                status = -1;
+                machine->WriteRegister(2, -1);
+                break;
+            }
+            #else
+            file = currentThread->GetFile(id);
+            if(id != 1 && file == NULL) {
+                DEBUG('f', "Error: File not found. \n");
+                machine->WriteRegister(2, -1);
+                break;
             }
             
-            if (!status) {
+            char* filename = currentThread->GetFileName(id);
+            
+            if (filename == nullptr) {
+                DEBUG('f', "Error: File not found in file table. \n");
+                machine->WriteRegister(2, -1);
+                break;
+            }
+            
+            DEBUG('f', "Writing file %s\n", filename);
+            ASSERT(file == fileTable->GetFile(filename));
+            
+            // Si está todo bien y no estoy escribiendo a consola.
+            if (id != 1) {
+                // Tengo el Lock, tengo que checkear que no haya ecritores.
+                fileTable->FileWrLock(filename, ACQUIRE);
+                fileTable->FileRdWrLock(filename, ACQUIRE);
+                fileTable->SetWriter(filename, true);
+
+                int readers = fileTable->GetReaders(filename);
+               
+                DEBUG('f', "Por escribir en %s, soy %d.\n", filename, currentThread->GetPid());
+                if (readers > 0)
+                    fileTable->FileWriterCondition(filename, WAIT);
+
+                // Cuando salga de acá, tiene el lock tomado y no hay lectores.
+                // Por lo tanto, escribo.
                 ReadBufferFromUser(bufferToRead, bufferTransfer, bytesToWrite);
-                if (id == 1){
-                    status = bytesToWrite;
-                    synch_console->WriteNBytes(bufferTransfer, bytesToWrite); 
-                }
-                else 
-                    status = file->Write(bufferTransfer, bytesToWrite); 
+                status = file->WriteAt(bufferTransfer, bytesToWrite, currentThread->GetFileSeek(id));
+                currentThread->AddFileSeek(id, bytesToWrite); 
+                DEBUG('f', "Escribí %s con una cantidad de bytes de %d en file %s. Offset actual: %d\n", bufferTransfer, status, filename, currentThread->GetFileSeek(id));
+                
+                machine->WriteRegister(2,status);
+                fileTable->FileRdWrLock(filename, RELEASE);
+                fileTable->FileWrLock(filename, RELEASE);
+                break;
+            } else {
+                // Estoy escribiendo a consola.
+                // No tengo que hacer nada con el lock.
+                // Solo leer el buffer y escribirlo.
+                DEBUG('f', "Escribiendo a consola\n");
+                ReadBufferFromUser(bufferToRead, bufferTransfer, bytesToWrite);
+                status = bytesToWrite;
+                synch_console->WriteNBytes(bufferTransfer, bytesToWrite);
+                machine->WriteRegister(2, status);
+                break;
+            }
+            #endif
+            
+            DEBUG('f', "Con FS activado, si leo esto es porque o status es -1 o estoy escribiendo a STDOUT. Status: %d, fd: %d\n", status, id);
+            ReadBufferFromUser(bufferToRead, bufferTransfer, bytesToWrite);
+            if (id == 1){
+                status = bytesToWrite;
+                synch_console->WriteNBytes(bufferTransfer, bytesToWrite); 
+            } else {
+                status = file->Write(bufferTransfer, bytesToWrite); 
             }
 
             machine->WriteRegister(2, status);
@@ -340,7 +571,7 @@ SyscallHandler(ExceptionType _et)
 
             int filenameAddr = machine->ReadRegister(4); 
             int join = machine->ReadRegister(5); 
-            int status = 0;
+            bool status = true;
             OpenFile *executable;
             Thread* newThread;            
             AddressSpace *space; 
@@ -348,39 +579,58 @@ SyscallHandler(ExceptionType _et)
 
             if (filenameAddr == 0){
                 DEBUG('e', "Error: address to filename string is null. \n");
-                status = -1;
+                status = false;
             }
 
-            if (!status && !ReadStringFromUser(filenameAddr, 
-                                    filename, sizeof filename)){
-                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
+            if (!ReadStringFromUser(filenameAddr, 
+                                    filename, sizeof filename) || !status){
+                DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
-                status = -1;
+                status = false;
             }
 
-            if (!status && !(executable = fileSystem->Open(filename))) {
+            if (!(executable = fileSystem->Open(filename)) || !status) {
                 DEBUG('e', "Error: Unable to open file %s\n", filename);
-                status = -1;
+                status = false;
             }
 
-            if (!status &&  !(newThread = new Thread(nullptr,join ? true : false))){
+            if (!(newThread = new Thread(nullptr,join ? true : false)) || !status){
                 DEBUG('e', "Error: Unable to create a thread %s\n", filename);
-                status = -1; 
+                status = false; 
+            }
+            
+            int newpid = -1;
+            if (status)
+                newpid = space_table->Add(newThread);
+            
+            if (newpid == -1 && status)
+            {
+                DEBUG('e', "Error: No se puede agregar el Thread a la space_table\n");
+                status = false;
             }
 
-            if (!status &&  !(space = new AddressSpace(executable))){
+            if (!(space = new AddressSpace(executable, newpid)) || !status){
                 DEBUG('e', "Error: Unable to create the address space \n");
-                status = -1;
+                status = false;
             }
 
-            if (!status){
-                delete executable;
+            // Caso en que falló la creación del AddressSpace pero el thread se agregó a la tabla.
+            if (newpid != -1 && !status)
+                space_table->Remove(newpid);
+
+            if (status){
+                newThread->SetPid(newpid);
                 newThread->space = space;
-                status = space_table->Add(newThread);
                 newThread->Fork(ProcessInit, nullptr);
             }
+            else{
+                if (newThread != nullptr)
+                    delete newThread;
+                if (space != nullptr)
+                    delete space;
+            }
 
-            machine->WriteRegister(2, status);
+            machine->WriteRegister(2, newpid);
             break;
         } 
         case SC_EXEC2:{
@@ -388,67 +638,77 @@ SyscallHandler(ExceptionType _et)
             int filenameAddr = machine->ReadRegister(4); 
             int argsVector = machine->ReadRegister(5);
             int join = machine->ReadRegister(6);
-            int status = 0;
             OpenFile *executable;
             Thread* newThread;            
             char** argv;
+            int newpid = -1;
             AddressSpace *space; 
             char filename[FILE_NAME_MAX_LEN + 1];
 
             if (filenameAddr == 0){
                 DEBUG('e', "Error: address to filename string is null. \n");
-                status = -1;
+                machine->WriteRegister(2, newpid);
+                break;
             }
 
-            if (!status && argsVector == 0){
+            if (argsVector == 0){
                 DEBUG('e', "Error: address to argsVector is null. \n");
-                status = -1;
+                machine->WriteRegister(2, newpid);
+                break;
             }
 
-            if (!status && !ReadStringFromUser(filenameAddr, 
+            if (!ReadStringFromUser(filenameAddr, 
                                     filename, sizeof filename)){
                  DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
-                status = -1;
+                machine->WriteRegister(2, newpid);
+                break;
             }
 
-            if (!status && !(argv = SaveArgs(argsVector))){
+            if (!(argv = SaveArgs(argsVector))){
                  DEBUG('e', "Error: Unable to get User Args Vectors.\n",
                       FILE_NAME_MAX_LEN);
-                status = -1;
+                machine->WriteRegister(2, newpid);
+                break;
             }
 
-            if (!status && !(executable = fileSystem->Open(filename))) {
+            if (!(executable = fileSystem->Open(filename))) {
                 DEBUG('e', "Error: Unable to open file %s\n", filename);
-                status = -1;
+                machine->WriteRegister(2, newpid);
+                break;
             }
 
-            if (!status &&  !(newThread = new Thread(nullptr, join ? true : false))){
+            if (!(newThread = new Thread(nullptr, join ? true : false))) {
                 DEBUG('e', "Error: Unable to create a thread %s\n", filename);
-                status = -1; 
+                machine->WriteRegister(2, newpid);
+                break;
             }
 
-            if (!status &&  !(space = new AddressSpace(executable))){
+            if ((newpid = space_table->Add(newThread)) == -1){
+                DEBUG('e', "Error: No se puede agregar el Thread a la space_table\n");
+                delete newThread;
+                machine->WriteRegister(2, newpid);
+                break;
+            }
+
+            if (!(space = new AddressSpace(executable, newpid))){
                 DEBUG('e', "Error: Unable to create the address space \n");
-                status = -1;
+                space_table->Remove(newpid);
+                delete newThread;
+                machine->WriteRegister(2, newpid);
+                break;
             }
 
-            if (!status){
-                delete executable;
-                newThread->space = space;
-                status = space_table->Add(newThread);
-                newThread->Fork(ProcessInitArgs, (void*)argv);
-            }
+            newThread->SetPid(newpid);
+            newThread->space = space;
+            newThread->Fork(ProcessInitArgs, (void*)argv);
 
-            machine->WriteRegister(2, status);
+            machine->WriteRegister(2, newpid);
             break;
         } 
         case SC_EXIT: {
 
             int ret = machine->ReadRegister(4);            
-
-            delete currentThread->space;
-
 
             if (space_table->Get(0) == currentThread) // Main thread Exit
                 interrupt->Halt();
@@ -457,22 +717,126 @@ SyscallHandler(ExceptionType _et)
             break;
         }
         case SC_JOIN: {
-
             SpaceId childId = machine->ReadRegister(4); 
             int status = 0;
             Thread *child;
+
+            DEBUG('f', "Hago join al id: %d\n", childId);
             if (!(child = space_table->Get(childId))){
-                DEBUG('e', "Error: Unable to get the childId.\n");
+                DEBUG('f', "Error: Unable to get the childId.\n");
                 status = -1;
             }
             if (!status){
+                DEBUG('f', "Voy a sacar childId de la space-table\n");
                 space_table->Remove(childId);
+                DEBUG('f', "Llamo a Join\n");
                 status = child->Join();
             }
             
             machine->WriteRegister(2, status);
+            DEBUG('f', "Hago JOIN, soy: %d\n", currentThread->GetPid());
             break;
         }
+        #ifdef FILESYS
+        case SC_MKDIR: {
+            int dirNameAddr = machine->ReadRegister(4);
+            bool status = true;
+            char dirname[FILE_NAME_MAX_LEN + 1];
+            
+            DEBUG('f', "Creating a directory\n");
+
+            if (!ReadStringFromUser(dirNameAddr, 
+                                    dirname, sizeof dirname)){
+                 DEBUG('f', "Error: dirname string too long (maximum is %u bytes).\n",
+                      FILE_NAME_MAX_LEN);
+                status = false;
+            }
+            
+            if(fileSystem->MkDir(dirname,0))
+                status = 0;
+            else 
+                status = -1;
+
+            machine->WriteRegister(2,status);
+            DEBUG('f',"Creé el directorio %s, soy %d.\n", dirname, currentThread->GetPid());
+            break;
+        }
+        
+        case SC_RMDIR: {
+            
+            int dirNameAddr = machine->ReadRegister(4);
+            bool status = true;
+            char dirname[FILE_NAME_MAX_LEN + 1];
+            
+            DEBUG('f', "Removing a directory\n");
+
+            if (!ReadStringFromUser(dirNameAddr, 
+                                    dirname, sizeof dirname)){
+                 DEBUG('f', "Error: dirname string too long (maximum is %u bytes).\n",
+                      FILE_NAME_MAX_LEN);
+                status = false;
+            }
+            
+            if(fileSystem->RemoveDir(dirname))
+                status = 0;
+            else 
+                status = -1;
+
+            machine->WriteRegister(2,status);
+            DEBUG('f',"Eliminé el directorio %s, soy %d.\n", dirname, currentThread->GetPid());
+            break;
+
+        }
+        case SC_CDIR: {
+
+            int dirNameAddr = machine->ReadRegister(4);
+            bool status = true;
+            char dirname[FILE_NAME_MAX_LEN + 1];
+            
+            DEBUG('f', "Changing directory\n");
+
+            if (!ReadStringFromUser(dirNameAddr, 
+                                    dirname, sizeof dirname)){
+                 DEBUG('f', "Error: dirname string too long (maximum is %u bytes).\n",
+                      FILE_NAME_MAX_LEN);
+                status = false;
+            }
+            
+            if(currentThread->ChangeDir(dirname))
+                status = 0;
+            else 
+                status = -1;
+
+            machine->WriteRegister(2,status);
+            DEBUG('f',"Cambié al directorio %s, soy %d.\n", dirname, currentThread->GetPid());
+            break;
+        }
+        case SC_LSDIR: {
+            
+            int dirNameAddr = machine->ReadRegister(4);
+            bool status = true;
+            char dirname[FILE_NAME_MAX_LEN + 1];
+            
+            DEBUG('f', "Listing directory\n");
+
+            if (!ReadStringFromUser(dirNameAddr, 
+                                    dirname, sizeof dirname)){
+                 DEBUG('f', "Error: dirname string too long (maximum is %u bytes).\n",
+                      FILE_NAME_MAX_LEN);
+                status = false;
+            }
+            
+            if(fileSystem->Ls(dirname))
+                status = 0;
+            else 
+                status = -1;
+
+            machine->WriteRegister(2,status);
+            DEBUG('f',"Listé el directorio %s, soy %d.\n", dirname, currentThread->GetPid());
+
+            break;
+        }
+        #endif
         default:
             fprintf(stderr, "Unexpected system call: id %d.\n", scid);
             ASSERT(false);
@@ -488,7 +852,11 @@ SetExceptionHandlers()
 {
     machine->SetHandler(NO_EXCEPTION,            &DefaultHandler);
     machine->SetHandler(SYSCALL_EXCEPTION,       &SyscallHandler);
+    #ifdef USE_TLB
+    machine->SetHandler(PAGE_FAULT_EXCEPTION,    &PageFaultHandler); /// Cambiar el manejador por PageFaultHandler
+    #else
     machine->SetHandler(PAGE_FAULT_EXCEPTION,    &DefaultHandler); /// Cambiar el manejador por PageFaultHandler
+    #endif
     machine->SetHandler(READ_ONLY_EXCEPTION,     &DefaultHandler);
     machine->SetHandler(BUS_ERROR_EXCEPTION,     &DefaultHandler);
     machine->SetHandler(ADDRESS_ERROR_EXCEPTION, &DefaultHandler);

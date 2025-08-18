@@ -14,9 +14,10 @@
 #define NACHOS_USERPROG_ADDRESSSPACE__HH
 
 
-#include "filesys/file_system.hh"
+#include "coff_reader.h"
 #include "machine/translation_entry.hh"
 #include "lib/table.hh"
+#include "userprog/executable.hh"
 #include <cstdint>
 
 
@@ -36,7 +37,7 @@ public:
     /// Parameters:
     /// * `executable_file` is the open file that corresponds to the
     ///   program; it contains the object code to load into memory.
-    AddressSpace(OpenFile *executable_file);
+    AddressSpace(OpenFile *executable_file, int newThreadPid);
 
     /// De-allocate an address space.
     ~AddressSpace();
@@ -49,6 +50,38 @@ public:
     void SaveState();
     void RestoreState();
 
+    /// Update Tlb
+    void UpdateTLB(unsigned indexTlb, unsigned badVAddr);
+
+    #ifdef DEMAND_LOADING
+    // Using for DL
+    void LoadPage(unsigned badVAddr);
+    #endif
+    #ifdef SWAP
+    // Using for SWAP
+    void Swap(unsigned vpn_to_store);
+    void GetFromSwap(unsigned vpn);
+    bool TestSwapMap(unsigned i);
+    void WriteSwapFile(unsigned vpn, unsigned physicalPage);
+    void ReadSwapFile(unsigned vpn, unsigned physicalPage);
+    void MarkSwapMap(unsigned vpn);
+    #endif
+
+    // Método para actualizar la pageTable.
+    void ActPageTable(unsigned virtualPage, unsigned physicalPage, bool valid, 
+                      bool readOnly, bool use, bool dirty);
+    
+    // Métodos para obtener los campos de la pageTable.
+    unsigned GetPageVpn(unsigned vpn);
+    unsigned GetPagePhysicalPage(unsigned vpn);
+    bool GetPageValid(unsigned vpn);
+    bool GetPageReadOnly(unsigned vpn);
+    bool GetPageUse(unsigned vpn);
+    bool GetPageDirty(unsigned vpn);
+
+    unsigned GetNumPages();
+    
+    void ActValid(unsigned vpn, bool nv);
 private:
 
     /// Assume linear page table translation for now!
@@ -59,6 +92,21 @@ private:
     /// Number of pages in the virtual address space. -> Para no guerdar una tabla de paginacion enorme.
     /// Si un proceso quiere acceder a un valor superior al numPages dará una excepción.
     unsigned numPages;
+    
+    // Pid del thread al cual pertenece este addresspace.
+    int pid;
+
+    #ifdef DEMAND_LOADING
+    // Using for DL
+        Executable *exe; 
+        OpenFile *exe_file;
+    #endif
+
+    #ifdef SWAP
+        char* swapName;
+        OpenFile *swapFile;
+        bool* swapMap;
+    #endif
 };
 
 // Cada vez que se crea un proceso nuevo se crean 3/4 paginas para text/data y resto para stack.

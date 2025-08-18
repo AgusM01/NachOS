@@ -39,12 +39,25 @@
 #define NACHOS_THREADS_THREAD__HH
 
 
+#include "filesys/open_file.hh"
 #include "lib/utility.hh"
 
 
 #ifdef USER_PROGRAM
 #include "machine/machine.hh"
 #include "userprog/address_space.hh"
+
+#ifdef FILESYS
+struct procFileInfo {
+    OpenFile* file;
+    char* name;
+    int seek;
+};
+
+#include "lib/list.hh"
+#define MAX_DIRS 50
+#endif
+
 #endif
 
 #include <stdint.h>
@@ -142,6 +155,12 @@ public:
 
     const char *PrintStatus();
 
+    // Obtener el Pid (Posición en la space_table).
+    int GetPid();
+
+    // Setear el Pid (Posición en la space_table).
+    void SetPid(int newpid);
+
 private:
     // Some of the private data for this class is listed above.
 
@@ -169,6 +188,9 @@ private:
 
     //Scheduler implementation
     int priority;
+    
+    // Pid del proceso, solo en caso de que haya sido creado por EXEC.
+    int pid;
 
 #ifdef USER_PROGRAM
     /// User-level CPU register state.
@@ -177,7 +199,19 @@ private:
     /// registers -- one for its state while executing user code, one for its
     /// state while executing kernel code.
     int userRegisters[NUM_TOTAL_REGS];
-
+    
+    #ifdef FILESYS
+    Table <procFileInfo*> *fileTableIds;
+    
+    // Mantiene una lista con los nombres de los archivos que este thread tiene 
+    // abiertos.
+    // La idea es que cuando el thread termina, mande a cerrar todos los archivos.
+    // De no hacer esto, si termina de usar un archivo y no lo cierra,
+    // este no podrá ser cerrado nunca ya que aparece que este thread sigue 
+    // trabajando con él.
+    List <char*> *openFileNames;
+    
+    #endif
 public:
 
     // Save user-level register state.
@@ -188,8 +222,46 @@ public:
 
     // User code this thread is running.
     AddressSpace *space;
+    
+    #ifdef FILESYS
 
+
+    // Agrega un archivo a la tabla de arhivos abiertos del proceso.
+    int AddFile(OpenFile* newFile, char* name);
+    
+    // Devuelve un archivo que mantiene abierto el proceso.
+    OpenFile* GetFile(int fd);
+    
+    // Devuelve la posición del proceso dentro de dicho archivo.
+    int GetFileSeek(int fd);
+    
+    // Desplaza la posición del proceso dentro del archivo. 
+    int AddFileSeek(int fd, int q);
+    
+    // Elimina un archivo de la lista de archivos abiertos del proceso.
+    OpenFile* RemoveFile(int fd);
+    
+    // Devuelve el nombre de un archivo abierto por el proceso.
+    char* GetFileName(int fd);
+
+    // Directorio sobre el cual este thread está trabajando.
+    char* path[MAX_DIRS];
+
+    // Función para cambiar el directorio sobre el cual estoy trabajando.
+    bool ChangeDir(char* newDir);
+
+    // Función para obtener el directorio bajo el cual está trabajando este thread.
+    char* GetDir();
+
+    // Función que devuelve el padre del directorio de este thread.
+    char* GetDirFather();
+
+    // Cantidad de subdirecciones bajo las que está el thread.
+    unsigned subDirectories;
+    #else
     Table <OpenFile*> *fileTableIds;
+    #endif
+
 #endif
 };
 

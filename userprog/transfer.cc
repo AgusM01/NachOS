@@ -1,5 +1,5 @@
 /// Copyright (c) 2019-2021 Docentes de la Universidad Nacional de Rosario.
-/// All rights reserved.  See `copyright.h` for copyright notice and
+/// All rights reserved.  See copyright.h for copyright notice and
 /// limitation of liability and disclaimer of warranty provisions.
 
 
@@ -16,6 +16,8 @@
 #include "threads/system.hh"
 
 
+
+
 void ReadBufferFromUser(int userAddress, char *outBuffer,
                         unsigned byteCount)
 {
@@ -27,7 +29,14 @@ void ReadBufferFromUser(int userAddress, char *outBuffer,
     do {
         int temp;
         count++;
+#ifdef USE_TLB
+        int i;
+        for(i = 0; i < NUM_EXCEPTION_TYPES && !machine->ReadMem(userAddress, 1, &temp); i++);
+        userAddress++;
+        ASSERT(i != NUM_EXCEPTION_TYPES);
+#else
         ASSERT(machine->ReadMem(userAddress++, 1, &temp));
+#endif
         *outBuffer = (unsigned char) temp;
         outBuffer++;
     } while (count < byteCount);
@@ -35,6 +44,7 @@ void ReadBufferFromUser(int userAddress, char *outBuffer,
     return;
 }
 
+/// Cambiar los ASSERT cuando se haga el soporte para TLB
 bool ReadStringFromUser(int userAddress, char *outString,
                         unsigned maxByteCount)
 {
@@ -46,7 +56,14 @@ bool ReadStringFromUser(int userAddress, char *outString,
     do {
         int temp;
         count++;
+#ifdef USE_TLB
+        int i;
+        for(i = 0; i < NUM_EXCEPTION_TYPES && !machine->ReadMem(userAddress, 1, &temp); i++);
+        userAddress++;
+        ASSERT(i != NUM_EXCEPTION_TYPES);
+#else
         ASSERT(machine->ReadMem(userAddress++, 1, &temp));
+#endif
         *outString = (unsigned char) temp;
     } while (*outString++ != '\0' && count < maxByteCount);
 
@@ -65,7 +82,14 @@ void WriteBufferToUser(const char *buffer, int userAddress,
         int temp;
         temp = *((int*)buffer++);
         count++;
+#ifdef USE_TLB
+        int i;
+        for(i = 0; i < NUM_EXCEPTION_TYPES && !machine->WriteMem(userAddress, 1, temp); i++);
+        userAddress++;
+        ASSERT(i != NUM_EXCEPTION_TYPES);
+#else
         ASSERT(machine->WriteMem(userAddress++, 1, temp));
+#endif
     } while (count < byteCount);
 
     return;
@@ -79,8 +103,15 @@ void WriteStringToUser(const char *string, int userAddress)
 
     do {
         int temp;
-        temp = (*(int*)string++);
+        temp = *((int*)string++);
+#ifdef USE_TLB
+        int i;
+        for(i = 0; i < NUM_EXCEPTION_TYPES && !machine->WriteMem(userAddress, 1, temp); i++);
+        userAddress++;
+        ASSERT(i != NUM_EXCEPTION_TYPES);
+#else
         ASSERT(machine->WriteMem(userAddress++, 1, temp));
+#endif
     } while (*string != '\0');
 
     return;
