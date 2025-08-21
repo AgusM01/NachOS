@@ -11,7 +11,6 @@
 
 Debug debug;
 
-//Sacado de ChatGPT xd
 char* concat(const char* str1, const char* str2) {
     // Calculate the total length needed for the concatenated string
     size_t len1 = strlen(str1);
